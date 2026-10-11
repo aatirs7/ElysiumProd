@@ -49,7 +49,8 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await shot('4-workspace');
     r.web = webStates();
     const web = webStates()[0];
-    if (web) { const png = await captureWeb(web.id); if (png) writeFileSync(join(out, '5-claude-pane.png'), png); }
+    // A hidden native view cannot be captured; that is a limit of the test, not the app.
+    if (web) { try { const png = await captureWeb(web.id); if (png) writeFileSync(join(out, '5-claude-pane.png'), png); } catch (e) { r.webCapture = String(e); } }
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Your stats'))?.click()`);
     await sleep(5000);
     await shot('6-stats');

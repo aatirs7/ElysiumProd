@@ -43,6 +43,14 @@ export class Tasks {
   run(projectId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string } {
     const t = leadTemplate(projectId);
     if (!t) return { ok: false, reason: 'No session is set up for that project.' };
+    return this.runTemplate(t.id, text);
+  }
+
+  /** Hands a message to one session, starting it in the background on its project's account if needed. */
+  runTemplate(templateId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string } {
+    const t = findTemplate(templateId);
+    if (!t || t.kind !== 'claude') return { ok: false, reason: 'No Claude session by that name.' };
+    const projectId = t.project ?? '';
     const task = text.trim();
     if (!task) return { ok: false, reason: 'Type a task first.' };
     let s = this.sessions.runningFor(t.id);

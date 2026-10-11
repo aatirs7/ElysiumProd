@@ -1,7 +1,7 @@
 // ElysiumProd main process: the main window, the quick bar and tray, sessions,
 // telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { existsSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { Channels, type ResourceSample, type SessionInfo } from '@shared/ipc';
@@ -239,7 +239,21 @@ app.on('before-quit', (e) => {
   void Promise.all([sessions.shutdown(), flushWebSessions()]).finally(() => app.exit(0));
 });
 
-app.on('second-instance', () => showMain());
+/**
+ * A second launch hands its arguments here. `--send <template id> <message>`
+ * gives a session a message in the background, exactly like a quick task;
+ * anything else just shows the window.
+ */
+app.on('second-instance', (_e, argv) => {
+  const i = argv.indexOf('--send');
+  if (i >= 0 && tasks && argv[i + 1] && argv[i + 2]) {
+    const r = tasks.runTemplate(argv[i + 1], argv.slice(i + 2).join(' '));
+    try { appendFileSync(join(dataDir(), 'send.log'), `${new Date().toISOString()} ${argv[i + 1]} ${r.ok ? 'ok' : r.reason}
+`); } catch { /* log is optional */ }
+    return;
+  }
+  showMain();
+});
 
 // With the tray, closing the window does not quit; only Quit from the tray or the app does.
 app.on('window-all-closed', () => { if (SMOKE) app.quit(); });
