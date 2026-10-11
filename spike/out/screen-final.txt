@@ -1,0 +1,51 @@
+
+ ▐▛███▛█   Claude Code v2.1.296
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   ~\ElysiumProd\spike\sandbox
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+◐ medium · /effort  
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Spike Compact ─❯ Try "edit <filepath> to..."
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+  ⏸ manual mode on · ← for agentsspike-statuslineReply with only the word pong.❯ Reply with only the word pong.                                                                                                                                ✽Stewing… (running UserPromptSubmit hooks… 0/2 · 0s)❯  · ← for agents1✻✶*✢·Ebbing… (running Stop hook · 1s)●pongEbbing… · ↓2 tokens)✢Ebbing…3✻Baked for 1s · done 4:13 PM❯ ❯ /compact                                            Free up context by summarizing the conversation so far  /autocompact                                        Set how full the context gets before auto-summarizing  /computer-use                                       Read this skill before the first step of any request to do something in an app on the person's owncomputer (Notes, Finder, System Settings, any desktop app), to look at their screen, or for "compute…/compact❯ /compact                                                                                                                                                      
+✽Running PreCompact hooks… (runningPreCompacthook·0s)
+  ⎿ Tip: Run /ultrareviewforacloud-basedmulti-agent review that finds andverie bugs in yourbranch — 3free rviewsleft◐ medium · /effot❯  · ← for agentsCompacting cnversatin… (0s)✻Co✶Cmpoa*mcpati✢cti · ↓2 tokens)·4129 tokens)✢46*54✶8✻9Advisor Tool (experimental) is on and may use more tokens · /advisor97✽…115 tokens)24n31o263✻74✶i…81*5✢tn7212·ao2331si5✢rt36879*ea88✶94✻vs6321✽nr4659oe71✻cv45400✶ n25*42✢go9Running SessionStar hooks… (runningSessionStart hook · 4s · ↑474 tokens)·8799513PotCmpact hoks… (runing PostCompact hook ·4s ·↑ 513 tokens)823 
+  ⎿  Compacted (ctrl+o to see full summary)PreCompact [node "C:/Users/aatir/ElysiumProd/spike/hooklog.js" PreCompact] completed successfullyPostCompact [node "C:/Users/aatir/ElysiumProd/spike/hooklog.js" PostCompact] completed successfully
+❯ 

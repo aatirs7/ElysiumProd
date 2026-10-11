@@ -1,0 +1,12 @@
+{
+  "ready": true,
+  "msReady": 3666,
+  "flagErrorShown": false,
+  "badgeShown": true,
+  "peersMentioned": false,
+  "contextMeter": false,
+  "advisorOn": true,
+  "exit": {
+    "exitCode": 0
+  }
+}
