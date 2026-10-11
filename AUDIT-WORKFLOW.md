@@ -75,7 +75,7 @@ So the outage was about **36 hours**, not nine days. It was **caused by a rename
 - The two cases the spec cites stand: the 36 hour stale relay from 2026-09-23 and issues 19 and 20 routed a day late, both in the Attestia relay text.
 - The Finding 2 sequence above is a third.
 - Fourth: on 2026-09-28, two SessionEnd hooks raced on the git index and left an `index.lock` that blocked every commit in the Attestia checkout for four hours (`truestate/scripts/session-end.mjs` header).
-- Fifth, a different cause: Elysium Intern's Meridian was stopped by the CLI at about 17:11 Eastern on 2026-10-10 because the laptop ran critically low on memory. It is now waiting for the owner's answer inside its own pane (Intern relay, "Blocked on the owner" item 2).
+- Fifth, a different cause: Elysium Intern's Meridian was stopped by the CLI at about 17:11 Eastern on 2026-10-10 because the laptop ran critically low on memory. It is now waiting for the owner's answer inside its own pane (Intern relay, "Blocked on the owner" item 2). Two sources agree: the last record in Meridian Intern's transcript, `2affe11c`, is at 17:12 Eastern the same day.
 - Sixth: SecurITPosture's Meridian is holding uncommitted work "until the reinstall (4.1 GB free, needs 5)" (relay #105, 2026-10-11). `C:` has 14 GB free, 98 percent used.
 
 **Finding 4, "the board has been dark since 2026-09-29": wrong in detail, right in substance.**

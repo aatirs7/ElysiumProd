@@ -9,7 +9,7 @@ Scope, as directed by the owner on 2026-10-11: full treatment for the main, high
 - Walked `C:\Users\aatir` to depth 4 for `.git`, excluding `node_modules` and `AppData`: 73 checkouts found, this repository included.
 - Grouped checkouts by `origin` URL so worktrees and second clones count once. 73 checkouts reduce to 55 distinct remotes; a checkout with no remote counts as its own.
 - Commits counted with `git log --all --since=2026-09-21 --no-merges`. Line counts exclude lockfiles, `dist/`, `.min.`, `.svg` and `.png`.
-- Cross checked against the 37 folder names under `~/.claude/projects/`, the 50 trusted project entries in `~/.claude.json`, `githubRepoPaths` in `~/.claude.json` (50 repos), and VS Code's `workspaceStorage`. The 13 VS Code folders opened since 2026-09-21 are all active repos listed below, except `C:\Users\aatir\Attestia-print`, which is not a git repository.
+- Cross checked against the 37 folder names under `~/.claude/projects/`, not counting this session's, the 50 trusted project entries in `~/.claude.json`, `githubRepoPaths` in `~/.claude.json` (50 repos), and VS Code's `workspaceStorage`. The 13 VS Code folders opened since 2026-09-21 are all active repos listed below, except `C:\Users\aatir\Attestia-print`, which is not a git repository.
 - Script: `audit/scripts/repos.py`. Re-run it to reproduce every number here.
 
 ## Main projects

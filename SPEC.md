@@ -137,7 +137,7 @@ Workspace
  │   ├─ BootProfile   a named set of sessions and panes to launch together
  │   ├─ Session       a live PTY bound to one account
  │   ├─ Telemetry     live per-session metrics from the side channel
- │   └─ Relay         cached MCP relay state
+ │   └─ Relay         cached relay state, read from the relay file or issue
  ├─ Layout         serialized Dockview state per project
  └─ Rule           event to action mapping
 ```

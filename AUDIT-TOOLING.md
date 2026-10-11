@@ -6,7 +6,7 @@ Phase A, step 21.2. Configuration and metadata only. Secrets are recorded by pat
 
 | Directory | Created | Contents | Used |
 |---|---|---|---|
-| `C:\Users\aatir\.claude` | long standing | `settings.json`, `.credentials.json`, `history.jsonl` (9,032 lines, 2.6 MB), `projects/` (37 folders before this session), `plugins/`, `skills/`, `dev-mods/`, `file-history/`, `plans/`, `telemetry/` | Every session in the window |
+| `C:\Users\aatir\.claude` | long standing | `settings.json`, `.credentials.json`, `history.jsonl` (9,032 lines, 2.6 MB), `projects/` (37 folders, plus this session's), `plugins/`, `skills/`, `dev-mods/`, `file-history/`, `plans/`, `telemetry/` | Every session in the window |
 | `C:\Users\aatir\.claude-account2` | 2026-09-21 19:55 | `settings.json`, `.credentials.json`, **its own `.claude.json`** (48 KB, 1 trusted project, has an `oauthAccount` key), `plugins/`, `skills/`, `sessions/` | **Never.** Every file carries the creation timestamp and there is no `projects/` folder |
 
 Two facts the spec marked UNVERIFIED are answered by this directory:
