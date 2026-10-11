@@ -61,3 +61,9 @@ Scope, as the owner directed: the main projects get the full audit. The local re
 - The git pane lists worktrees and sibling clones. That is read only, because 5 of 7 Attestia worktrees are stale.
 - Duplicated hooks and commands across repos are explicitly out of scope for ElysiumProd. They belong in the plugin.
 - No authentication layer is added anywhere. Clerk is not used.
+
+## Owner answers, 2026-10-11
+
+- **Finding 1, confirmed.** Prime and Meridian launch together for the main projects, and side projects launch a single session. SPEC section 2.3 now says the audit overturned the v2 verdict, and it keeps the original claim beside the reason it was wrong.
+- **Finding 8, revised.** The `/login` runs were re-authentications of the main account after expiry, not account switching. So nothing on this machine shows two accounts working side by side, and multi-account is treated as unproven. Phase 0 step 2 is now a pass or fail test that gates every multi-account feature. Failover needs that pass, the terms check and the owner's confirmation before it is built.
+- **Dogfood order.** SecurITPosture and Elysium Intern first, then Gulf third. Attestia stays out while it is paused.

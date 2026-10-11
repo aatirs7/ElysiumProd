@@ -43,7 +43,34 @@ Rewritten from the Phase A audit, which ran on the machine with every clone, con
 - **The in-CLI cockpit already exists.** The owner's `securitposture-mods` plugin shows context use, parks, compacts and resumes at 85 percent, shows the relay's waiting line and peer liveness, and has `/ram`. (Finding 2)
 - **The launcher already exists.** `cs.ps1` maps eight session titles to folders and flags. (Finding 3)
 
-### 2.3 What actually goes wrong
+### 2.3 Verdict on Prime and Meridian
+
+**Overturned by the Phase A audit. Confirmed by the owner on 2026-10-11.**
+
+Version 2 of this section said, provisionally:
+
+> "So: **default to one session per project, with the second as an on-demand pane.** Meridian becomes a template with `autoStart: false` that Prime's relay can request, ElysiumProd surfaces as an alert, and one keystroke starts. That turns a nine-day blocker into a notification."
+
+It rested on three claims. Each was wrong:
+
+| v2 claim | What the local record shows | Source |
+|---|---|---|
+| "On six of the eight active days, one session did effectively all the work" | Both Attestia sessions were active together in 74 percent of the pair's working windows. Meridian made 194 commit calls to Prime's 172. The board ledger v2 read records hook start and end times, which show 0 minutes on days a session worked for hours. | AUDIT-WORKFLOW, Finding 1 |
+| "Meridian idles for days, and its idleness silently blocks Prime." | Meridian made 53 percent of commit calls in Attestia and 57 percent in SecurITPosture, and 28 to 30 percent in Elysium Intern and Gulf. When it stops, the cause is low memory, low disk, or a broken name match, not idleness. | AUDIT-WORKFLOW; AUDIT-SUMMARY F1, F6 |
+| "That is nine days blocked, and the blocking action is launching a terminal." | Prime renamed itself on 2026-10-02 and lost the match with Meridian. The pair was cut for about 36 hours, until Meridian was renamed on 10-04. For the remaining seven days the relay was simply never corrected. | AUDIT-WORKFLOW, Finding 2 |
+
+Why v2 got it wrong: it was written from the board ledger and the relay text alone, without access to the transcripts or git. Both of those sources record what a hook or an agent last wrote, not what was running.
+
+**The verdict now:** Prime and Meridian launch together for the main projects. Side projects launch a single session.
+
+What ElysiumProd changes is the four things around the pair that actually failed (2.4):
+
+- stable identity, in 7 and 8.3.2;
+- machine maintained liveness, in 11.6;
+- the resource gate, in 10.6;
+- the attention strip, in 8.1.
+
+### 2.4 What actually goes wrong
 
 1. **Identity by string.** A rename on 2026-10-02 cut the Attestia pair's link for about 36 hours. The guard, the plugin, `cs.ps1` and the relay all match session titles as text. (Finding 4)
 2. **Liveness reported by hand.** The Attestia relay has said "Meridian is not running" for nine days, seven of them after it stopped being true. Issues 19 and 20 were routed a day late. (Finding 7)
@@ -53,19 +80,6 @@ Rewritten from the Phase A audit, which ran on the machine with every clone, con
 6. **Hooks race.** Two SessionEnd hooks left a git index lock that blocked Attestia commits for four hours on 2026-09-28. (Finding 10)
 
 The board ledger figures that version 2 relied on are hook span timings. They show 0 minutes on days a session worked for hours, and 900-plus minutes for windows left open. Do not use them as activity. (Finding 5)
-
-### 2.4 Verdict on Prime and Meridian
-
-**Keep the pair, and launch it together, for the main projects.** The on demand Meridian of version 2 is withdrawn: Meridian carries up to 57 percent of the commits, and the blocker that motivated the change was a rename followed by a stale relay, not an idle session.
-
-What ElysiumProd changes is the four things around the pair:
-
-- stable identity, in 7 and 8.3.2;
-- machine maintained liveness, in 11.6;
-- the resource gate, in 10.6;
-- the attention strip, in 8.1.
-
-Side projects default to one session.
 
 ## 3. Goals
 
@@ -236,7 +250,7 @@ Home is the first tab in the left rail and the default view on app start. It is 
 
 ### 8.1 Attention strip
 
-Pinned at the top, full width, centered. The single most valuable widget in the app, given section 2.3 items 2 to 4. It lists everything currently waiting on the owner, across all projects, newest first:
+Pinned at the top, full width, centered. The single most valuable widget in the app, given section 2.4 items 2 to 4. It lists everything currently waiting on the owner, across all projects, newest first:
 
 - Sessions in `awaiting-input`, from the `Notification` hook. This is the case of a Meridian waiting for a yes in its own pane.
 - Relay items under the project's own `waitingHeading`, which differs per repo: "Blocked on the owner", "Waiting on Aatir".
@@ -282,7 +296,7 @@ Clicking Launch on an already-running project just switches to it. Launching a p
 
 Three stock profiles, editable per project:
 
-- **full**: Prime, Meridian, relay, git, notes. The default for `tier: main` projects, per section 2.4.
+- **full**: Prime, Meridian, relay, git, notes. The default for `tier: main` projects, per section 2.3.
 - **solo**: one session, git. The default for `tier: side` projects. A relay pane only if the project has a relay.
 - **review**: no PTY at all, just the router pane. For when the task is a single headless query.
 
@@ -294,7 +308,7 @@ The first launch of ElysiumProd builds its projects from what is already on the 
 2. Read each project's `.claude/mods.json` for the relay source, `waitingHeading`, session colours and the watcher command, and `.claude/sessions.json` for the peer list.
 3. Detect a second checkout of the same remote, such as `Gulf-meridian` or `elysiumintern-v4`, and offer it as the Meridian template's `cwd`.
 4. Offer every other repo with Claude activity in the last 30 days as a `tier: side` project with a solo profile.
-5. Register `C:\Users\aatir\.claude` and `C:\Users\aatir\.claude-account2` as the two accounts.
+5. Register `C:\Users\aatir\.claude` as the account. Register `C:\Users\aatir\.claude-account2` as a second account only if Phase 0 step 2 passed.
 
 Import is read only against those files. Writing back is section 8.3.2.
 
@@ -472,7 +486,7 @@ Correction to v2: version 2 said sessions "compacted repeatedly and silently" wi
 
 ### 10.6 Machine resources
 
-Promoted by the audit: memory and disk are what actually stop Meridian on this machine (section 2.3 item 3). Built in Phase 1, not Phase 4.
+Promoted by the audit: memory and disk are what actually stop Meridian on this machine (section 2.4 item 3). Built in Phase 1, not Phase 4.
 
 Per session: resident set size of the PTY process tree, sampled every 5s, including the subagents, renders and dev servers the session started.
 System: CPU percentage and RAM used against total, sampled every 2s; free disk on the system drive and on the drive holding `%APPDATA%\elysiumprod`, sampled every 60s. All shown in the bottom bar and on Home.
@@ -528,7 +542,8 @@ Each takes precedence over the subscription login. If any is inherited, both ses
 - Console sign-in without an API key stores credentials outside `CLAUDE_CONFIG_DIR` and would collide. Does not apply here; both accounts are Max.
 - Expired logins need interactive `/login`. Surface as `needs-login`, not as a merely idle pane.
 - Largely resolved by the audit: `.claude.json` does move with `CLAUDE_CONFIG_DIR`. `C:\Users\aatir\.claude-account2\.claude.json` exists with its own `oauthAccount`, `userID` and project trust list. Phase 0 confirms only that `%USERPROFILE%\.claude.json` is left untouched while the variable is set. Consequence: the two accounts do not share user scope MCP servers. `elysiumvault` and `elysiumintern` are registered only in the main account today and must be added to the second, or moved to project `.mcp.json`. The claude.ai connectors, including Attestia, securITposture and Elysium Intern, follow the claude.ai login, so each account needs them connected separately.
-- The second account exists and has never run a session (created 2026-09-21, no `projects/` folder). Meanwhile `/login` was run 9 to 10 times in the window. Ask the owner what those logins were for before designing switching around them.
+- **Multi-account is unproven.** The second account exists but has never run a session (created 2026-09-21, no `projects/` folder). The 9 to 10 `/login` runs in the window were re-authentications of the main account after expiry, not account switching (owner, 2026-10-11). Nothing on this machine shows two accounts working side by side. Phase 0 step 2 is the test that decides it, and every multi-account feature waits for its result.
+- Re-authentication after expiry is the login friction that actually happens. `needs-login` detection (10.7) and the attention row for it matter more than switching.
 - UNVERIFIED: whether concurrent use of two Max accounts is permitted under Anthropic's terms. Resolve before building automatic failover. If not, keep account switching manual and drop section 11.5.
 
 ### 11.4 Switching
@@ -537,7 +552,7 @@ Kill the PTY, respawn against the other account's config dir, with `--continue` 
 
 ### 11.5 Failover
 
-On `rate_limits.five_hour` from the status line crossing a configured floor, or on a hard rate-limit signal, switch to the failover account automatically and notify. Off by default. Gated on the terms question in 11.3. Always writes a loud visible banner into the pane; never silent.
+On `rate_limits.five_hour` from the status line crossing a configured floor, or on a hard rate-limit signal, switch to the failover account automatically and notify. Off by default. Gated on three things, in order: Phase 0 step 2 passing, the terms question in 11.3, and the owner confirming before it is built. Until all three hold, this section is not built. Always writes a loud visible banner into the pane; never silent.
 
 ### 11.6 Liveness file
 
@@ -764,7 +779,13 @@ Each phase ends in something usable. Do not start one before the previous runs o
 
 **Phase 0, spike, half a day.** Prove the risky things before writing app code.
 1. `node-pty` installs or builds for Electron on win32-arm64, and a PowerShell session round-trips through ConPTY.
-2. Launch one session with `CLAUDE_CONFIG_DIR=C:\Users\aatir\.claude-account2` and confirm `%USERPROFILE%\.claude.json` is not modified. The per directory `.claude.json` is already observed (11.3).
+2. **Load-bearing: prove two accounts work at once.** The rest of the multi-account design depends on this step, so treat it as a test that can fail. Launch one session on the main account and one with `CLAUDE_CONFIG_DIR=C:\Users\aatir\.claude-account2`, at the same time. Pass only if all of these hold:
+   - each session reports the expected account, and the status line `rate_limits` differ between them;
+   - neither session forces the other to log in again, across a full turn in each;
+   - `%USERPROFILE%\.claude.json` and `C:\Users\aatir\.claude\.credentials.json` are unchanged by the second session;
+   - the second session still sees the claude.ai connectors it needs, or the gap is recorded.
+
+   Record the result as pass or fail in `PHASE0.md`. On a fail, ElysiumProd is single account: section 11.4 becomes a re-login helper, 11.5 is dropped, and Phase 3 builds only the account chip and `needs-login`.
 3. A status line shim receives JSON on stdin. Dump the raw object and confirm which documented fields actually arrive on this CLI version, especially `context_window.*` and `rate_limits.*`.
 4. Register all eight hooks from 10.2 to a logging script in the account directory and capture raw stdin for each, especially `PreCompact`, `Stop`, `SessionEnd` and `Notification`. In the same run, confirm the project hooks of `securitposture_2026` still fire, so user scope and project scope hooks add up.
 5. Confirm the OTLP exporter reaches a trivial local HTTP receiver.
@@ -776,7 +797,7 @@ Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or
 
 **Phase 2, projects, templates and import.** SQLite, project CRUD, left rail, Dockview, multiple panes, layout persistence, session templates with the full field set in 7, the first run import in 8.3.1, and stable identity in 8.3.2.
 
-**Phase 3, accounts and liveness.** Account records for `.claude` and `.claude-account2`, per-session config dir injection, env scrubbing, account chips and pane borders, manual switch with confirm. The liveness file in 11.6.
+**Phase 3, accounts and liveness.** Account record for `.claude`, per-session config dir injection, env scrubbing, account chip and pane border, `needs-login` surfacing. Only if Phase 0 step 2 passed: the `.claude-account2` record and manual switch with confirm. The liveness file in 11.6.
 
 **Phase 4, telemetry.** Ingest server, status line shim, hooks, OTLP receiver, telemetry table, context meter in the pane header using the plugin's thresholds. This is the phase that makes the app worth having.
 
@@ -788,7 +809,7 @@ Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or
 
 **Phase 8, router and relay.** Router pane, both provider kinds, insert-into-session, relay pane, notes, command palette, settings UI.
 
-**Phase 9, failover and polish.** Only after the terms question in 11.3 resolves, and after the owner explains the repeated logins. Auto-update if wanted.
+**Phase 9, failover and polish.** Failover only if Phase 0 step 2 passed, the terms question in 11.3 is resolved, and the owner has confirmed. Auto-update if wanted.
 
 ## 19. Risks
 
@@ -797,7 +818,7 @@ Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or
 | node-pty on win32-arm64 | High | Phase 0. Fallbacks named. |
 | Native modules inside asar | High | `asarUnpack` from the first packaged build, not at the end. |
 | `~/.claude.json` ignores `CLAUDE_CONFIG_DIR`, so MCP config is shared | Low | Audit found a separate `.claude.json` in `.claude-account2`. Phase 0 step 2 confirms the main one is untouched. The new consequence is the opposite one: user scope servers must be added to each account. |
-| Multi-account concurrency may not be permitted | Medium | Verify before Phase 9. Manual switching only if not. |
+| Multi-account is unproven: the second account has never run a session, and concurrent use may not be permitted | High | Phase 0 step 2 is a pass or fail test. On a fail, single account design, as in 18. Terms checked before Phase 9 either way. |
 | Hook and status line schemas shift between CLI versions | Medium | Treat every field as optional, render nulls as unknown, log unrecognized shapes rather than crashing. Phase 0 captures a baseline. |
 | Six-plus WebGL xterm instances on an ARM Surface | Medium | Benchmark in Phase 2. Canvas renderer fallback; pause rendering for hidden panes while still consuming the stream. |
 | Scope creep into building an editor | High | Section 4 exists for this. Reread it. |
@@ -813,9 +834,9 @@ Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or
 1. Workspace root directory for cloned repos. Proposed default: `C:\Users\aatir`, where 51 of 73 checkouts live.
 2. ntfy or Pushover for phone push. `agentPushNotifEnabled` is already on in Claude Code; say whether that is enough for in-CLI events.
 3. Should the relay pane post notes back, or stay read only given the standing approval rules on the Attestia and Gulf boards.
-4. **Changed by the audit.** Confirm the reversed verdict in 2.4: the four main projects launch Prime and Meridian together by default, and side projects launch one session.
-5. **Answered by the audit, confirm.** Dogfood first on SecurITPosture and Elysium Intern, the two busiest repos in the window. Attestia's development has been paused since 10-02 and its work moved to Gulf, so add Gulf rather than Attestia, unless Attestia is restarting.
-6. What were the 9 to 10 `/login` runs in the window for, given the second account directory has never been used?
+4. **Answered, 2026-10-11.** The audit's reversal stands: Prime and Meridian launch together for the main projects, one session for side projects (2.3).
+5. **Answered, 2026-10-11.** Dogfood on SecurITPosture and Elysium Intern first, then Gulf third. Attestia stays out of the dogfood set while it is paused.
+6. **Answered, 2026-10-11.** The `/login` runs were re-authentications of the main account after expiry, not account switching. Multi-account is therefore unproven; see 11.3 and Phase 0 step 2.
 7. Should the board servers learn liveness from ElysiumProd (11.6)? That would mean pushing the file somewhere, which conflicts with the no off machine traffic rule in 4.
 8. The cached plugin copy is 0.3.0 while `--plugin-dir` loads 0.3.9 from source. Should ElysiumProd always pass `--plugin-dir`, as `cs.ps1` does, and should `mods-switch` be run so the cached copy cannot load twice?
 
