@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type ElysiumApi, type ResourceSample, type SessionInfo } from '@shared/ipc';
+import { Channels, type ElysiumApi, type ResourceSample, type SessionInfo, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -13,7 +13,7 @@ const api: ElysiumApi = {
   info: () => ipcRenderer.invoke(Channels.appInfo),
   templates: () => ipcRenderer.invoke(Channels.templatesList),
   sessions: () => ipcRenderer.invoke(Channels.sessionsList),
-  create: (templateId, cols, rows) => ipcRenderer.invoke(Channels.sessionCreate, templateId, cols, rows),
+  create: (templateId, cols, rows, opts) => ipcRenderer.invoke(Channels.sessionCreate, templateId, cols, rows, opts ?? {}),
   write: (id, data) => ipcRenderer.send(Channels.sessionWrite, id, data),
   resize: (id, cols, rows) => ipcRenderer.send(Channels.sessionResize, id, cols, rows),
   kill: (id) => ipcRenderer.invoke(Channels.sessionKill, id),
@@ -28,12 +28,31 @@ const api: ElysiumApi = {
   openExternal: (url) => ipcRenderer.send(Channels.openExternal, url),
   processes: () => ipcRenderer.invoke(Channels.procList),
   endProgram: (name) => ipcRenderer.invoke(Channels.procEnd, name),
-  webAttach: (id) => ipcRenderer.send(Channels.webAttach, id),
+  webAttach: (id, accountId) => ipcRenderer.send(Channels.webAttach, id, accountId),
+  onWebState: (cb) => subscribe<[WebState]>(Channels.webState, cb),
   webBounds: (id, b, visible) => ipcRenderer.send(Channels.webBounds, id, b, visible),
   webDetach: (id) => ipcRenderer.send(Channels.webDetach, id),
   webNav: (id, action) => ipcRenderer.send(Channels.webNav, id, action),
   webHideAll: (hide) => ipcRenderer.send(Channels.webHideAll, hide),
   readClipboard: () => ipcRenderer.invoke(Channels.clipboardRead),
+  accounts: () => ipcRenderer.invoke(Channels.accountsList),
+  projectStats: () => ipcRenderer.invoke(Channels.projectStats),
+  usage: () => ipcRenderer.invoke(Channels.usageStats),
+  quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
+  quickHide: () => ipcRenderer.send(Channels.quickHide),
+  quickOpenMain: () => ipcRenderer.send(Channels.quickOpenMain),
+  onQuickShown: (cb) => subscribe<[]>(Channels.quickShown, cb),
+  shortcut: () => ipcRenderer.invoke(Channels.shortcutGet),
+  setShortcut: (acc) => ipcRenderer.invoke(Channels.shortcutSet, acc),
+  setTitleBarColors: (color, symbol) => ipcRenderer.send(Channels.titleBarColors, color, symbol),
+  onFocusSession: (cb) => subscribe<[string, string]>(Channels.focusSession, cb),
+  hasHistory: (accountId, cwd) => ipcRenderer.invoke(Channels.historyCheck, accountId, cwd),
+  telemetry: () => ipcRenderer.invoke(Channels.telemetryAll),
+  onTelemetry: (cb) => subscribe<[Telemetry]>(Channels.telemetryUpdate, cb),
+  setWatcher: (projectId, cfg) => ipcRenderer.send(Channels.watcherSet, projectId, cfg),
+  watchers: () => ipcRenderer.invoke(Channels.watchersAll),
+  onWatcher: (cb) => subscribe<[WatcherState]>(Channels.watcherUpdate, cb),
+  renameSession: (id, title) => ipcRenderer.invoke(Channels.sessionRename, id, title),
   loadWorkspace: () => ipcRenderer.invoke(Channels.workspaceGet),
   saveWorkspace: (json) => ipcRenderer.send(Channels.workspaceSet, json),
   onData: (cb) => subscribe<[string, string, number]>(Channels.sessionData, cb),

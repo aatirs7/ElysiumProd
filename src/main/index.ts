@@ -1,5 +1,5 @@
-// ElysiumProd main process, Phase 1: one window, one terminal pane,
-// SessionManager, scrollback with caps, the resource gate, clean shutdown.
+// ElysiumProd main process: the main window, the quick bar and tray, sessions,
+// telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
@@ -14,12 +14,21 @@ import { flushWorkspace, loadWorkspace, saveWorkspace } from './workspace';
 import { listProjects, readGit, readRelay, readTasks } from './projects';
 import { pickDocument, readDocument } from './files';
 import { endProgram, listProcessGroups } from './processes';
+import { hasHistory, listAccounts } from './accounts';
+import { Ingest } from './ingest';
+import { projectStats } from './stats';
+import { usageStats } from './usage';
+import { Watchers } from './watchers';
+import { Tasks } from './tasks';
+import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { attachWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
 
 // %APPDATA%\elysiumprod rather than Electron's default product-name folder.
 app.setPath('userData', dataDir());
+// Groups notifications under ElysiumProd in Windows.
+app.setAppUserModelId('ElysiumProd');
 
 // Two copies managing the same PTYs and files would be bad (spec 16).
 if (!SMOKE && !app.requestSingleInstanceLock()) app.quit();
@@ -30,6 +39,8 @@ const send = (channel: string, ...args: unknown[]) => {
 };
 
 const resources = new Resources(dataDir(), (r: ResourceSample) => send(Channels.resourcesUpdate, r));
+let tasks: Tasks | null = null;
+const ingest = new Ingest((t) => { send(Channels.telemetryUpdate, t); tasks?.onTelemetry(t); });
 const sessions = new SessionManager(
   scrollbackDir(),
   {
@@ -37,18 +48,46 @@ const sessions = new SessionManager(
     update: (s: SessionInfo) => send(Channels.sessionUpdate, s),
   },
   () => resources.latest()?.refuseReason ?? null,
+  (id) => ingest.register(id),
 );
+
+/** A watcher line goes into Prime only when Prime runs here and is idle. */
+const watchers = new Watchers(
+  (w) => send(Channels.watcherUpdate, w),
+  (projectId, line) => {
+    const s = sessions.runningFor(`${projectId}.prime`);
+    if (!s || ingest.get(s.id)?.state !== 'idle') return false;
+    sessions.write(s.id, `${line}\r`);
+    return true;
+  },
+);
+
+function loadRenderer(w: BrowserWindow, hash = ''): void {
+  if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash ? `#${hash}` : ''}`);
+  else void w.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined);
+}
+
+function showMain(): void {
+  if (!win) return;
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
 
 function createWindow(): BrowserWindow {
   const w = new BrowserWindow({
-    width: 1280,
-    height: 820,
-    minWidth: 720,
-    minHeight: 480,
-    backgroundColor: '#0E1116',
+    width: 1360,
+    height: 860,
+    minWidth: 760,
+    minHeight: 500,
+    backgroundColor: '#262624',
     title: 'ElysiumProd',
     autoHideMenuBar: true,
     show: false,
+    // The Windows 11 caption buttons float over the app's own top bar, so there
+    // is no separate, old style title bar. The renderer recolours them per theme.
+    titleBarStyle: 'hidden',
+    titleBarOverlay: { color: '#262624', symbolColor: '#C3C1B8', height: 44 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -65,8 +104,9 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' };
   });
   w.webContents.on('will-navigate', (e) => e.preventDefault());
-  if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(process.env.ELECTRON_RENDERER_URL);
-  else void w.loadFile(join(__dirname, '../renderer/index.html'));
+  // Closing the window keeps ElysiumProd in the tray, so agents and the quick bar keep working.
+  w.on('close', (e) => { if (!quitting && !SMOKE) { e.preventDefault(); w.hide(); } });
+  loadRenderer(w);
   return w;
 }
 
@@ -77,8 +117,8 @@ function registerIpc(): void {
   });
   ipcMain.handle(Channels.templatesList, () => templates.map(templateInfo));
   ipcMain.handle(Channels.sessionsList, () => sessions.list());
-  ipcMain.handle(Channels.sessionCreate, (_e, templateId: unknown, cols: unknown, rows: unknown) =>
-    sessions.create(String(templateId), Number(cols) || 120, Number(rows) || 30));
+  ipcMain.handle(Channels.sessionCreate, (_e, templateId: unknown, cols: unknown, rows: unknown, opts: unknown) =>
+    sessions.create(String(templateId), Number(cols) || 120, Number(rows) || 30, { accountId: typeof (opts as { accountId?: unknown })?.accountId === 'string' ? (opts as { accountId: string }).accountId : null }));
   ipcMain.on(Channels.sessionWrite, (_e, id: unknown, data: unknown) => {
     if (typeof id === 'string' && typeof data === 'string') sessions.write(id, data);
   });
@@ -96,20 +136,54 @@ function registerIpc(): void {
   ipcMain.handle(Channels.docPick, () => pickDocument(win));
   ipcMain.handle(Channels.procList, () => listProcessGroups());
   ipcMain.handle(Channels.procEnd, (_e, name: unknown) => endProgram(String(name)));
-  ipcMain.on(Channels.webAttach, (_e, id: unknown) => { if (win && typeof id === 'string') attachWeb(win, id); });
+  ipcMain.on(Channels.webAttach, (_e, id: unknown, accountId: unknown) => {
+    if (win && typeof id === 'string') attachWeb(win, id, typeof accountId === 'string' && /^[\w-]{1,40}$/.test(accountId) ? accountId : 'main', (s) => send(Channels.webState, s));
+  });
   ipcMain.on(Channels.webBounds, (_e, id: unknown, b: unknown, visible: unknown) => {
     if (typeof id === 'string' && b && typeof b === 'object') setWebBounds(id, b as { x: number; y: number; width: number; height: number }, Boolean(visible));
   });
   ipcMain.on(Channels.webDetach, (_e, id: unknown) => { if (typeof id === 'string') detachWeb(win, id); });
   ipcMain.on(Channels.webNav, (_e, id: unknown, action: unknown) => {
-    if (typeof id === 'string' && (action === 'back' || action === 'forward' || action === 'reload' || action === 'home')) navWeb(id, action);
+    if (typeof id === 'string' && (action === 'back' || action === 'forward' || action === 'reload' || action === 'home' || action === 'external')) navWeb(id, action);
   });
   ipcMain.on(Channels.webHideAll, (_e, hide: unknown) => hideAllWeb(Boolean(hide)));
   ipcMain.handle(Channels.clipboardRead, () => readClipboard());
+  ipcMain.handle(Channels.accountsList, () => listAccounts());
+  ipcMain.handle(Channels.projectStats, () => projectStats());
+  ipcMain.handle(Channels.usageStats, () => usageStats());
+  ipcMain.handle(Channels.historyCheck, (_e, accountId: unknown, cwd: unknown) => hasHistory(String(accountId), String(cwd)));
+  ipcMain.handle(Channels.telemetryAll, () => ingest.all());
+  ipcMain.handle(Channels.watchersAll, () => watchers.all());
+  ipcMain.on(Channels.watcherSet, (_e, projectId: unknown, cfg: unknown) => {
+    const c = cfg as { enabled?: unknown; delivery?: unknown };
+    if (typeof projectId === 'string') watchers.set(projectId, { enabled: Boolean(c?.enabled), delivery: c?.delivery === 'prime-when-idle' ? 'prime-when-idle' : 'notify' });
+  });
+  ipcMain.handle(Channels.sessionRename, (_e, id: unknown, title: unknown) => {
+    if (typeof id !== 'string' || typeof title !== 'string' || !/^[\w .-]{1,60}$/.test(title)) return { ok: false, reason: 'Unexpected name' };
+    const t = ingest.get(id);
+    if (!t || t.state !== 'idle') return { ok: false, reason: 'The session is busy. Try again when its turn ends.' };
+    sessions.write(id, `/rename ${title}\r`);
+    return { ok: true, reason: null };
+  });
   ipcMain.handle(Channels.docRead, (_e, path: unknown) => readDocument(String(path)));
   ipcMain.on(Channels.openExternal, (_e, url: unknown) => {
     // Only web links leave the app, and only to the system browser (spec 17).
     if (typeof url === 'string' && /^https:\/\//.test(url)) void shell.openExternal(url);
+  });
+  ipcMain.handle(Channels.quickRun, (_e, projectId: unknown, text: unknown) => {
+    const r = tasks!.run(String(projectId), String(text ?? '').slice(0, 20000));
+    if (r.ok) hideQuick();
+    return r;
+  });
+  ipcMain.on(Channels.quickHide, () => hideQuick());
+  ipcMain.on(Channels.quickOpenMain, () => { hideQuick(); showMain(); });
+  ipcMain.handle(Channels.shortcutGet, () => currentShortcut());
+  ipcMain.handle(Channels.shortcutSet, (_e, acc: unknown) => registerShortcut(typeof acc === 'string' ? acc : undefined));
+  ipcMain.on(Channels.titleBarColors, (_e, color: unknown, symbol: unknown) => {
+    const hex = /^#[0-9a-f]{6}$/i;
+    if (win && typeof color === 'string' && typeof symbol === 'string' && hex.test(color) && hex.test(symbol)) {
+      try { win.setTitleBarOverlay({ color, symbolColor: symbol, height: 44 }); } catch { /* not supported */ }
+    }
   });
   ipcMain.on(Channels.workspaceSet, (_e, json: unknown) => { if (typeof json === 'string') saveWorkspace(json); });
 }
@@ -120,20 +194,29 @@ app.on('before-quit', (e) => {
   e.preventDefault();
   quitting = true;
   resources.stop();
+  watchers.stopAll();
+  ingest.stop();
+  disposeQuick();
   try { flushWorkspace(); } catch { /* never block quit */ }
   void sessions.shutdown().finally(() => app.exit(0));
 });
 
-app.on('second-instance', () => {
-  if (win) { if (win.isMinimized()) win.restore(); win.focus(); }
-});
+app.on('second-instance', () => showMain());
 
-app.on('window-all-closed', () => app.quit());
+// With the tray, closing the window does not quit; only Quit from the tray or the app does.
+app.on('window-all-closed', () => { if (SMOKE) app.quit(); });
 
 app.whenReady().then(async () => {
   try { enforceCaps(scrollbackDir()); } catch { /* never block startup on cleanup */ }
   registerIpc();
   await resources.start();
+  await ingest.start();
   win = createWindow();
+  tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); });
+  if (!SMOKE) {
+    createQuickWindow(loadRenderer);
+    registerShortcut();
+    createTray(showMain, () => app.quit());
+  }
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });

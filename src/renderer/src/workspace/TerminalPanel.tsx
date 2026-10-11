@@ -14,6 +14,7 @@ export interface TerminalParams {
 }
 
 const MONO = '"Cascadia Mono", "Cascadia Code", Consolas, monospace';
+const cssVar = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 // Lets the smoke test type into, and read, the most recent terminal.
 const registry = new Map<string, Terminal>();
@@ -38,7 +39,7 @@ if (typeof window !== 'undefined') {
 }
 
 export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
-  const { doc } = useWorkspace();
+  const { doc, accountFor } = useWorkspace();
   const { sessions, templates } = useLive();
   const template = templates.find((t) => t.id === props.params.templateId);
   const [pending, setPending] = useState(Boolean(props.params.pending));
@@ -71,7 +72,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       cursorStyle: 'bar',
       scrollback: 10000,
       theme: {
-        background: '#1C1B1A', foreground: '#ECEAE3', cursor: '#D97757', cursorAccent: '#1C1B1A',
+        background: cssVar('--term', '#1C1B1A'), foreground: cssVar('--term-fg', '#ECEAE3'), cursor: cssVar('--accent', '#D97757'), cursorAccent: cssVar('--term', '#1C1B1A'),
         selectionBackground: 'rgba(217,119,87,0.30)',
         scrollbarSliderBackground: 'rgba(222,220,209,0.14)', scrollbarSliderHoverBackground: 'rgba(222,220,209,0.24)', scrollbarSliderActiveBackground: 'rgba(222,220,209,0.32)',
         black: '#2A2927', red: '#E5776F', green: '#7DBE8F', yellow: '#E0AE5E', blue: '#7FA8E0', magenta: '#C49AD9', cyan: '#71BFC9', white: '#D9D7CF',
@@ -124,7 +125,9 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
         attach(sid);
         return;
       }
-      const r = await window.elysium.create(props.params.templateId, term.cols, term.rows);
+      // The project's account: terminals and the Claude pane of a project always share it.
+      const tpl = templates.find((x) => x.id === props.params.templateId);
+      const r = await window.elysium.create(props.params.templateId, term.cols, term.rows, { accountId: accountFor(tpl?.project) });
       if (disposed) { if (r.ok) void window.elysium.kill(r.session.id); return; }
       if (!r.ok) { setError(r.reason); return; }
       attach(r.session.id);

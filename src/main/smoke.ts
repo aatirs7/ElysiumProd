@@ -1,11 +1,12 @@
-// `electron . --smoke`: drives the real app end to end and writes
-// smoke-out/result.json and smoke-out/window.png, then quits.
-// Uses the PowerShell template only; it never starts a Claude session.
+// `electron . --smoke`: drives the real app end to end and writes screenshots and
+// smoke-out/result.json, then quits. It starts only a PowerShell session; it
+// never starts or resumes a Claude session.
 import { app, type BrowserWindow } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Resources } from './resources';
 import type { SessionManager } from './sessions';
+import { captureWeb, webStates } from './webviews';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -13,34 +14,48 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
   const out = join(process.cwd(), 'smoke-out');
   mkdirSync(out, { recursive: true });
   const r: Record<string, unknown> = { startedAt: new Date().toISOString() };
+  const js = (code: string) => ctx.win.webContents.executeJavaScript(code);
+  const shot = async (name: string) => writeFileSync(join(out, `${name}.png`), (await ctx.win.webContents.capturePage()).toPNG());
+  const click = (text: string) => js(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (b) { b.click(); return true; } return false; })()`);
   const finish = async () => {
     r.finishedAt = new Date().toISOString();
     writeFileSync(join(out, 'result.json'), JSON.stringify(r, null, 2));
     app.quit();
   };
   try {
+    ctx.win.setSize(1440, 900);
     await new Promise<void>((res) => (ctx.win.webContents.isLoading() ? ctx.win.webContents.once('did-finish-load', () => res()) : res()));
-    await sleep(1500);
+    await sleep(2500);
     r.resources = ctx.resources.latest();
-    writeFileSync(join(out, 'home.png'), (await ctx.win.webContents.capturePage()).toPNG());
-    // Launch through the renderer, the same path a click takes.
-    r.launch = await ctx.win.webContents.executeJavaScript(`window.__smoke && window.__smoke.launch('local.shell')`);
+    r.onboardingShown = await js(`Boolean(document.querySelector('.onboard'))`);
+    if (r.onboardingShown) {
+      await shot('1-welcome');
+      await click('Continue'); await sleep(500); await click('Continue'); await sleep(700); await shot('2-welcome-projects');
+      await click('Continue'); await sleep(500); await click('Start working'); await sleep(800);
+    }
     await sleep(2500);
-    const s = ctx.sessions.list()[0];
+    await shot('3-home');
+    r.launch = await js(`window.__smoke && window.__smoke.launch('local.shell')`);
+    await sleep(4000);
+    const s = ctx.sessions.list().find((x) => x.templateId === 'local.shell');
     r.session = s;
-    if (!s) return finish();
-    await ctx.win.webContents.executeJavaScript(`window.__smoke.type(${JSON.stringify('echo smoke-$((6*7))\r')})`);
-    await sleep(2500);
-    r.screenText = await ctx.win.webContents.executeJavaScript(`window.__smoke.screen()`);
-    r.echoSeenInXterm = typeof r.screenText === 'string' && (r.screenText as string).includes('smoke-42');
-    r.dom = await ctx.win.webContents.executeJavaScript(`(() => { const h = document.querySelector('.dv-groupview'); const p = document.querySelector('.term-panel'); const c = document.querySelector('.term canvas'); return { headText: h && h.innerText, paneOpacity: p && getComputedStyle(p).opacity, paneAnim: p && getComputedStyle(p).animationName, headRect: h && h.getBoundingClientRect().height, canvas: !!c, xtermRows: document.querySelectorAll('.xterm-rows > div').length, visibility: document.visibilityState, focused: document.hasFocus() }; })()`);
-    r.strip = await ctx.win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.term-panel'); if (!t) return null; const b = t.getBoundingClientRect(); const out = []; for (const dy of [4, 10, 16]) { const el = document.elementFromPoint(b.left + b.width / 2, b.bottom - dy); out.push(el ? el.tagName + '.' + el.className + ' bg=' + getComputedStyle(el).backgroundColor + ' h=' + Math.round(el.getBoundingClientRect().height) : null); } return out; })()`);
-    const img = await ctx.win.webContents.capturePage();
-    writeFileSync(join(out, 'window.png'), img.toPNG());
-    r.scrollbackExists = existsSync(s.scrollbackPath);
-    await sleep(500);
-    r.echoSeenInScrollback = r.scrollbackExists ? readFileSync(s.scrollbackPath, 'utf8').includes('smoke-42') : false;
-    r.pid = s.pid;
+    if (s) {
+      await js(`window.__smoke.type(${JSON.stringify('echo smoke-$((6*7))\r')})`);
+      await sleep(2500);
+      r.echoSeenInXterm = String(await js(`window.__smoke.screen()`)).includes('smoke-42');
+      r.echoSeenInScrollback = existsSync(s.scrollbackPath) && readFileSync(s.scrollbackPath, 'utf8').includes('smoke-42');
+    }
+    await sleep(6000); // let claude.ai load in the Claude pane
+    await shot('4-workspace');
+    r.web = webStates();
+    const web = webStates()[0];
+    if (web) { const png = await captureWeb(web.id); if (png) writeFileSync(join(out, '5-claude-pane.png'), png); }
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Your stats'))?.click()`);
+    await sleep(5000);
+    await shot('6-stats');
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Settings'))?.click()`);
+    await sleep(1200);
+    await shot('7-settings');
   } catch (e) {
     r.error = e instanceof Error ? e.stack : String(e);
   }

@@ -4,7 +4,8 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import type { IPty } from 'node-pty';
-import type { CreateResult, SessionInfo } from '@shared/ipc';
+import type { CreateOptions, CreateResult, SessionInfo } from '@shared/ipc';
+import { accountEnv, hasHistory } from './accounts';
 import { childEnv } from './env';
 import { Scrollback } from './scrollback';
 import { findTemplate } from './templates';
@@ -36,13 +37,15 @@ export class SessionManager {
     private scrollbackDir: string,
     private events: SessionEvents,
     private gate: () => string | null,
+    /** Telemetry registration for Claude sessions: extra env and --settings args. */
+    private telemetry: (sessionId: string) => { env: Record<string, string>; args: string[] },
   ) {}
 
   list(): SessionInfo[] {
     return [...this.live.values()].map((l) => l.info);
   }
 
-  create(templateId: string, cols: number, rows: number): CreateResult {
+  create(templateId: string, cols: number, rows: number, opts: CreateOptions = {}): CreateResult {
     const t = findTemplate(templateId);
     if (!t) return { ok: false, reason: `No template called ${templateId}.` };
     const refused = this.gate();
@@ -61,9 +64,30 @@ export class SessionManager {
     }
 
     const id = randomUUID();
+    const accountId = t.kind === 'claude' ? (opts.accountId || 'main') : 'main';
+    let args = [...t.args];
+    let resumed = false;
+    const env: Record<string, string> = { ...t.env };
+    if (t.kind === 'claude') {
+      // Resume only where the history lives. A session's transcripts belong to the
+      // account it ran on, so on another account the same title starts fresh.
+      const r = args.indexOf('--resume');
+      const c = args.indexOf('--continue');
+      if (r >= 0) {
+        if (hasHistory(accountId, t.cwd)) resumed = true;
+        else args.splice(r, 2, '-n', t.title);
+      } else if (c >= 0) {
+        if (hasHistory(accountId, t.cwd)) resumed = true;
+        else args.splice(c, 1, '-n', t.title);
+      }
+      Object.assign(env, accountEnv(accountId));
+      const tel = this.telemetry(id);
+      Object.assign(env, tel.env);
+      args = [...args, ...tel.args];
+    }
     const scrollback = new Scrollback(this.scrollbackDir, id);
     const info: SessionInfo = {
-      id, templateId, title: t.title, status: 'starting', pid: null,
+      id, templateId, title: t.title, accountId, resumed, status: 'starting', pid: null,
       startedAt: new Date().toISOString(), exitCode: null, scrollbackPath: scrollback.path,
     };
     const l: Live = { info, pty: null, scrollback, pending: '', history: '', offset: 0 };
@@ -74,12 +98,12 @@ export class SessionManager {
       // stopping the whole app from starting.
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const pty: typeof import('node-pty') = require('node-pty');
-      const p = pty.spawn(command, t.args, {
+      const p = pty.spawn(command, args, {
         name: 'xterm-256color',
         cols: Math.max(20, cols),
         rows: Math.max(5, rows),
         cwd: t.cwd,
-        env: childEnv(t.env),
+        env: childEnv(env),
         useConpty: true,
       });
       l.pty = p;
@@ -117,6 +141,12 @@ export class SessionManager {
     if (!l) return null;
     this.flush();
     return { info: { ...l.info }, data: l.history, endOffset: l.offset };
+  }
+
+  /** The running session for a template, if any. */
+  runningFor(templateId: string): SessionInfo | null {
+    for (const l of this.live.values()) if (l.info.templateId === templateId && l.info.status === 'running') return l.info;
+    return null;
   }
 
   write(id: string, data: string): void {

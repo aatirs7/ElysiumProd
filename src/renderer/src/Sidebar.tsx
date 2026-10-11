@@ -1,83 +1,99 @@
 import { useState } from 'react';
-import { Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal, X } from 'lucide-react';
+import { BarChart3, CircleHelp, Home, Layers, MemoryStick, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
 import { Logo } from './Logo';
-import { useLive } from './workspace/live';
+import { ProjectLogo } from './ProjectLogo';
+import { useLive, useMachine } from './workspace/live';
 import { useWorkspace } from './workspace/store';
-import { since } from './workspace/widgets';
 
-const gb = (b: number) => `${(b / 1024 ** 3).toFixed(1)} GB`;
+export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats';
 
-export type Page = 'home' | 'workspace' | 'settings';
+interface Props {
+  page: Page;
+  go(p: Page): void;
+  onPalette(): void;
+  onMemory(): void;
+  onDeleteView(id: string): void;
+}
 
-export function Sidebar({ page, go, onPalette, onFocusSession, onDeleteView }: { page: Page; go(p: Page): void; onPalette(): void; onFocusSession(id: string): void; onDeleteView(id: string): void }) {
-  const { doc, addView, renameView, setActiveView } = useWorkspace();
-  const { sessions, templates, res } = useLive();
+export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) {
+  const { doc, activeView, openProject, setActiveView, renameView, addView } = useWorkspace();
+  const { projects, sessions, telemetry } = useLive();
+  const { res } = useMachine();
   const [editing, setEditing] = useState<string | null>(null);
-  const live = sessions.filter((s) => s.status === 'running' || s.status === 'starting');
+  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects;
+  const freeViews = doc.views.filter((v) => !v.projectId);
+
+  /** A project's status: waiting on you beats busy beats running. */
+  const status = (projectId: string) => {
+    const mine = sessions.filter((s) => s.status === 'running' && s.templateId.startsWith(`${projectId}.`));
+    if (!mine.length) return null;
+    const states = mine.map((s) => telemetry[s.id]?.state);
+    return states.includes('waiting') ? 'waiting' : states.includes('busy') ? 'busy' : 'idle';
+  };
+  const ram = res ? Math.round(res.ramUsedPercent) : null;
+  const ramTone = !res ? '' : res.ramLevel === 'refuse' ? 'bad' : res.ramUsedPercent >= 85 ? 'warn' : '';
 
   return (
     <aside className="sidebar" aria-label="Navigation">
       <div className="brand"><Logo />ElysiumProd</div>
 
-      <button className="nav-item" onClick={onPalette}>
-        <Search size={16} strokeWidth={1.75} />
-        <span className="grow">Search and run</span>
-        <kbd>Ctrl K</kbd>
+      <button className="nav" onClick={onPalette}>
+        <Search size={17} strokeWidth={1.75} /><span className="grow">Search and run</span><span className="hint">Ctrl K</span>
       </button>
-      <button className={`nav-item ${page === 'home' ? 'active' : ''}`} onClick={() => go('home')}>
-        <Home size={16} strokeWidth={1.75} />
-        <span className="grow">Home</span>
+      <button className={`nav ${page === 'home' ? 'active' : ''}`} onClick={() => go('home')}>
+        <Home size={17} strokeWidth={1.75} /><span className="grow">Home</span>
+      </button>
+      <button className={`nav ${page === 'stats' ? 'active' : ''}`} onClick={() => go('stats')}>
+        <BarChart3 size={17} strokeWidth={1.75} /><span className="grow">Your stats</span>
       </button>
 
-      <div className="section-label row">
-        <span>Views</span>
-        <button className="ghost-icon tiny" onClick={() => { addView(); go('workspace'); }} title="New view" aria-label="New view"><Plus size={14} /></button>
-      </div>
       <div className="side-scroll">
-        {doc.views.map((v) => (
-          <div key={v.id} className={`nav-item view-item ${page === 'workspace' && doc.activeViewId === v.id ? 'active' : ''}`}
-            onClick={() => { setActiveView(v.id); go('workspace'); }} onDoubleClick={() => setEditing(v.id)} title="Double click to rename">
-            <Layers size={16} strokeWidth={1.75} />
+        <div className="side-label">Projects</div>
+        {pinned.map((p) => {
+          const st = status(p.id);
+          const active = page === 'workspace' && activeView?.projectId === p.id;
+          return (
+            <button key={p.id} className={`nav ${active ? 'active' : ''}`} onClick={() => { openProject(p.id, p.name); go('workspace'); }} title={p.folder}>
+              <ProjectLogo projectId={p.id} />
+              <span className="grow">{p.name}</span>
+              {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
+            </button>
+          );
+        })}
+        {!pinned.length && <div className="nav muted">Pin projects in Settings</div>}
+
+        <div className="side-label">
+          <span>Views</span>
+          <button className="ghost-icon tiny" onClick={() => { addView(); go('workspace'); }} title="New view" aria-label="New view"><Plus size={14} /></button>
+        </div>
+        {freeViews.map((v) => (
+          <div key={v.id} className={`nav view-item ${page === 'workspace' && doc.activeViewId === v.id ? 'active' : ''}`}
+            onClick={() => { setActiveView(v.id); go('workspace'); }} onDoubleClick={() => setEditing(v.id)} title="Double click to rename" role="button" tabIndex={0}>
+            <Layers size={17} strokeWidth={1.75} />
             {editing === v.id ? (
               <input className="rename" autoFocus defaultValue={v.name} onClick={(e) => e.stopPropagation()}
                 onBlur={(e) => { renameView(v.id, e.target.value); setEditing(null); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setEditing(null); }} />
             ) : <span className="grow">{v.name}</span>}
-            {doc.views.length > 1 && editing !== v.id && (
+            {editing !== v.id && (
               <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); onDeleteView(v.id); }} title="Delete view" aria-label={`Delete ${v.name}`}><X size={13} /></button>
             )}
           </div>
         ))}
-
-        <div className="section-label">Running</div>
-        {live.length ? live.map((s) => {
-          const t = templates.find((x) => x.id === s.templateId);
-          return (
-            <button key={s.id} className="nav-item" onClick={() => onFocusSession(s.id)} title={t?.cwd}>
-              {t?.kind === 'claude' ? <Sparkles size={16} strokeWidth={1.75} /> : <SquareTerminal size={16} strokeWidth={1.75} />}
-              <span className="grow">{s.title}</span>
-              <span className="hint">{since(s.startedAt)}</span>
-              <span className={`dot ${s.status}`} />
-            </button>
-          );
-        }) : <div className="empty">Nothing running</div>}
+        {!freeViews.length && <div className="nav muted small" style={{ cursor: 'default' }}>Your own layouts appear here</div>}
       </div>
 
-      <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}>
-        <SettingsIcon size={16} strokeWidth={1.75} />
-        <span className="grow">Settings</span>
+      <button className={`nav ${page === 'help' ? 'active' : ''}`} onClick={() => go('help')}>
+        <CircleHelp size={17} strokeWidth={1.75} /><span className="grow">Help</span>
       </button>
-      {doc.settings.showMachineLine && (
-        <div className="machine" aria-label="Machine resources">
-          {res ? (
-            <>
-              <span className={res.ramLevel === 'ok' ? '' : res.ramLevel}>Memory {res.ramUsedPercent.toFixed(0)}%</span>
-              <span aria-hidden="true">·</span>
-              <span className={res.diskLevel === 'ok' ? '' : res.diskLevel}>{res.diskFreeBytes != null ? `${gb(res.diskFreeBytes)} free` : 'disk unknown'}</span>
-            </>
-          ) : <span>Reading this machine</span>}
-        </div>
-      )}
+      <button className={`nav ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}>
+        <SettingsIcon size={17} strokeWidth={1.75} /><span className="grow">Settings</span><span className="hint">Ctrl ,</span>
+      </button>
+      <div className="foot">
+        <button className={`pill ${ramTone}`} onClick={onMemory} title="What is using memory, and what to do about it">
+          <MemoryStick size={14} />{ram === null ? 'Memory' : `Memory ${ram}%`}{ramTone ? ' · why?' : ''}
+        </button>
+      </div>
     </aside>
   );
 }

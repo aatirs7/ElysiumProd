@@ -30,25 +30,31 @@ interface Mods { relayRepo?: string; relayFile?: string; relayIssue?: string; wa
 /** The plugin's defaults, used where a repo has no .claude/mods.json (SecurITPosture). */
 const PLUGIN_DEFAULTS: Mods = { relayRepo: 'SecurITPosture-01/securitposture_2026', relayIssue: '105', waitingHeading: 'Waiting on Aatir', nowHeading: 'Now' };
 
-function mods(folder: string): Mods {
+/** Relay settings from the repo's .claude/mods.json; the plugin's own defaults only apply to SecurITPosture. */
+function mods(folder: string, projectId?: string): Mods {
   const f = join(folder, '.claude', 'mods.json');
-  try { return existsSync(f) ? { ...PLUGIN_DEFAULTS, relayIssue: undefined, ...JSON.parse(readFileSync(f, 'utf8')) } : PLUGIN_DEFAULTS; } catch { return PLUGIN_DEFAULTS; }
+  const repo = projectId ? PROJECT_FOLDERS[projectId]?.repo ?? undefined : undefined;
+  try {
+    if (existsSync(f)) return { relayRepo: repo, ...JSON.parse(readFileSync(f, 'utf8')) };
+    if (projectId === 'posture') return PLUGIN_DEFAULTS;
+    return { relayRepo: repo };
+  } catch { return { relayRepo: repo }; }
 }
 
 export function listProjects(): ProjectInfo[] {
   return Object.entries(PROJECT_FOLDERS).map(([id, p]) => {
-    const m = mods(p.folder);
-    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder) };
+    const m = mods(p.folder, id);
+    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder) };
   });
 }
 
 export function readRelay(projectId: string): Promise<RelayInfo> {
   const p = PROJECT_FOLDERS[projectId];
   if (!p) return Promise.resolve({ ok: false, error: 'Unknown project', text: '', updatedAt: null, source: '', waitingHeading: '' });
-  const m = mods(p.folder);
+  const m = mods(p.folder, projectId);
   const waitingHeading = m.waitingHeading ?? 'Blocked on the owner';
   return cached(`relay:${projectId}`, 60000, async () => {
-    if (!m.relayRepo) return { ok: false, error: 'No relay configured in .claude/mods.json', text: '', updatedAt: null, source: '', waitingHeading };
+    if (!m.relayRepo || (!m.relayFile && !m.relayIssue)) return { ok: false, error: 'This project has no relay', text: '', updatedAt: null, source: '', waitingHeading };
     if (m.relayFile) {
       const r = await run('gh', ['api', `repos/${m.relayRepo}/contents/${m.relayFile}`, '-H', 'Accept: application/vnd.github.raw']);
       const c = await run('gh', ['api', `repos/${m.relayRepo}/commits?path=${encodeURIComponent(m.relayFile)}&per_page=1`, '--jq', '.[0].commit.committer.date']);
@@ -63,7 +69,7 @@ export function readRelay(projectId: string): Promise<RelayInfo> {
 
 export function readTasks(projectId: string): Promise<{ ok: boolean; error: string | null; tasks: TaskInfo[] }> {
   const p = PROJECT_FOLDERS[projectId];
-  const m = p ? mods(p.folder) : {};
+  const m = p ? mods(p.folder, projectId) : {};
   return cached(`tasks:${projectId}`, 60000, async () => {
     if (!m.relayRepo) return { ok: false, error: 'No repository configured', tasks: [] };
     const r = await run('gh', ['issue', 'list', '-R', m.relayRepo, '--state', 'open', '--limit', '60', '--json', 'number,title,labels,updatedAt,url,comments']);

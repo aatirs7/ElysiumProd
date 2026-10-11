@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, BookmarkPlus, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
+import { BarChart3, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 import { WIDGETS } from './workspace/Workspace';
+import { ProjectLogo } from './ProjectLogo';
+import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go }: { onClose(): void; go(view: 'home' | 'workspace' | 'settings'): void }) {
-  const { templates } = useLive();
+export function Palette({ onClose, go, onProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void }) {
+  const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset } = useWorkspace();
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
@@ -17,6 +19,7 @@ export function Palette({ onClose, go }: { onClose(): void; go(view: 'home' | 'w
   const actions = useMemo<Action[]>(() => {
     const toWs = (f: () => void) => () => { go('workspace'); f(); };
     return [
+      ...projects.map((p) => ({ id: `p-open-${p.id}`, label: `Open ${p.name}`, hint: p.tier === 'main' ? 'Project' : 'Side project', icon: <ProjectLogo projectId={p.id} />, run: () => onProject(p.id, p.name) })),
       ...templates.map((t) => ({ id: `t-${t.id}`, label: `Start ${t.title}`, hint: t.kind === 'claude' ? 'Session' : 'Shell', icon: t.kind === 'claude' ? <Sparkles size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),
       ...WIDGETS.map((w) => ({ id: `w-${w.kind}`, label: `Add ${w.title}`, hint: w.blurb, icon: <w.icon size={15} />, run: toWs(() => open({ kind: w.kind })) })),
       { id: 'doc', label: 'Open a document', hint: 'Markdown or PDF', icon: <FileText size={15} />, run: toWs(async () => { const p = await window.elysium.pickDocument(); if (p) open({ kind: 'document', params: { path: p } }); }) },
@@ -25,9 +28,11 @@ export function Palette({ onClose, go }: { onClose(): void; go(view: 'home' | 'w
       { id: 'savepreset', label: 'Save setup as a preset', hint: 'Panes and appearance', icon: <BookmarkPlus size={15} />, run: () => savePreset(`Preset ${doc.presets.length + 1}`) },
       { id: 'newview', label: 'New view', hint: 'An empty layout', icon: <Plus size={15} />, run: toWs(() => addView()) },
       { id: 'home', label: 'Home', hint: 'Ctrl 0', icon: <Home size={15} />, run: () => go('home') },
-      { id: 'settings', label: 'Settings', hint: 'Appearance and layout', icon: <SettingsIcon size={15} />, run: () => go('settings') },
+      { id: 'settings', label: 'Settings', hint: 'Theme, projects, accounts', icon: <SettingsIcon size={15} />, run: () => go('settings') },
+      { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
+      { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -40,7 +45,7 @@ export function Palette({ onClose, go }: { onClose(): void; go(view: 'home' | 'w
 
   return (
     <div className="backdrop palette-backdrop" onClick={onClose}>
-      <div className="palette glass-menu" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
+      <div className="palette" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Command palette">
         <div className="palette-input">
           <Search size={16} />
           <input
