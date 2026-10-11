@@ -6,10 +6,10 @@ Scope, as directed by the owner on 2026-10-11: full treatment for the main, high
 
 ## Method
 
-- Walked `C:\Users\aatir` to depth 4 for `.git`, excluding `node_modules` and `AppData`: 72 checkouts found.
-- Grouped checkouts by `origin` URL so worktrees and second clones count once. 72 checkouts reduce to 62 remotes.
+- Walked `C:\Users\aatir` to depth 4 for `.git`, excluding `node_modules` and `AppData`: 73 checkouts found, this repository included.
+- Grouped checkouts by `origin` URL so worktrees and second clones count once. 73 checkouts reduce to 55 distinct remotes; a checkout with no remote counts as its own.
 - Commits counted with `git log --all --since=2026-09-21 --no-merges`. Line counts exclude lockfiles, `dist/`, `.min.`, `.svg` and `.png`.
-- Cross checked against the 37 folder names under `~/.claude/projects/`, the 50 trusted project entries in `~/.claude.json`, and `githubRepoPaths` in `~/.claude.json` (50 repos).
+- Cross checked against the 37 folder names under `~/.claude/projects/`, the 50 trusted project entries in `~/.claude.json`, `githubRepoPaths` in `~/.claude.json` (50 repos), and VS Code's `workspaceStorage`. The 13 VS Code folders opened since 2026-09-21 are all active repos listed below, except `C:\Users\aatir\Attestia-print`, which is not a git repository.
 - Script: `audit/scripts/repos.py`. Re-run it to reproduce every number here.
 
 ## Main projects
@@ -87,7 +87,7 @@ Side project pattern: one session per repo, never a pair, often resumed for week
 
 ## Appendix: dormant repositories
 
-No commit since 2026-09-21. Last commit date in brackets. A dead repo is itself a finding: 50 of 62 remotes are dormant, and several still hold Neon databases.
+No commit since 2026-09-21. Last commit date in brackets. A dead repo is itself a finding: 42 of 55 remotes are dormant, and several still hold Neon databases.
 
 - Over 30 days: fantasypremierleague (09-17), elysiumvault (09-12), Documents\vega (09-09, remote is `aatirs7/empty`), SecureITPosture (09-03), wanderpress (08-31), elysiumcyberv2 (08-31), ibmbrain (08-27), Durus (08-27), DurusIOS (08-27, 3 dirty), cobalt (08-27), clonelab (08-27), drift and its 6 sibling clones (08-24 to 08-25, each a separate full clone on its own feature branch), aatirsiddiqui (08-25), ILMYIOS (08-24, 5 dirty), bidclone (08-22), ILMY (08-20), cybercourse (08-18), elysiumse7en (08-16, remote `elysiumhome`), sehat (08-11, **38 dirty files**), trajectorycoaching (07-27), Peru-Bolivia-2026 (07-25), wc26 and wc26-general (07-20), systems10-1 (07-18), SiddiquiFamilyTree (07-16), travld (07-14), parrot (07-10), meridian (06-25), ilmy-promo (06-15, no remote, 12 dirty).
 - Over 6 months: arkhamprotocol (04-06), shannon (02-11, third party), content-ops-starter (02-11, remote points at ElysiumCyber), elysium-welcome-video (01-27, no remote, 18 dirty), ElysiumCyber (01-21), Documents\phirmilingay (01-20), UltraSe7en (01-13), timer (01-12), projectarkhamv2 (2025-09-29), ElysiumVentures in Documents (2025-08-07), projectarkham (2025-06-06), Project-Arkham (2025-05-26), blackbird (2025-03-10, third party).
