@@ -130,10 +130,10 @@ export class Tasks {
     const p = this.pending.get(sessionId);
     if (!p || p.sent) return;
     const tel = this.ingest.get(sessionId);
-    // Ready once the CLI reports in and is not mid turn; give up waiting after two minutes.
+    // Ready once the CLI reports in and is not mid turn (the plugin may run a start-up turn first); give up after ten minutes.
     const ready = tel && (tel.state === 'idle') ;
     if (!ready) {
-      if (Date.now() - p.startedAt > 120000) { this.pending.delete(sessionId); this.notify(sessionId, `${p.projectName} did not start`, 'The session never became ready. Open it to see why.'); }
+      if (Date.now() - p.startedAt > 600000) { this.pending.delete(sessionId); this.notify(sessionId, `${p.projectName} did not start`, 'The session never became ready. Open it to see why.'); }
       return;
     }
     p.sent = true;
