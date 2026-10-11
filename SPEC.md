@@ -761,7 +761,7 @@ CREATE TABLE events (
 
 `metrics` is the OTel sink and backs every chart. Roll up to daily aggregates nightly and prune raw rows past 90 days.
 
-Scrollback lives at `%APPDATA%\elysiumprod\scrollback\<sessionId>.log`, rotated at 10MB, pruned after 30 days, with a total cap of 1 GB across all sessions, oldest pruned first. The cap is there from Phase 1 because the disk was 98 percent full at audit time.
+Scrollback lives at `%APPDATA%\elysiumprod\scrollback\<sessionId>.<nnn>.log`, in 10 MB numbered segments with the newest two kept per session, pruned after 30 days, with a total cap of 1 GB across all sessions, oldest pruned first. Segments rather than renaming: on Windows a rename of a file with an open stream fails, and Phase 1's test caught that the rename approach silently never rotated. The cap is there from Phase 1 because the disk was 98 percent full at audit time.
 
 Human-editable config sits beside the db as `%APPDATA%\elysiumprod\config.jsonc`: providers, notification channels, detection patterns, thresholds, keybindings. Watched and hot-reloaded. The db is state, the jsonc is preferences, and the jsonc is the customization surface.
 
@@ -810,7 +810,7 @@ Each phase ends in something usable. Do not start one before the previous runs o
 7. Read, as configuration, `inbox.mjs` and one `board-watch.mjs` to settle the watcher delivery path in 13.1.
 Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or accept a Tauri rewrite of section 6.
 
-**Phase 1, one terminal and the resource gate.** Electron shell, one xterm pane, SessionManager, one PTY, scrollback to disk with the total cap, resize, clean shutdown. RAM and free disk in the bottom bar with the floors in 10.6. Hardcode one template imported from `cs.ps1`, no db.
+**Phase 1, one terminal and the resource gate. Built 2026-10-11.** Electron shell, one xterm pane, SessionManager, one PTY, scrollback to disk with the total cap, resize, clean shutdown. RAM and free disk in the bottom bar with the floors in 10.6. Hardcode one template imported from `cs.ps1`, no db.
 
 **Phase 2, projects, templates and import.** SQLite, project CRUD, left rail, Dockview, multiple panes, layout persistence, session templates with the full field set in 7, the first run import in 8.3.1, and stable identity in 8.3.2.
 
