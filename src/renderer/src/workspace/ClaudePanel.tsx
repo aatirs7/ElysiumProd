@@ -10,6 +10,32 @@ let overlays = 0;
 export function overlayOpened() { overlays += 1; window.elysium.webHideAll(true); }
 export function overlayClosed() { overlays = Math.max(0, overlays - 1); if (!overlays) window.elysium.webHideAll(false); }
 
+type Box = { x: number; y: number; width: number; height: number };
+
+// The Claude page is a native view that always draws above the window's own
+// content, so a floating group over it would be hidden. Give the page the
+// largest part of its pane that no floating group covers instead.
+function clearOfFloats(el: HTMLElement): Box {
+  const h = el.getBoundingClientRect();
+  let box: Box = { x: h.x, y: h.y, width: h.width, height: h.height };
+  for (const f of document.querySelectorAll<HTMLElement>('.dv-resize-container')) {
+    if (f.contains(el)) continue;
+    const o = f.getBoundingClientRect();
+    const right = box.x + box.width, bottom = box.y + box.height;
+    if (o.right <= box.x || o.left >= right || o.bottom <= box.y || o.top >= bottom) continue;
+    const strips: Box[] = [
+      { x: box.x, y: box.y, width: o.left - box.x, height: box.height },
+      { x: o.right, y: box.y, width: right - o.right, height: box.height },
+      { x: box.x, y: box.y, width: box.width, height: o.top - box.y },
+      { x: box.x, y: o.bottom, width: box.width, height: bottom - o.bottom },
+    ].filter((b) => b.width > 0 && b.height > 0);
+    strips.sort((a, b) => b.width * b.height - a.width * a.height);
+    box = strips[0] ?? { x: 0, y: 0, width: 0, height: 0 };
+  }
+  // A sliver of a chat is no use; hide it until there is room again.
+  return box.width < 240 || box.height < 160 ? { x: 0, y: 0, width: 0, height: 0 } : box;
+}
+
 export interface ClaudeParams { accountId?: string; projectId?: string }
 
 /**
@@ -47,7 +73,7 @@ export function ClaudePanel(props: IDockviewPanelProps<ClaudeParams>) {
     const tick = () => {
       const el = host.current;
       if (el) {
-        const r = el.getBoundingClientRect();
+        const r = clearOfFloats(el);
         const visible = el.offsetParent !== null && r.width > 0 && r.height > 0;
         const key = `${r.x}|${r.y}|${r.width}|${r.height}|${visible}`;
         if (key !== last) { last = key; window.elysium.webBounds(id, { x: r.x, y: r.y, width: r.width, height: r.height }, visible); }
