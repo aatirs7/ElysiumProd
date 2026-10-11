@@ -16,7 +16,6 @@ export function Onboarding({ name }: { name: string }) {
   return (
     <div className="onboard" role="dialog" aria-modal="true" aria-label="Welcome to ElysiumProd">
       <div className="onboard-card" key={step}>
-        <div className="steps" aria-hidden="true">{Array.from({ length: steps }, (_, i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
 
         {step === 0 && (<>
           <Logo />
@@ -70,6 +69,7 @@ export function Onboarding({ name }: { name: string }) {
             ? <button className="btn primary" onClick={() => setStep((s) => s + 1)}>Continue <ArrowRight size={15} /></button>
             : <button className="btn primary" onClick={finishOnboarding}>Start working <ArrowRight size={15} /></button>}
         </div>
+        <div className="steps" aria-hidden="true">{Array.from({ length: steps }, (_, i) => <i key={i} className={i === step ? 'on' : ''} />)}</div>
       </div>
     </div>
   );
