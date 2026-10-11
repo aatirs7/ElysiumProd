@@ -44,6 +44,7 @@ const api: ElysiumApi = {
   onReader: (cb) => subscribe<[string, ReaderEntry]>(Channels.readerUpdate, cb),
   quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
   quickHide: () => ipcRenderer.send(Channels.quickHide),
+  restartApp: () => ipcRenderer.send(Channels.appRestart),
   quickOpenMain: () => ipcRenderer.send(Channels.quickOpenMain),
   onQuickShown: (cb) => subscribe<[]>(Channels.quickShown, cb),
   shortcut: () => ipcRenderer.invoke(Channels.shortcutGet),

@@ -210,6 +210,17 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     if (p) p.api.setActive(); else open({ kind: 'relay', params: { projectId } });
   };
 
+  const restart = useCallback(() => {
+    const n = sessions.filter((x) => x.status === 'running').length;
+    if (!n) { window.elysium.restartApp(); return; }
+    setConfirm({
+      title: 'Restart ElysiumProd?',
+      body: `${n} session${n > 1 ? 's are' : ' is'} running and will stop. Claude sessions can be resumed afterwards from the project's top bar. Use Wrap up first if one is in the middle of something.`,
+      yes: 'Restart',
+      run: () => window.elysium.restartApp(),
+    });
+  }, [sessions, setConfirm]);
+
   const crumb = page === 'workspace'
     ? (activeView?.projectId
       ? <span className="crumb"><ProjectLogo projectId={activeView.projectId} /><strong>{activeView.name}</strong></span>
@@ -243,13 +254,13 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           )}
         </div>
         {page === 'home' && <Home name={name || 'there'} onOpen={goProject} />}
-        {page === 'settings' && <Settings onOnboarding={restartOnboarding} />}
+        {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={restart} />}
       {toast && <div className="toast" role="status">{toast}</div>}
 
       {memory && (

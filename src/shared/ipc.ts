@@ -88,6 +88,7 @@ export const Channels = {
   projectStats: 'projects:stats',
   quickRun: 'quick:run',
   quickHide: 'quick:hide',
+  appRestart: 'app:restart',
   quickOpenMain: 'quick:open-main',
   quickShown: 'quick:shown',
   shortcutGet: 'shortcut:get',
@@ -159,6 +160,8 @@ export interface ElysiumApi {
   onReader(cb: (sessionId: string, e: ReaderEntry) => void): () => void;
   quickRun(projectId: string, text: string): Promise<{ ok: boolean; reason: string | null; sessionId?: string }>;
   quickHide(): void;
+  /** Quits normally and starts again: running sessions stop and can be resumed. */
+  restartApp(): void;
   quickOpenMain(): void;
   onQuickShown(cb: () => void): () => void;
   shortcut(): Promise<string | null>;

@@ -1,6 +1,6 @@
 // ElysiumProd main process: the main window, the quick bar and tray, sessions,
 // telemetry, watchers, background tasks, and everything they read.
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron';
 import { appendFileSync, existsSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
@@ -100,6 +100,12 @@ function loadRenderer(w: BrowserWindow, hash = ''): void {
   else void w.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined);
 }
 
+/** Restart: the normal quit (sessions stop, cookies and layout saved), then start again. */
+function restartApp(): void {
+  app.relaunch();
+  app.quit();
+}
+
 function showMain(): void {
   if (!win) return;
   if (win.isMinimized()) win.restore();
@@ -140,7 +146,17 @@ function createWindow(): BrowserWindow {
   });
   w.webContents.on('will-navigate', (e) => e.preventDefault());
   // Closing the window keeps ElysiumProd in the tray, so agents and the quick bar keep working.
-  w.on('close', (e) => { if (!quitting && !SMOKE) { e.preventDefault(); w.hide(); } });
+  w.on('close', (e) => {
+    if (quitting || SMOKE) return;
+    e.preventDefault();
+    w.hide();
+    // The first time only: say where it went, so closing never looks like a quit.
+    const flag = join(dataDir(), 'tray-notice-shown');
+    if (!existsSync(flag)) {
+      try { appendFileSync(flag, new Date().toISOString()); } catch { /* shown again next time */ }
+      if (Notification.isSupported()) new Notification({ title: 'ElysiumProd is still running', body: 'It keeps your sessions going in the tray. To load a new version, right-click the tray icon and choose Restart ElysiumProd, or use Settings.', icon: appIcon() }).show();
+    }
+  });
   loadRenderer(w);
   return w;
 }
@@ -214,6 +230,7 @@ function registerIpc(): void {
     return r;
   });
   ipcMain.on(Channels.quickHide, () => hideQuick());
+  ipcMain.on(Channels.appRestart, () => restartApp());
   ipcMain.on(Channels.quickOpenMain, () => { hideQuick(); showMain(); });
   ipcMain.handle(Channels.shortcutGet, () => currentShortcut());
   ipcMain.handle(Channels.shortcutSet, (_e, acc: unknown) => registerShortcut(typeof acc === 'string' ? acc : undefined));
@@ -269,7 +286,7 @@ app.whenReady().then(async () => {
   if (!SMOKE) {
     createQuickWindow(loadRenderer);
     registerShortcut();
-    createTray(showMain, () => app.quit());
+    createTray(showMain, () => app.quit(), restartApp);
   }
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });

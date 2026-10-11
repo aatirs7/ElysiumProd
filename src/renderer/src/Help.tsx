@@ -15,7 +15,7 @@ const ARTICLES: Article[] = [
         <li>Start a session from the Launch pane. For a main project that is Prime or Meridian; for a side project it is its one Claude session.</li>
         <li>Work in the terminal exactly as before. Every slash command and skill works, because it is the real Claude Code.</li>
       </ol>
-      <p>Close the window and ElysiumProd keeps running in the tray, so sessions and quick tasks carry on.</p>
+      <p>Close the window and ElysiumProd keeps running in the tray, so sessions and quick tasks carry on. Reopening shows that same copy. To load a new version, use <strong>Restart ElysiumProd</strong>: in Settings, in <K>Ctrl K</K>, or by right-clicking the tray icon. Quit from the tray menu to stop it completely.</p>
     </>),
   },
   {

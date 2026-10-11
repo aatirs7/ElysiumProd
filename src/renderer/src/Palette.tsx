@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
+import { BarChart3, RotateCw, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 import { WIDGETS, stackTerminals } from './workspace/Workspace';
@@ -8,7 +8,7 @@ import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go, onProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void }) {
+export function Palette({ onClose, go, onProject, onRestart }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void }) {
   const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
@@ -31,9 +31,10 @@ export function Palette({ onClose, go, onProject }: { onClose(): void; go(view: 
       { id: 'home', label: 'Home', hint: 'Ctrl 0', icon: <Home size={15} />, run: () => go('home') },
       { id: 'settings', label: 'Settings', hint: 'Theme, projects, accounts', icon: <SettingsIcon size={15} />, run: () => go('settings') },
       { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
+      { id: 'restart', label: 'Restart ElysiumProd', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

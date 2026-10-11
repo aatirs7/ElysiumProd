@@ -4,7 +4,7 @@ import { ProjectLogo } from './ProjectLogo';
 import { useLive } from './workspace/live';
 import { ACCENTS, DEFAULT_SETTINGS, THEMES, useWorkspace, type Density } from './workspace/store';
 
-export function Settings({ onOnboarding }: { onOnboarding(): void }) {
+export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; onRestart(): void }) {
   const { doc, activeView, setSettings, resetView, savePreset, applyPreset, deletePreset, setAccountLabel, setProjectAccount, togglePin, setWatcher } = useWorkspace();
   const { projects, accounts, watchers } = useLive();
   const s = doc.settings;
@@ -156,6 +156,9 @@ export function Settings({ onOnboarding }: { onOnboarding(): void }) {
           </Row>
           <Row label="Reset appearance" hint="Theme, text size and spacing back to defaults">
             <button className="btn" onClick={() => setSettings({ ...DEFAULT_SETTINGS, autoEnd: s.autoEnd })}>Reset</button>
+          </Row>
+          <Row label="Restart ElysiumProd" hint="Loads the newest version. Running sessions stop and can be resumed.">
+            <button className="btn" onClick={onRestart}>Restart</button>
           </Row>
           <Row label="Run the welcome again" hint="Accounts, projects and a quick tour">
             <button className="btn" onClick={onOnboarding}>Open welcome</button>
