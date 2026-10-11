@@ -1,0 +1,64 @@
+{
+  "before": {
+    "mainCred": "6e01a293ab9c",
+    "acc2Cred": "d210f07f9ec5",
+    "mainJsonHasB": false,
+    "acc2JsonHasB": false
+  },
+  "after": {
+    "mainCred": "6e01a293ab9c",
+    "acc2Cred": "d210f07f9ec5",
+    "mainJsonHasB": false,
+    "acc2JsonHasB": false,
+    "acc2HasProjectsDir": true
+  },
+  "a": {
+    "trustPrompt": false,
+    "loginPrompt": false,
+    "onboarding": false,
+    "banner": "Haiku 5.5 · Claude Max",
+    "replied": true,
+    "secondTurn": true,
+    "rateLimits": {
+      "five_hour": {
+        "used_percentage": 19,
+        "resets_at": 1791751800
+      },
+      "seven_day": {
+        "used_percentage": 6,
+        "resets_at": 1792083600
+      }
+    },
+    "accountHashes": [
+      "698fa6f76a18"
+    ]
+  },
+  "b": {
+    "trustPrompt": false,
+    "loginPrompt": false,
+    "onboarding": false,
+    "banner": "Haiku 5.5 · Claude Max",
+    "replied": true,
+    "secondTurn": true,
+    "rateLimits": {
+      "five_hour": {
+        "used_percentage": 2,
+        "resets_at": 1791751200
+      },
+      "seven_day": {
+        "used_percentage": 84,
+        "resets_at": 1791864000
+      }
+    },
+    "accountHashes": [
+      "99ff9e543192"
+    ]
+  },
+  "verdict": {
+    "distinctAccounts": true,
+    "bothReplied": true,
+    "mainCredUnchanged": true,
+    "bLeftNoTraceInMainJson": true,
+    "rateLimitsDiffer": true
+  }
+}

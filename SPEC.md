@@ -113,7 +113,7 @@ The board ledger figures that version 2 relied on are hook span timings. They sh
 
 - Windows 11 on ARM64 (Surface Pro). Primary and only supported target.
 - Node 20 LTS or newer, Claude Code CLI and Git on PATH.
-- PowerShell 7 as the default spawned shell, configurable per project.
+- Windows PowerShell 5.1 (`powershell.exe`) as the default spawned shell, with `pwsh` used when installed, configurable per project. Phase 0 found PowerShell 7 is not installed on this machine.
 - Resource constrained in practice. At audit time `C:` was 98 percent full with 14 GB free, and a Meridian had been stopped for low memory. Treat disk and RAM as first class limits from Phase 1.
 
 ARM64 is the single biggest build risk. See section 17.
@@ -378,7 +378,7 @@ All three feed one local ingest server in the main process: bound to `127.0.0.1`
 
 ### 10.1 Status line shim (primary, live)
 
-Claude Code supports a custom `statusLine` command. It runs a script and passes JSON on stdin. ElysiumProd writes a tiny shim script into each account's config directory; the shim POSTs the JSON to the ingest and prints a minimal line back to the terminal.
+Claude Code supports a custom `statusLine` command. It runs a script and passes JSON on stdin. ElysiumProd passes the shim through one `--settings <file>` per launch, kept under `%APPDATA%\elysiumprod\`; it never writes into an account's config directory (Phase 0, step 4). The shim POSTs the JSON to the ingest and prints a minimal line back to the terminal.
 
 No settings scope on the machine sets `statusLine` today, so the shim takes nothing away. The `securitposture-mods` plugin draws its own line above the prompt and already shows the session badge and context use. The shim therefore prints an empty line by default, so the owner does not see context twice, with a config switch to print a short line in sessions that do not load the plugin.
 
@@ -388,7 +388,8 @@ Documented fields this delivers:
 - `cost.total_cost_usd`, `cost.total_duration_ms`, `cost.total_api_duration_ms`, `cost.total_lines_added`, `cost.total_lines_removed`
 - `context_window.total_input_tokens`, `total_output_tokens`, `context_window_size` (200000, or 1000000 on extended context), `used_percentage`, `remaining_percentage`, `current_usage`
 - `exceeds_200k_tokens`
-- `rate_limits.five_hour`, `rate_limits.seven_day`, `rate_limits.spend_limit` (subscriber only, populated after the first response)
+- `rate_limits.five_hour`, `rate_limits.seven_day` (each `used_percentage` and `resets_at`). Phase 0 saw them before the first response in a fresh session. `spend_limit` was absent.
+- Also delivered, confirmed in Phase 0: `prompt_cache.*` (warm, ttl, expires_at, hit_ratio, misses, recache_tokens_if_cold), `effort.level`, `fast_mode`, `thinking.enabled`, `version`, `model.id`. The full key list is in `spike/out/SCHEMAS.md`.
 
 This one channel supplies live context percentage, model, cost, and, crucially, **real rate limit state**. That replaces pattern-matching output for rate limits, which was the weakest part of the earlier design, and it makes account failover trustworthy rather than a guess.
 
@@ -402,7 +403,7 @@ Caveats to honor in the UI:
 
 ### 10.2 Hooks (events)
 
-ElysiumProd writes hook definitions into each account's config directory. Each hook POSTs its stdin JSON to the ingest and exits zero.
+ElysiumProd supplies its hook definitions in the same `--settings` file as the status line. Phase 0 showed hooks from `--settings` fire alongside the user's own settings, and no config directory is edited. Each hook POSTs its stdin JSON to the ingest and exits zero.
 
 Rules learned from the existing setup:
 
@@ -424,7 +425,14 @@ What this buys:
 
 Note: `model` is not a common hook field. It appears only on `SessionStart`, and not always. Take model from the status line instead.
 
-UNVERIFIED: the exact stdin schemas for `PreCompact`, `Stop`, `SessionEnd` and `Notification` were not fully confirmed. Confirm in Phase 0 by logging raw stdin for each before building UI on specific fields.
+Confirmed in Phase 0, Claude Code 2.1.296. All nine events fire with JSON stdin; key lists are in `spike/out/SCHEMAS.md`. Useful fields:
+
+- `Stop`: `last_assistant_message`, `background_tasks`, `session_crons`.
+- `Notification`: `notification_type` (seen: `idle_prompt`), `message`.
+- `PostCompact`: `trigger`, `compact_summary`. SessionStart fires again after every compaction.
+- `SessionEnd`: `reason` (seen: `prompt_input_exit`).
+
+Not yet observed: a permission-prompt `Notification`, and `trigger: auto`. Treat both as unknown until the first dogfood captures them.
 
 ### 10.3 OpenTelemetry (totals and history)
 
@@ -449,7 +457,9 @@ Every metric carries `session.id`, so all of it attributes to the right pane and
 
 Two rules:
 
-- Leave content capture off. Do not set the `OTEL_LOG_*` content gates. Prompts, responses and tool parameters would otherwise land on disk.
+- Leave content capture off. Do not set the `OTEL_LOG_*` content gates. Phase 0 confirmed that with no gate set, `prompt`, `prompt_text` and `response` arrive redacted.
+- Strip identity before storage. Every data point carries `user.email`, `user.account_uuid`, `user.account_id`, `user.id` and `organization.id`. The ingest drops them and keeps only a short hash of `user.account_uuid`, which is how the pane's account chip is verified rather than assumed.
+- Use `http/json` in development for readable bodies; `http/protobuf` is fine in production. Phase 0 saw posts to `/v1/metrics` and `/v1/logs`.
 - Project settings files cannot set OTel variables; they must be process environment. That suits this design, since ElysiumProd controls the child env anyway.
 
 ### 10.4 What not to do
@@ -521,11 +531,15 @@ C:\Users\aatir\.claude-account2   second account, logged in 2026-09-21, never us
 
 Use these existing directories. Do not create new ones; the second is already logged in and has its own `.claude.json`.
 
-The main account directory has no `CLAUDE_CONFIG_DIR` set today, so the CLI uses it by default. ElysiumProd sets the variable explicitly for both, so a pane's account never depends on the default.
+The main account directory has no `CLAUDE_CONFIG_DIR` set today, so the CLI uses it by default. ElysiumProd **leaves the variable unset for the main account** and sets it only for non-default accounts. Setting it explicitly to `C:\Users\aatir\.claude` might make the CLI look for `.claude.json` inside that folder, where it does not exist; that was deliberately not tested. Which account a pane is really on is verified from the OTel account hash (10.3).
+
+Phase 0 step 2 passed. Both accounts ran at once, each answered two turns as a distinct account with separate rate limits, and neither touched the other's credentials. Account 2 showed its weekly limit 84 percent used on 2026-10-11, from use outside Claude Code.
 
 ElysiumProd injects it into each spawned PTY's environment. Never globally, never into a settings file, since project and local settings files are not permitted to set it. First launch against a fresh directory triggers a normal interactive login, inside the pane the owner is already looking at.
 
-This is also where the status line shim and the hooks from section 10 get written, one copy per account directory.
+The status line shim and hooks from section 10 are not written here. They travel in the `--settings` file (10.1, 10.2).
+
+A new folder on an account shows the folder trust dialog, defaulting to "No, exit". ElysiumProd never answers it automatically; the pane is the owner's.
 
 ### 11.2 Environment scrubbing
 
@@ -534,6 +548,7 @@ Before spawning anything, strip from the child environment:
 - `ANTHROPIC_API_KEY`
 - `ANTHROPIC_AUTH_TOKEN`
 - `CLAUDE_CODE_OAUTH_TOKEN`
+- every other variable starting with `CLAUDE` that ElysiumProd does not set itself, and every `OTEL_` variable. Phase 0 found that a process started from a Claude Code terminal passes on 10 `CLAUDE*` variables, including a messaging socket and token, and the child then turned transcript saving off.
 
 Each takes precedence over the subscription login. If any is inherited, both sessions silently authenticate or bill to the same place, which defeats the design and is nearly invisible. Scrub unconditionally, then add back only what the project config explicitly declares.
 
@@ -642,10 +657,10 @@ Today each one runs inside Prime, times out, and depends on Prime noticing and r
 ElysiumProd runs each watcher as a supervised child process of the main process, in the project's directory, with no timeout:
 
 - restarted on exit with back off, 5s doubling to 5 minutes, and an attention row after three failures;
-- stdout lines are delivered to the template named in `WatcherSpec.deliverTo` by writing them where `inbox.mjs` already looks, so Prime sees them at its next tool call or turn end through the existing hook path. ElysiumProd never types into a busy PTY;
+- each stdout line becomes an attention row. If the target template is idle, meaning its last hook event was `Stop` or `Notification` with `idle_prompt`, the line is also typed into its PTY as a prompt. If it is busy, nothing is typed, because the project's `inbox.mjs` reaches the same board issue at its next tool call. ElysiumProd never types into a busy PTY;
 - the plugin's watcher status reads the 11.6 liveness file, so its restart prompt stays quiet while ElysiumProd owns the watcher.
 
-UNVERIFIED: what each watcher writes and where `inbox.mjs` reads from. Phase 0 reads those two scripts, as configuration, before this is built. If delivery through the inbox path does not fit, fall back to leaving the watcher in Prime and only supervising its restart.
+Settled in Phase 0. `board-watch.mjs` prints one line per new `board:task` issue and keeps its seen list in the OS temp folder. `inbox.mjs` does not read watcher output; it polls GitHub through `gh` itself. So there is no shared file to write into, and idle-only typing is the delivery path.
 
 ## 14. Notifications
 
@@ -777,7 +792,9 @@ Each phase ends in something usable. Do not start one before the previous runs o
 
 **Phase A, workflow audit. Done 2026-10-11.** Output: `AUDIT-REPOS.md`, `AUDIT-TOOLING.md`, `AUDIT-SESSIONS.md`, `AUDIT-WORKFLOW.md`, `AUDIT-FRICTION.md`, `AUDIT-SUMMARY.md`, and this revision. Ends when the owner has read `AUDIT-SUMMARY.md`.
 
-**Phase 0, spike, half a day.** Prove the risky things before writing app code.
+**Phase 0, spike. Done 2026-10-11.** Every step passed or was settled; see `PHASE0.md`. The steps are kept below as the record.
+
+**Phase 0, as specified.** Prove the risky things before writing app code.
 1. `node-pty` installs or builds for Electron on win32-arm64, and a PowerShell session round-trips through ConPTY.
 2. **Load-bearing: prove two accounts work at once.** The rest of the multi-account design depends on this step, so treat it as a test that can fail. Launch one session on the main account and one with `CLAUDE_CONFIG_DIR=C:\Users\aatir\.claude-account2`, at the same time. Pass only if all of these hold:
    - each session reports the expected account, and the status line `rate_limits` differ between them;
@@ -815,7 +832,7 @@ Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| node-pty on win32-arm64 | High | Phase 0. Fallbacks named. |
+| node-pty on win32-arm64 | Retired | Phase 0: Node-API prebuilds load in Electron 44 on ARM64 with no rebuild. |
 | Native modules inside asar | High | `asarUnpack` from the first packaged build, not at the end. |
 | `~/.claude.json` ignores `CLAUDE_CONFIG_DIR`, so MCP config is shared | Low | Audit found a separate `.claude.json` in `.claude-account2`. Phase 0 step 2 confirms the main one is untouched. The new consequence is the opposite one: user scope servers must be added to each account. |
 | Multi-account is unproven: the second account has never run a session, and concurrent use may not be permitted | High | Phase 0 step 2 is a pass or fail test. On a fail, single account design, as in 18. Terms checked before Phase 9 either way. |

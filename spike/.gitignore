@@ -1,0 +1,4 @@
+node_modules/
+sandbox/
+out/*.jsonl
+out/harness.log
