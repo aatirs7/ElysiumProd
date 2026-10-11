@@ -162,7 +162,17 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       const tpl = templates.find((x) => x.id === props.params.templateId);
       const r = await window.elysium.create(props.params.templateId, term.cols, term.rows, { accountId: accountFor(tpl?.project) });
       if (disposed) { if (r.ok) void window.elysium.kill(r.session.id); return; }
-      if (!r.ok) { setError(r.reason); return; }
+      if (!r.ok) {
+        // Already running (a pane from before, or the quick bar started it): connect to it instead.
+        const running = (await window.elysium.sessions()).find((x) => x.templateId === props.params.templateId && x.status === 'running');
+        if (running && /already running/i.test(r.reason ?? '')) {
+          props.api.updateParameters({ templateId: props.params.templateId, sessionId: running.id });
+          setAttempt((a) => a + 1);
+          return;
+        }
+        setError(r.reason);
+        return;
+      }
       attach(r.session.id);
       props.api.updateParameters({ ...props.params, sessionId: r.session.id });
       term.focus();

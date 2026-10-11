@@ -10,7 +10,7 @@ import {
 } from 'dockview-react';
 import {
   Activity, BookOpen, Eye, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
-  NotebookPen, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
+  NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
 import { useLive } from './live';
 import { useWorkspace, type OpenRequest, type PanelKind, type View } from './store';
@@ -157,16 +157,29 @@ function GroupActions(props: IDockviewHeaderActionsProps) {
   useEffect(() => { if (!menu) return; overlayOpened(); return () => overlayClosed(); }, [menu]);
   const add = (req: OpenRequest) => { setMenu(false); open({ ...req, referenceGroupId: props.group.id }); };
   const floating = props.group.api.location.type === 'floating';
+  // Back into the grid, to the right of the largest docked group.
+  const dock = () => {
+    const docked = props.containerApi.groups.filter((g) => g !== props.group && g.api.location.type === 'grid');
+    const target = docked.sort((a, b) => b.width * b.height - a.width * a.height)[0];
+    try {
+      if (target) props.group.api.moveTo({ group: target, position: 'right' });
+      else props.group.api.moveTo({ position: 'center' });
+    } catch { /* drag the tab instead */ }
+  };
   const sessionTemplates = activeView?.projectId ? templates.filter((t) => t.project === activeView.projectId || t.kind === 'shell') : templates;
   return (
     <div className="ep-actions">
       <button className="ep-act" onClick={() => setMenu((m) => !m)} title="Add a pane here" aria-label="Add a pane here"><Plus size={15} /></button>
-      {!floating && (
+      {floating ? (
+        <button className="ep-act" title="Dock back into the layout" aria-label="Dock this group" onClick={dock}><PanelsTopLeft size={14} /></button>
+      ) : (
         <button className="ep-act" title="Float" aria-label="Float this group" onClick={() => props.containerApi.addFloatingGroup(props.group)}><PictureInPicture2 size={14} /></button>
       )}
-      <button className="ep-act" title={max ? 'Restore' : 'Maximize'} aria-label={max ? 'Restore' : 'Maximize'} onClick={() => (max ? props.api.exitMaximized() : props.api.maximize())}>
-        {max ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
-      </button>
+      {!floating && (
+        <button className="ep-act" title={max ? 'Restore' : 'Maximize'} aria-label={max ? 'Restore' : 'Maximize'} onClick={() => (max ? props.api.exitMaximized() : props.api.maximize())}>
+          {max ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+        </button>
+      )}
       {menu && (
         <>
           <div className="menu-scrim" onClick={() => setMenu(false)} />
