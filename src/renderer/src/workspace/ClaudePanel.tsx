@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { ArrowLeft, ArrowRight, ExternalLink, House, RefreshCw, SendHorizontal } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ExternalLink, House, Pin, PinOff, RefreshCw, SendHorizontal } from 'lucide-react';
 import type { WebState } from '@shared/ipc';
 import { lastFocusedSession } from './TerminalPanel';
 import { useWorkspace } from './store';
@@ -10,7 +10,7 @@ let overlays = 0;
 export function overlayOpened() { overlays += 1; window.elysium.webHideAll(true); }
 export function overlayClosed() { overlays = Math.max(0, overlays - 1); if (!overlays) window.elysium.webHideAll(false); }
 
-export interface ClaudeParams { accountId?: string }
+export interface ClaudeParams { accountId?: string; projectId?: string }
 
 /**
  * Claude pane: claude.ai beside the terminals, signed in on the account this pane
@@ -19,18 +19,29 @@ export interface ClaudeParams { accountId?: string }
  * its rectangle and keeps the view aligned with it every frame.
  */
 export function ClaudePanel(props: IDockviewPanelProps<ClaudeParams>) {
-  const { doc } = useWorkspace();
+  const { doc, activeView, setProjectChat } = useWorkspace();
   const host = useRef<HTMLDivElement>(null);
   const id = props.api.id;
   const accountId = props.params.accountId ?? 'main';
   const [state, setState] = useState<WebState | null>(null);
   const [sent, setSent] = useState<string | null>(null);
   const accounts = doc.accounts;
+  const projectId = props.params.projectId ?? activeView?.projectId;
+  const projectName = activeView?.name ?? 'this project';
+  // The chat this project opens to, pinned by the owner from the toolbar.
+  const pinned = projectId ? doc.projectChats[projectId] : undefined;
+  const isChat = Boolean(state?.url && /^https:\/\/claude\.ai\/(chat|project)\//.test(state.url));
+  const onPinned = Boolean(pinned && state?.url?.split('?')[0] === pinned.url.split('?')[0]);
+  const togglePin = () => {
+    if (!projectId) return;
+    if (onPinned) { setProjectChat(projectId, null); return; }
+    if (state?.url && isChat) setProjectChat(projectId, { url: state.url.split('?')[0], title: (state.title || 'Chat').replace(/\s*-\s*Claude\s*$/, '') });
+  };
 
   useEffect(() => window.elysium.onWebState((s) => { if (s.id === id) setState(s); }), [id]);
 
   useEffect(() => {
-    window.elysium.webAttach(id, accountId);
+    window.elysium.webAttach(id, accountId, pinned?.url ?? null);
     let last = '';
     let raf = 0;
     const tick = () => {
@@ -45,7 +56,7 @@ export function ClaudePanel(props: IDockviewPanelProps<ClaudeParams>) {
     };
     raf = requestAnimationFrame(tick);
     return () => { cancelAnimationFrame(raf); window.elysium.webBounds(id, { x: 0, y: 0, width: 0, height: 0 }, false); };
-  }, [id, accountId]);
+  }, [id, accountId, pinned?.url]);
 
   // Closing the pane ends its page; moving it or switching views does not.
   useEffect(() => {
@@ -72,7 +83,13 @@ export function ClaudePanel(props: IDockviewPanelProps<ClaudeParams>) {
         <button className="ghost-icon" onClick={() => window.elysium.webNav(id, 'back')} title="Back" aria-label="Back"><ArrowLeft size={15} /></button>
         <button className="ghost-icon" onClick={() => window.elysium.webNav(id, 'forward')} title="Forward" aria-label="Forward"><ArrowRight size={15} /></button>
         <button className="ghost-icon" onClick={() => window.elysium.webNav(id, 'reload')} title="Reload" aria-label="Reload"><RefreshCw size={15} className={state?.loading ? 'spin' : ''} /></button>
-        <button className="ghost-icon" onClick={() => window.elysium.webNav(id, 'home')} title="New chat" aria-label="New chat"><House size={15} /></button>
+        <button className="ghost-icon" onClick={() => window.elysium.webNav(id, 'home')} title={pinned ? `Back to ${pinned.title}` : 'New chat'} aria-label={pinned ? 'Back to the pinned chat' : 'New chat'}><House size={15} /></button>
+        {projectId && (
+          <button className={`ghost-btn ${onPinned ? 'pinned' : ''}`} onClick={togglePin} disabled={!onPinned && !isChat}
+            title={onPinned ? `${projectName} opens this chat. Click to unpin.` : isChat ? `Open this chat every time you open ${projectName}` : 'Open a chat first, then pin it'}>
+            {onPinned ? <Pin size={14} /> : <PinOff size={14} />}{onPinned ? 'Pinned' : 'Pin chat'}
+          </button>
+        )}
         <select className="picker" value={accountId} onChange={(e) => props.api.updateParameters({ ...props.params, accountId: e.target.value })} title="Claude account for this pane">
           {Object.keys(accounts).map((a) => <option key={a} value={a}>{label(a)}</option>)}
         </select>

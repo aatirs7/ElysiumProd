@@ -136,7 +136,8 @@ export interface ElysiumApi {
   openExternal(url: string): void;
   processes(): Promise<ProcGroup[]>;
   endProgram(name: string): Promise<{ ok: boolean; error: string | null; ended: number }>;
-  webAttach(id: string, accountId: string): void;
+  /** Opens claude.ai in a pane on an account, at the project's pinned chat if it has one. */
+  webAttach(id: string, accountId: string, startUrl?: string | null): void;
   onWebState(cb: (s: WebState) => void): () => void;
   webBounds(id: string, bounds: { x: number; y: number; width: number; height: number }, visible: boolean): void;
   webDetach(id: string): void;

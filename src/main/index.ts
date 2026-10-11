@@ -142,8 +142,8 @@ function registerIpc(): void {
   ipcMain.handle(Channels.docPick, () => pickDocument(win));
   ipcMain.handle(Channels.procList, () => listProcessGroups());
   ipcMain.handle(Channels.procEnd, (_e, name: unknown) => endProgram(String(name)));
-  ipcMain.on(Channels.webAttach, (_e, id: unknown, accountId: unknown) => {
-    if (win && typeof id === 'string') attachWeb(win, id, typeof accountId === 'string' && /^[\w-]{1,40}$/.test(accountId) ? accountId : 'main', (s) => send(Channels.webState, s));
+  ipcMain.on(Channels.webAttach, (_e, id: unknown, accountId: unknown, start: unknown) => {
+    if (win && typeof id === 'string') attachWeb(win, id, typeof accountId === 'string' && /^[\w-]{1,40}$/.test(accountId) ? accountId : 'main', (s) => send(Channels.webState, s), typeof start === 'string' ? start : null);
   });
   ipcMain.on(Channels.webBounds, (_e, id: unknown, b: unknown, visible: unknown) => {
     if (typeof id === 'string' && b && typeof b === 'object') setWebBounds(id, b as { x: number; y: number; width: number; height: number }, Boolean(visible));

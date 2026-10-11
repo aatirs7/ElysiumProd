@@ -38,14 +38,28 @@ const log = (line: string) => {
 };
 
 interface Bounds { x: number; y: number; width: number; height: number }
-interface Entry { view: WebContentsView; accountId: string }
+interface Entry { view: WebContentsView; accountId: string; home: string }
 
 const views = new Map<string, Entry>();
 let hiddenAll = false;
 
-export function attachWeb(win: BrowserWindow, id: string, accountId: string, emit: (s: WebState) => void): void {
+/** A chat or project page on claude.ai the owner pinned for a project; anything else falls back to a new chat. */
+function startUrl(u: string | null | undefined): string {
+  try { const h = new URL(u ?? ''); return h.protocol === 'https:' && /(^|\.)claude\.ai$/.test(h.hostname) ? h.toString() : HOME; } catch { return HOME; }
+}
+
+export function attachWeb(win: BrowserWindow, id: string, accountId: string, emit: (s: WebState) => void, start?: string | null): void {
   const existing = views.get(id);
-  if (existing && existing.accountId === accountId) return;
+  const home = startUrl(start);
+  if (existing && existing.accountId === accountId) {
+    // Same account: only move to a newly pinned chat, never interrupt the one that is open.
+    if (existing.home !== home) {
+      existing.home = home;
+      const here = existing.view.webContents.getURL().split('?')[0];
+      if (here !== home.split('?')[0]) void existing.view.webContents.loadURL(home);
+    }
+    return;
+  }
   if (existing) detachWeb(win, id);
   const view = new WebContentsView({
     webPreferences: { partition: `persist:claude-${accountId}`, sandbox: true, contextIsolation: true, nodeIntegration: false },
@@ -76,8 +90,8 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
   wc.on('render-process-gone', (_e, d) => { log(`renderer gone: ${d.reason}`); state(false, 'The page crashed. Reload to try again.'); });
   view.setVisible(false);
   win.contentView.addChildView(view);
-  views.set(id, { view, accountId });
-  void wc.loadURL(HOME);
+  views.set(id, { view, accountId, home });
+  void wc.loadURL(home);
 }
 
 export function setWebBounds(id: string, b: Bounds, visible: boolean): void {
@@ -94,12 +108,13 @@ export function hideAllWeb(hide: boolean): void {
 }
 
 export function navWeb(id: string, action: 'back' | 'forward' | 'reload' | 'home' | 'external'): void {
-  const wc = views.get(id)?.view.webContents;
-  if (!wc) return;
+  const e = views.get(id);
+  const wc = e?.view.webContents;
+  if (!e || !wc) return;
   if (action === 'back' && wc.navigationHistory.canGoBack()) wc.navigationHistory.goBack();
   else if (action === 'forward' && wc.navigationHistory.canGoForward()) wc.navigationHistory.goForward();
   else if (action === 'reload') wc.reload();
-  else if (action === 'home') void wc.loadURL(HOME);
+  else if (action === 'home') void wc.loadURL(e.home);
   else if (action === 'external') void shell.openExternal(/^https:\/\//.test(wc.getURL()) ? wc.getURL() : HOME);
 }
 

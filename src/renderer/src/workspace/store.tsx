@@ -68,6 +68,8 @@ export interface WorkspaceDoc {
   lastProjectId: string | null;
   /** Projects shown in the sidebar and on Home; the rest stay one search away. */
   pinned: string[];
+  /** The claude.ai chat (or Claude Project) each project's Claude pane opens to. */
+  projectChats: Record<string, { url: string; title: string }>;
 }
 
 /**
@@ -110,6 +112,7 @@ function fresh(): WorkspaceDoc {
     version: 1, settings: DEFAULT_SETTINGS, views: [], activeViewId: null, notes: {}, presets: [],
     accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
     pinned: ['posture', 'intern', 'attestia', 'gulf', 'builds'],
+    projectChats: {},
   };
 }
 
@@ -133,6 +136,7 @@ function parse(json: string | null): WorkspaceDoc {
       onboarded: Boolean(d.onboarded),
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? d.pinned : f.pinned,
+      projectChats: d.projectChats ?? {},
     };
   } catch {
     return f;
@@ -173,6 +177,7 @@ interface Ctx {
   accountFor(projectId: string | null | undefined): string;
   setWatcher(projectId: string, cfg: WatcherConfig): void;
   togglePin(projectId: string): void;
+  setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
   finishOnboarding(): void;
   restartOnboarding(): void;
   /** Opens (or switches to) the project's own view. */
@@ -257,6 +262,11 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
   const accountFor = useCallback((projectId: string | null | undefined) => (projectId && docRef.current.projectAccounts[projectId]) || 'main', []);
   const setWatcher = useCallback((projectId: string, cfg: WatcherConfig) => setDoc((d) => ({ ...d, watchers: { ...d.watchers, [projectId]: cfg } })), []);
   const togglePin = useCallback((projectId: string) => setDoc((d) => ({ ...d, pinned: d.pinned.includes(projectId) ? d.pinned.filter((x) => x !== projectId) : [...d.pinned, projectId] })), []);
+  const setProjectChat = useCallback((projectId: string, chat: { url: string; title: string } | null) => setDoc((d) => {
+    const projectChats = { ...d.projectChats };
+    if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
+    return { ...d, projectChats };
+  }), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string) => {
@@ -287,8 +297,8 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
   const activeView = doc.views.find((v) => v.id === doc.activeViewId) ?? null;
   const value = useMemo<Ctx>(() => ({
     doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
-    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
   }), [doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
-    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

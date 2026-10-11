@@ -324,7 +324,9 @@ kbd { font-family: var(--font); font-size: .75rem; color: var(--text-3); border:
 .seg button { border: 0; background: transparent; padding: .22rem .7rem; border-radius: 8px; font-size: .84rem; color: var(--text-2); cursor: pointer; transition: background-color .15s var(--ease), color .15s var(--ease); white-space: nowrap; }
 .seg button.on { background: var(--surface-2); color: var(--text); box-shadow: 0 1px 2px rgba(8, 8, 8, 0.18); }
 .ghost-btn { display: inline-flex; align-items: center; gap: .4rem; height: 2rem; padding: 0 .7rem; border: 1px solid var(--line); border-radius: 9px; background: transparent; cursor: pointer; font-size: .86rem; color: var(--text-2); transition: background-color .15s var(--ease), color .15s var(--ease); white-space: nowrap; }
-.ghost-btn:hover { color: var(--text); background: var(--hover); }
+.ghost-btn:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.ghost-btn:disabled { opacity: .45; cursor: default; }
+.ghost-btn.pinned { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .chip-btn { height: 1.75rem; padding: 0 .65rem; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font-size: .8rem; cursor: pointer; transition: all .15s var(--ease); white-space: nowrap; }
 .chip-btn:hover:not(:disabled) { color: var(--text); background: var(--hover); }
 .chip-btn.on { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }

@@ -83,7 +83,7 @@ export function addPanel(api: DockviewApi, req: OpenRequest): void {
  */
 function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string) {
   api.addPanel({ id: `launcher-${uid()}`, component: 'launcher', title: 'Launch' });
-  api.addPanel({ id: `claude-${uid()}`, component: 'claude', title: 'Claude', params: { accountId }, position: { direction: 'right' } });
+  api.addPanel({ id: `claude-${uid()}`, component: 'claude', title: 'Claude', params: { accountId, projectId: view.projectId }, position: { direction: 'right' } });
   const right = api.groups[api.groups.length - 1];
   if (view.projectId) {
     if (projectHasRelay) {

@@ -52,10 +52,12 @@ const ARTICLES: Article[] = [
     </>),
   },
   {
-    id: 'claude', title: 'The Claude pane', words: 'claude web chat planning send terminal sign in google browser',
+    id: 'claude', title: 'The Claude pane', words: 'claude web chat planning send terminal sign in google browser pin pinned same chat sidebar',
     body: (<>
       <p>The Claude pane is claude.ai beside your terminals, for planning chats. It uses the project's account, and the picker in its toolbar switches it.</p>
       <ul>
+        <li><strong>Open the same chat every time:</strong> open the chat you plan this project in (or a Claude Project), then press <strong>Pin chat</strong> in the pane's toolbar. From then on the project's Claude pane opens straight to it, and the home button returns to it. Press Pinned again to unpin.</li>
+        <li><strong>Hide claude.ai's chat list:</strong> use the panel button at the top left of claude.ai's own sidebar. The pane remembers it.</li>
         <li><strong>Send to terminal:</strong> copy text in the chat, then press Send to terminal. It is pasted into the terminal you last used, without pressing Enter, so you can read it first.</li>
         <li><strong>Tasks between them:</strong> notes you post to the board from the chat still reach Prime through your connectors and the watcher, as before.</li>
         <li><strong>Trouble signing in:</strong> use email sign in, or the open in browser button. Some Google sign ins refuse embedded windows.</li>
