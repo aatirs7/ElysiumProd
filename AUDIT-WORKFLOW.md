@@ -20,7 +20,7 @@ Identity comes from `agent-name` records in each transcript and from `.claude/mo
 ### Measures
 
 - **Commit calls**: Bash or PowerShell tool calls containing `git commit`, per session, from `audit/scripts/commits_by_session.py`. Git alone cannot attribute commits, because co-author trailers are switched off (`includeCoAuthoredBy: false`) and every worktree branch has been merged into main. A call is not always a landed commit, so read these as shares, not totals.
-- **Tool calls** and **owner turns** from `origins.py` and `sessions.py`.
+- **Tool calls** and **owner typed turns** (`origin.kind = human`) from `origins.py`.
 - **Overlap**: ten minute windows in which both sessions wrote a record, from `overlap.py`.
 
 | Project | Prime commit calls | Meridian commit calls | Meridian share | Prime tool calls | Meridian tool calls | Owner typed turns, Prime / Meridian | Both active, share of union |
