@@ -33,7 +33,16 @@ app.setPath('userData', dataDir());
 app.setAppUserModelId('ElysiumProd');
 
 // Two copies managing the same PTYs and files would be bad (spec 16).
-if (!SMOKE && !app.requestSingleInstanceLock()) app.quit();
+// `--send <template id> <message>` from a second launch. Chromium adds and
+// reorders switches in the argv the first copy sees, so the request travels
+// in the lock's own data instead, read here before Chromium touches it.
+function sendRequest(argv: string[]): { templateId: string; message: string } | null {
+  const i = argv.indexOf('--send');
+  if (i < 0) return null;
+  const rest = argv.slice(i + 1).filter((x) => !x.startsWith('--'));
+  return rest.length >= 2 ? { templateId: rest[0], message: rest.slice(1).join(' ') } : null;
+}
+if (!SMOKE && !app.requestSingleInstanceLock({ send: sendRequest(process.argv) })) app.quit();
 
 let win: BrowserWindow | null = null;
 const send = (channel: string, ...args: unknown[]) => {
@@ -261,11 +270,11 @@ app.on('before-quit', (e) => {
  * gives a session a message in the background, exactly like a quick task;
  * anything else just shows the window.
  */
-app.on('second-instance', (_e, argv) => {
-  const i = argv.indexOf('--send');
-  if (i >= 0 && tasks && argv[i + 1] && argv[i + 2]) {
-    const r = tasks.runTemplate(argv[i + 1], argv.slice(i + 2).join(' '));
-    try { appendFileSync(join(dataDir(), 'send.log'), `${new Date().toISOString()} ${argv[i + 1]} ${r.ok ? 'ok' : r.reason}
+app.on('second-instance', (_e, argv, _cwd, data) => {
+  const req = (data as { send?: { templateId: string; message: string } | null } | undefined)?.send ?? sendRequest(argv);
+  if (req && tasks) {
+    const r = tasks.runTemplate(req.templateId, req.message);
+    try { appendFileSync(join(dataDir(), 'send.log'), `${new Date().toISOString()} ${req.templateId} ${r.ok ? 'ok' : r.reason}
 `); } catch { /* log is optional */ }
     return;
   }
