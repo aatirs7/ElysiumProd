@@ -558,3 +558,6 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 
 .glance { display: inline-flex; align-items: center; gap: .4rem; font-size: .82rem; color: var(--text-3); white-space: nowrap; }
 .topbar .crumb { margin-right: .6rem; }
+
+.glance-btn { display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: var(--text); white-space: nowrap; border: 1px solid var(--line); background: transparent; border-radius: 99px; padding: .22rem .7rem; cursor: pointer; transition: background-color .15s var(--ease), border-color .15s var(--ease); }
+.glance-btn:hover { background: var(--hover); border-color: var(--line-strong); }

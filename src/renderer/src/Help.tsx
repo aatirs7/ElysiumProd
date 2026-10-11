@@ -47,6 +47,8 @@ const ARTICLES: Article[] = [
       <p>The number counts the input side only and updates after each turn, so it trails the conversation by one turn.</p>
       <h3>Reader and terminal styles</h3>
       <p>Each Claude pane has a Terminal and a Reader switch at its top right. Reader shows the conversation as a calm page: your prompts as quiet quotes and Claude's replies as formatted text, with a reply box at the bottom. Settings, Appearance, Terminal style switches the terminal between Soft dark, a light Paper style like Notion, and the app theme.</p>
+      <h3>Getting a session back</h3>
+      <p>In a project, the top bar always shows Prime and Meridian. Click one to show it; if it is not running, you are asked whether to start it. Opening a session that is already running, from the top bar, the <K>+</K> menu or <K>Ctrl K</K>, shows the same session again rather than starting a second copy.</p>
       <h3>Two terminals stacked</h3>
       <p>Start Prime and Meridian from the Launch pane and they open one above the other. Ctrl K, Stack terminals rearranges any view's terminals into one column.</p>
       <h3>Wrap up</h3>

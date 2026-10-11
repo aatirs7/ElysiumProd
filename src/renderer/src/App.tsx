@@ -27,15 +27,30 @@ export function App() {
 }
 
 function WithWorkspace() {
-  const { templates } = useLive();
+  const { templates, sessions } = useLive();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const templatesRef = useRef(templates);
   templatesRef.current = templates;
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
 
   // Every panel open passes through here, so a resume always asks first. Attaching
   // to a session that is already running (a notification click) does not.
   const onOpen = useCallback((_viewId: string, req: OpenRequest, api: DockviewApi) => {
     const t = req.kind === 'terminal' ? templatesRef.current.find((x) => x.id === req.templateId) : undefined;
+    // Already running here (its pane was closed, or it started from the quick bar): show that
+    // session again instead of starting a second copy, and do not ask about resuming.
+    const runningId = (id?: string) => sessionsRef.current.find((x) => x.templateId === id && x.status === 'running')?.id;
+    if (t && !(req.params && 'sessionId' in req.params)) {
+      const sid = runningId(t.id);
+      if (sid) {
+        const existing = api.panels.find((p) => (p.params as { sessionId?: string } | undefined)?.sessionId === sid);
+        if (existing) existing.api.setActive();
+        else addPanel(api, { ...req, pairTemplateId: undefined, params: { ...(req.params ?? {}), sessionId: sid } });
+        if (req.pairTemplateId) onOpenRef.current(_viewId, { kind: 'terminal', templateId: req.pairTemplateId, title: templatesRef.current.find((x) => x.id === req.pairTemplateId)?.title }, api);
+        return;
+      }
+    }
     const attaching = Boolean(req.params && 'sessionId' in req.params);
     const pair = req.pairTemplateId ? templatesRef.current.find((x) => x.id === req.pairTemplateId) : undefined;
     if (t && pair) {
@@ -52,6 +67,8 @@ function WithWorkspace() {
     else addPanel(api, req);
   }, []);
 
+  const onOpenRef = useRef(onOpen);
+  onOpenRef.current = onOpen;
   return (
     <WorkspaceProvider onOpen={onOpen}>
       <Shell confirm={confirm} setConfirm={setConfirm} />
@@ -206,8 +223,15 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         <div className="topbar">
           {crumb}
           {projectId && (['prime', 'meridian'] as const).map((role) => {
+            const t = templates.find((x) => x.id === `${projectId}.${role}`);
+            if (!t) return null;
             const a = agentState(role);
-            return a ? <span key={role} className="glance"><span className={`dot ${a.st}`} />{role === 'prime' ? 'Prime' : 'Meridian'} {a.label}</span> : null;
+            // Always one click away: shows the session if it runs, offers to start it if not.
+            return (
+              <button key={role} className="glance-btn" onClick={() => open({ kind: 'terminal', templateId: t.id, title: t.title })} title={a ? `Show ${t.title}` : `Start ${t.title}`}>
+                <span className={`dot ${a?.st ?? ''}`} />{role === 'prime' ? 'Prime' : 'Meridian'} <span className="muted">{a ? a.label : 'off'}</span>
+              </button>
+            );
           })}
           <span className="spacer" />
           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
