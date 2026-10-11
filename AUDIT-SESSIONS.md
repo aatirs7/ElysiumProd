@@ -89,7 +89,7 @@ Reading: more than one session is active in 72 percent of working time, and more
 
 - 14 sessions were started fresh in the window, including this one. 5 of those were 40 minutes or less.
 - The window sessions show 308 gaps over an hour, most of them resumes of the same long lived session.
-- In PowerShell history (all time, PSReadLine keeps no dates): `claude --resume` 140, `claude -r` 7, `claude --dangerously-skip-permissions` without resume 111, and the `cs` launcher about 44 times, including 7 mistyped names. Resume is the dominant way in.
+- In PowerShell history (all time, PSReadLine keeps no dates): `claude --resume` 140, `claude -r` 7, `claude --dangerously-skip-permissions` without resume 111, and the `cs` launcher about 44 times. Three `cs` calls named no known session, and `claude` was launched with a misspelled flag 8 times. Resume is the dominant way in.
 - The board ledger shows the effect. On 2026-09-21, 09-24 and 09-28 one of the Attestia pair shows 0 minutes with start and end three to fourteen seconds apart: the SessionStart and SessionEnd hooks fired on a resume that the owner exited, or a launch that immediately ended, while the real work happened in the already running session.
 
 ## Repositories whose sessions sit idle for days
