@@ -95,6 +95,10 @@ export const Channels = {
   titleBarColors: 'titlebar:colors',
   focusSession: 'focus:session',
   usageStats: 'usage:stats',
+  readerGet: 'reader:get',
+  wrapUp: 'project:wrap-up',
+  projectGlance: 'project:glance',
+  readerUpdate: 'reader:update',
   clipboardRead: 'clipboard:read',
 } as const;
 
@@ -147,6 +151,12 @@ export interface ElysiumApi {
   accounts(): Promise<AccountInfo[]>;
   projectStats(): Promise<ProjectStats[]>;
   usage(): Promise<UsageStats>;
+  /** Turns seen since this session started in ElysiumProd, for the Reader view. Memory only. */
+  reader(sessionId: string): Promise<ReaderEntry[]>;
+  /** Asks every Claude session of a project to reach a stopping point, then exits each. Returns their ids. */
+  wrapUp(projectId: string): Promise<string[]>;
+  glance(projectId: string): Promise<{ awsTotal: number | null; awsCap: number | null; waiting: number | null }>;
+  onReader(cb: (sessionId: string, e: ReaderEntry) => void): () => void;
   quickRun(projectId: string, text: string): Promise<{ ok: boolean; reason: string | null; sessionId?: string }>;
   quickHide(): void;
   quickOpenMain(): void;
@@ -231,3 +241,5 @@ export interface UsageStats {
   perHour: number[];
   projects: { id: string; name: string; minutesWeek: number; minutesMonth: number; lastAt: string | null }[];
 }
+
+export interface ReaderEntry { at: string; role: 'you' | 'claude'; text: string }

@@ -45,6 +45,12 @@ const ARTICLES: Article[] = [
     body: (<>
       <p>Each Claude session runs in a terminal pane. Its tab shows a small bar for how full its context is. It turns amber at 75 percent and red at 85 percent, the same points where your plugin warns and then compacts.</p>
       <p>The number counts the input side only and updates after each turn, so it trails the conversation by one turn.</p>
+      <h3>Reader and terminal styles</h3>
+      <p>Each Claude pane has a Terminal and a Reader switch at its top right. Reader shows the conversation as a calm page: your prompts as quiet quotes and Claude's replies as formatted text, with a reply box at the bottom. Settings, Appearance, Terminal style switches the terminal between Soft dark, a light Paper style like Notion, and the app theme.</p>
+      <h3>Two terminals stacked</h3>
+      <p>Start Prime and Meridian from the Launch pane and they open one above the other. Ctrl K, Stack terminals rearranges any view's terminals into one column.</p>
+      <h3>Wrap up</h3>
+      <p>When a project has sessions running, its top bar shows <strong>Wrap up</strong>. Every Claude session in the project is asked to bring its current step to a clean stopping point, commit or note what is unfinished, and update its resume note and relay line. Each one then closes by itself. If one stops to ask you something, you get a notification first.</p>
       <h3>Name drift</h3>
       <p>Prime and Meridian find each other by name. If a session is running under a different name than expected, its tab shows a warning; click it to rename the session back while it is idle.</p>
       <h3>Moving and closing</h3>

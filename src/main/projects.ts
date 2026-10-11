@@ -102,3 +102,26 @@ export function readGit(projectId: string): Promise<GitInfo> {
     return { ok: true, error: null, branch, ahead, behind, dirty: lines.length - 1, commits };
   });
 }
+
+/** What the plugin's line used to show, for the project top bar: AWS spend and items waiting on the owner. */
+export async function projectGlance(projectId: string): Promise<{ awsTotal: number | null; awsCap: number | null; waiting: number | null }> {
+  const p = PROJECT_FOLDERS[projectId];
+  if (!p) return { awsTotal: null, awsCap: null, waiting: null };
+  let awsTotal: number | null = null;
+  try {
+    const f = join(p.folder, '.claude', 'mods-cost.json');
+    if (existsSync(f)) { const c = JSON.parse(readFileSync(f, 'utf8')) as { status?: string; total?: number }; if (c.status === 'ok' && typeof c.total === 'number') awsTotal = c.total; }
+  } catch { /* no cost file */ }
+  let waiting: number | null = null;
+  const r = await readRelay(projectId);
+  if (r.ok) {
+    const lines = r.text.split(/\r?\n/);
+    const start = lines.findIndex((l) => /^#{2,3}\s/.test(l) && l.replace(/^#+\s*/, '').trim().toLowerCase() === r.waitingHeading.toLowerCase());
+    if (start >= 0) {
+      waiting = 0;
+      for (let i = start + 1; i < lines.length && !/^#{1,3}\s/.test(lines[i]); i++) if (/^[-*]\s/.test(lines[i])) waiting++;
+    }
+  }
+  // The plugin's own budget line for this repository is 70 dollars a month.
+  return { awsTotal, awsCap: awsTotal === null ? null : 70, waiting };
+}

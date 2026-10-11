@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
+import { BarChart3, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
-import { WIDGETS } from './workspace/Workspace';
+import { WIDGETS, stackTerminals } from './workspace/Workspace';
 import { ProjectLogo } from './ProjectLogo';
 import type { Page } from './Sidebar';
 
@@ -10,7 +10,7 @@ interface Action { id: string; label: string; hint: string; icon: React.ReactNod
 
 export function Palette({ onClose, go, onProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void }) {
   const { templates, projects } = useLive();
-  const { doc, open, setActiveView, addView, applyPreset, savePreset } = useWorkspace();
+  const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
   const [i, setI] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -26,13 +26,14 @@ export function Palette({ onClose, go, onProject }: { onClose(): void; go(view: 
       ...doc.views.map((v) => ({ id: `v-${v.id}`, label: `Go to ${v.name}`, hint: 'View', icon: <Layers size={15} />, run: toWs(() => setActiveView(v.id)) })),
       ...doc.presets.map((p) => ({ id: `p-${p.id}`, label: `Apply preset ${p.name}`, hint: 'Rebuilds the current view', icon: <Bookmark size={15} />, run: toWs(() => applyPreset(p.id)) })),
       { id: 'savepreset', label: 'Save setup as a preset', hint: 'Panes and appearance', icon: <BookmarkPlus size={15} />, run: () => savePreset(`Preset ${doc.presets.length + 1}`) },
+      { id: 'stack', label: 'Stack terminals', hint: 'One above another in this view', icon: <Rows2 size={15} />, run: toWs(() => { const api = doc.activeViewId ? apiFor(doc.activeViewId) : undefined; if (api) stackTerminals(api); }) },
       { id: 'newview', label: 'New view', hint: 'An empty layout', icon: <Plus size={15} />, run: toWs(() => addView()) },
       { id: 'home', label: 'Home', hint: 'Ctrl 0', icon: <Home size={15} />, run: () => go('home') },
       { id: 'settings', label: 'Settings', hint: 'Theme, projects, accounts', icon: <SettingsIcon size={15} />, run: () => go('settings') },
       { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

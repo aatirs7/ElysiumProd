@@ -24,7 +24,13 @@ function accountForProject(projectId: string): string {
   }
 }
 
+const WRAP_PROMPT = 'Please wrap up now. Bring your current step to a clean stopping point, commit or note anything uncommitted as the project rules say, update your resume note and your line on the relay, then stop. Do not start anything new.';
+const WRAP_TIMEOUT_MS = 20 * 60 * 1000;
+
+interface Wrap { projectName: string; stage: 'asked' | 'working' | 'exiting'; startedAt: number }
+
 export class Tasks {
+  private wraps = new Map<string, Wrap>();
   private pending = new Map<string, Pending>();
   private watching = new Map<string, { projectName: string; lastState: string }>();
 
@@ -52,8 +58,52 @@ export class Tasks {
     return { ok: true, reason: null, sessionId: s.id };
   }
 
+  /**
+   * Wrap up a project: every running Claude session of it is asked to reach a
+   * stopping point, save its state, and stop; once it has, it is exited.
+   * Returns the sessions being wrapped so the app can close their panes.
+   */
+  wrapUp(projectId: string): string[] {
+    const ids: string[] = [];
+    for (const s of this.sessions.list()) {
+      const t = findTemplate(s.templateId);
+      if (!t || t.kind !== 'claude' || t.project !== projectId || s.status !== 'running') continue;
+      this.wraps.set(s.id, { projectName: t.projectName ?? t.title, stage: 'asked', startedAt: Date.now() });
+      ids.push(s.id);
+      this.stepWrap(s.id);
+    }
+    return ids;
+  }
+
+  private stepWrap(sessionId: string): void {
+    const w = this.wraps.get(sessionId);
+    if (!w) return;
+    const state = this.ingest.get(sessionId)?.state;
+    if (Date.now() - w.startedAt > WRAP_TIMEOUT_MS) {
+      this.wraps.delete(sessionId);
+      this.notify(sessionId, `${w.projectName} is still working`, 'It did not finish wrapping up in 20 minutes, so it was left running. Click to open it.');
+      return;
+    }
+    if (w.stage === 'asked' && state === 'idle') {
+      w.stage = 'working';
+      this.sessions.write(sessionId, `\x1b[200~${WRAP_PROMPT}\x1b[201~`);
+      setTimeout(() => this.sessions.write(sessionId, '\r'), 150);
+      return;
+    }
+    if (w.stage === 'working' && state === 'waiting') {
+      this.notify(sessionId, `${w.projectName} needs you to wrap up`, 'It stopped to ask you something. Click to answer; it closes once it is done.');
+      return;
+    }
+    if (w.stage === 'working' && state === 'idle' && Date.now() - w.startedAt > 3000) {
+      w.stage = 'exiting';
+      this.sessions.write(sessionId, '/exit\r');
+      setTimeout(() => { if (this.sessions.list().find((x) => x.id === sessionId)?.status === 'running') this.sessions.kill(sessionId); this.wraps.delete(sessionId); }, 15000);
+    }
+  }
+
   /** Called on every telemetry update. */
   onTelemetry(t: Telemetry): void {
+    this.stepWrap(t.sessionId);
     this.trySend(t.sessionId);
     const w = this.watching.get(t.sessionId);
     if (!w) return;

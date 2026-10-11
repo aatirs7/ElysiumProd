@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { ShieldAlert, X } from 'lucide-react';
+import { Moon, ShieldAlert, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -37,6 +37,17 @@ function WithWorkspace() {
   const onOpen = useCallback((_viewId: string, req: OpenRequest, api: DockviewApi) => {
     const t = req.kind === 'terminal' ? templatesRef.current.find((x) => x.id === req.templateId) : undefined;
     const attaching = Boolean(req.params && 'sessionId' in req.params);
+    const pair = req.pairTemplateId ? templatesRef.current.find((x) => x.id === req.pairTemplateId) : undefined;
+    if (t && pair) {
+      // One question for the pair; Meridian then opens below Prime.
+      setConfirm({
+        title: `Resume ${t.title} and ${pair.title}?`,
+        body: `This resumes both sessions, exactly as cs does. If either is open in another terminal, close it there first so two copies do not run at once.`,
+        yes: 'Resume both',
+        run: () => { addPanel(api, { ...req, pairTemplateId: undefined }); addPanel(api, { kind: 'terminal', templateId: pair.id, title: pair.title }); },
+      });
+      return;
+    }
     if (t?.confirm && !attaching) setConfirm({ title: `Resume ${t.title}?`, body: t.confirm, yes: 'Resume it', run: () => addPanel(api, req) });
     else addPanel(api, req);
   }, []);
@@ -56,8 +67,9 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [palette, setPalette] = useState(false);
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const { templates } = useLive();
+  const { templates, sessions, telemetry } = useLive();
   const { res } = useMachine();
+  const [wrapping, setWrapping] = useState<string[]>([]);
   const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding } = useWorkspace();
 
   useAppearance(doc.settings);
@@ -133,6 +145,54 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id) };
   }, [launch]);
 
+  // Wrap up: once a wrapped session exits, close its pane.
+  useEffect(() => {
+    if (!wrapping.length) return;
+    const done = wrapping.filter((id) => sessions.find((x) => x.id === id)?.status !== 'running');
+    if (!done.length) return;
+    for (const v of doc.views) for (const p of apiFor(v.id)?.panels ?? []) {
+      if (done.includes((p.params as { sessionId?: string } | undefined)?.sessionId ?? '')) p.api.close();
+    }
+    setWrapping((w) => w.filter((id) => !done.includes(id)));
+  }, [sessions, wrapping, doc.views, apiFor]);
+
+  const projectId = page === 'workspace' ? activeView?.projectId : undefined;
+  const projectRunning = projectId ? sessions.filter((x) => x.status === 'running' && x.templateId.startsWith(`${projectId}.`)) : [];
+  const wrapUp = () => {
+    if (!projectId) return;
+    const n = projectRunning.length;
+    setConfirm({
+      title: `Wrap up ${activeView?.name}?`,
+      body: `${n === 1 ? 'Its session' : `All ${n} sessions`} will finish the current step at a clean point, save their state and relay line, then close. If one needs your answer first, you will get a notification.`,
+      yes: 'Wrap up',
+      run: () => void window.elysium.wrapUp(projectId).then((ids) => setWrapping((w) => [...new Set([...w, ...ids])])),
+    });
+  };
+  const wrappingHere = projectRunning.filter((x) => wrapping.includes(x.id));
+
+  // The project at a glance, in place of the plugin's line in each terminal.
+  const [glance, setGlance] = useState<{ awsTotal: number | null; awsCap: number | null; waiting: number | null } | null>(null);
+  useEffect(() => {
+    setGlance(null);
+    if (!projectId) return;
+    let live = true;
+    const load = () => void window.elysium.glance(projectId).then((g) => { if (live) setGlance(g); });
+    load();
+    const t = setInterval(load, 120000);
+    return () => { live = false; clearInterval(t); };
+  }, [projectId]);
+  const agentState = (role: 'prime' | 'meridian') => {
+    const s = projectRunning.find((x) => x.templateId === `${projectId}.${role}`);
+    if (!s) return null;
+    const st = telemetry[s.id]?.state ?? 'running';
+    return { st, label: st === 'busy' ? 'working' : st === 'waiting' ? 'needs you' : st === 'starting' ? 'starting' : 'idle' };
+  };
+  const openRelay = () => {
+    const api = activeView ? apiFor(activeView.id) : undefined;
+    const p = api?.panels.find((x) => x.id.startsWith('relay-'));
+    if (p) p.api.setActive(); else open({ kind: 'relay', params: { projectId } });
+  };
+
   const crumb = page === 'workspace'
     ? (activeView?.projectId
       ? <span className="crumb"><ProjectLogo projectId={activeView.projectId} /><strong>{activeView.name}</strong></span>
@@ -143,7 +203,21 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     <div className="shell">
       <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} />
       <div className="stage">
-        <div className="topbar">{crumb}</div>
+        <div className="topbar">
+          {crumb}
+          {projectId && (['prime', 'meridian'] as const).map((role) => {
+            const a = agentState(role);
+            return a ? <span key={role} className="glance"><span className={`dot ${a.st}`} />{role === 'prime' ? 'Prime' : 'Meridian'} {a.label}</span> : null;
+          })}
+          <span className="spacer" />
+          {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
+          {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting on you</button> : null}
+          {projectId && projectRunning.length > 0 && (
+            wrappingHere.length
+              ? <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>
+              : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
+          )}
+        </div>
         {page === 'home' && <Home name={name || 'there'} onOpen={goProject} />}
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} />}
         {page === 'help' && <Help />}

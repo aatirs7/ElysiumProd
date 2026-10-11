@@ -100,6 +100,12 @@ export function ClaudePanel(props: IDockviewPanelProps<ClaudeParams>) {
           <SendHorizontal size={14} />Send to terminal
         </button>
       </div>
+      {state?.url && /accounts\.google\.com/.test(state.url) && (
+        <div className="web-note">
+          <span><strong>Google blocks sign in inside apps.</strong> On claude.ai, choose <strong>Continue with email</strong> instead; you get a code by email and stay signed in here.</span>
+          <button className="btn" onClick={() => window.elysium.webNav(id, 'home')}>Back to Claude sign in</button>
+        </div>
+      )}
       <div className="web-host" ref={host}>
         <div className="empty-state">
           {state?.error ? <>Could not load claude.ai: {state.error}<button className="btn" onClick={() => window.elysium.webNav(id, 'reload')}>Try again</button></> : 'Loading claude.ai'}

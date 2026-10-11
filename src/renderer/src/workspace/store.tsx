@@ -27,6 +27,8 @@ export interface Settings {
   /** Base text size for the whole app, in px. */
   textSize: number;
   termFontSize: number;
+  /** Terminal colours: a softer dark, a light Notion-like paper, or the app theme's own. */
+  termStyle: 'soft' | 'paper' | 'theme';
   gap: number;
   /** Opt in. Above the threshold, ElysiumProd ends only the programs listed here. */
   autoEnd: { enabled: boolean; thresholdPercent: number; programs: string[] };
@@ -101,6 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: 'comfortable',
   textSize: 15,
   termFontSize: 14,
+  termStyle: 'soft',
   gap: 8,
   autoEnd: { enabled: false, thresholdPercent: 90, programs: [] },
 };
@@ -155,6 +158,8 @@ export interface OpenRequest {
   params?: Record<string, unknown>;
   /** Terminals opened from a launcher go into the terminal area, not into the launcher's group. */
   besideLauncher?: boolean;
+  /** Start a second template with this one, asked about once (Prime with Meridian). */
+  pairTemplateId?: string;
 }
 
 interface Ctx {

@@ -65,15 +65,29 @@ export function addPanel(api: DockviewApi, req: OpenRequest): void {
   const ref = req.referenceGroupId ? api.getGroup(req.referenceGroupId) : api.activeGroup;
   if (req.kind === 'terminal') {
     // Terminals gather in one area: next to an existing terminal, else right of the launcher.
-    const termGroup = api.groups.find((g) => g.panels.some((p) => kindOf(p.id) === 'terminal'));
     const launcherGroup = api.groups.find((g) => g.panels.some((p) => kindOf(p.id) === 'launcher'));
-    if (termGroup) position = { referenceGroup: termGroup.id };
+    // Two terminals stack top and bottom; a third and later become tabs in the lower one.
+    const termGroups = api.groups.filter((g) => g.panels.some((p) => kindOf(p.id) === 'terminal'));
+    if (termGroups.length === 1) position = { referenceGroup: termGroups[0].id, direction: 'below' };
+    else if (termGroups.length > 1) position = { referenceGroup: termGroups[termGroups.length - 1].id };
     else if (launcherGroup) position = { referenceGroup: launcherGroup.id, direction: 'right' };
     else if (ref) position = { referenceGroup: ref.id, direction: ref.panels.length ? 'right' : 'within' };
   } else if (ref) {
     position = { referenceGroup: ref.id };
   }
   api.addPanel({ id, component: req.kind, title, params, position });
+}
+
+/** Puts every terminal in the view one above another, in a single column. */
+export function stackTerminals(api: DockviewApi): number {
+  const terms = api.panels.filter((p) => kindOf(p.id) === 'terminal');
+  if (terms.length < 2) return terms.length;
+  let prev = terms[0];
+  for (const p of terms.slice(1)) {
+    try { p.api.moveTo({ group: prev.group, position: 'bottom' }); } catch { /* leave it where it is */ }
+    prev = p;
+  }
+  return terms.length;
 }
 
 /**

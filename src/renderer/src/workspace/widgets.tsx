@@ -153,8 +153,17 @@ export function LauncherWidget(props: IDockviewPanelProps) {
   const list = project
     ? templates.filter((t) => t.project === project || t.kind === 'shell')
     : templates.filter((t) => t.kind === 'shell' || (t.project && doc.pinned.includes(t.project) && t.role !== 'meridian'));
+  const prime = project ? templates.find((t) => t.project === project && t.role === 'prime') : undefined;
+  const meridian = project ? templates.find((t) => t.project === project && t.role === 'meridian') : undefined;
+  const isRunning = (id?: string) => Boolean(id && sessions.some((s) => s.templateId === id && s.status === 'running'));
   return (
     <div className="widget pad-sm">
+      {prime && meridian && !isRunning(prime.id) && !isRunning(meridian.id) && (
+        <button className="btn primary start-pair" disabled={Boolean(blocked)}
+          onClick={() => open({ kind: 'terminal', templateId: prime.id, title: prime.title, pairTemplateId: meridian.id, referenceGroupId: props.api.group.id, besideLauncher: true })}>
+          Start Prime and Meridian
+        </button>
+      )}
       {list.map((t) => {
         const running = sessions.some((s) => s.templateId === t.id && s.status === 'running');
         return (

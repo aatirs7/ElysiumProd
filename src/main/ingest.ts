@@ -7,7 +7,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { join } from 'node:path';
-import type { Telemetry } from '@shared/ipc';
+import type { ReaderEntry, Telemetry } from '@shared/ipc';
 import { dataDir } from './paths';
 
 const HOOK_EVENTS = ['SessionStart', 'SessionEnd', 'Stop', 'Notification', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
@@ -29,7 +29,10 @@ process.stdin.on('data', (c) => (d += c)).on('end', () => {
 });
 `;
 
-interface Registered { secret: string; t: Telemetry }
+interface Registered { secret: string; t: Telemetry; reader: ReaderEntry[] }
+
+/** The Reader view keeps the last turns in memory only; nothing here is written to disk. */
+const READER_KEEP = 60;
 
 export class Ingest {
   private server: http.Server | null = null;
@@ -38,7 +41,7 @@ export class Ingest {
   readonly settingsPath: string;
   private scriptPath: string;
 
-  constructor(private emit: (t: Telemetry) => void) {
+  constructor(private emit: (t: Telemetry) => void, private emitReader: (sessionId: string, e: ReaderEntry) => void = () => {}) {
     const dir = join(dataDir(), 'claude-hooks');
     mkdirSync(dir, { recursive: true });
     this.scriptPath = join(dir, 'post.js');
@@ -75,7 +78,7 @@ export class Ingest {
       sessionName: null, fiveHourPercent: null, sevenDayPercent: null, fiveHourResetsAt: null, costUsd: null,
       compactions: 0, lastEventAt: null, waitingMessage: null,
     };
-    this.sessions.set(sessionId, { secret, t });
+    this.sessions.set(sessionId, { secret, t, reader: [] });
     return {
       env: { ELYSIUM_INGEST: `http://127.0.0.1:${this.port}/`, ELYSIUM_SID: sessionId, ELYSIUM_SECRET: secret },
       args: ['--settings', this.settingsPath],
@@ -83,6 +86,13 @@ export class Ingest {
   }
 
   forget(sessionId: string): void { this.sessions.delete(sessionId); }
+
+  reader(sessionId: string): ReaderEntry[] { return this.sessions.get(sessionId)?.reader ?? []; }
+
+  private addReader(r: Registered, sessionId: string, e: ReaderEntry): void {
+    r.reader = [...r.reader.slice(-(READER_KEEP - 1)), e];
+    this.emitReader(sessionId, e);
+  }
 
   get(sessionId: string): Telemetry | null { return this.sessions.get(sessionId)?.t ?? null; }
   all(): Telemetry[] { return [...this.sessions.values()].map((r) => r.t); }
@@ -108,8 +118,14 @@ export class Ingest {
     } else {
       switch (m.event) {
         case 'SessionStart': if (t.state === 'starting') t.state = 'idle'; t.sessionName = p.session_title ?? t.sessionName; break;
-        case 'UserPromptSubmit': t.state = 'busy'; t.waitingMessage = null; t.sessionName = p.session_title ?? t.sessionName; break;
-        case 'Stop': t.state = 'idle'; t.waitingMessage = null; break;
+        case 'UserPromptSubmit':
+          t.state = 'busy'; t.waitingMessage = null; t.sessionName = p.session_title ?? t.sessionName;
+          if (typeof p.prompt === 'string' && p.prompt.trim()) this.addReader(r, m.sid!, { at: new Date().toISOString(), role: 'you', text: p.prompt.slice(0, 20000) });
+          break;
+        case 'Stop':
+          t.state = 'idle'; t.waitingMessage = null;
+          if (typeof p.last_assistant_message === 'string' && p.last_assistant_message.trim()) this.addReader(r, m.sid!, { at: new Date().toISOString(), role: 'claude', text: p.last_assistant_message.slice(0, 200000) });
+          break;
         case 'Notification':
           // idle_prompt is "finished, ready for you"; anything else (a permission prompt) is waiting on you.
           if (p.notification_type === 'idle_prompt') { t.state = 'idle'; t.waitingMessage = null; }

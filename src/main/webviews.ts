@@ -7,7 +7,7 @@
 //   - it may only navigate to Claude, Anthropic and sign-in hosts; any other link
 //     opens in the system browser;
 //   - it never receives app IPC, and the app never reads its pages.
-import { app, BrowserWindow, WebContentsView, clipboard, shell } from 'electron';
+import { app, BrowserWindow, WebContentsView, clipboard, session, shell, type Session } from 'electron';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { WebState } from '@shared/ipc';
@@ -37,6 +37,32 @@ const log = (line: string) => {
   try { appendFileSync(join(dataDir(), 'claude-pane.log'), `${new Date().toISOString()} ${line}\n`); } catch { /* diagnostics only */ }
 };
 
+/**
+ * Keep claude.ai signed in across restarts. Some of its sign-in cookies are
+ * session cookies, which Chromium drops when the app quits; those are rewritten
+ * with a 30 day expiry. Cookies are also flushed to disk every minute and on quit,
+ * so even a hard stop keeps the sign-in.
+ */
+const kept = new Set<string>();
+function keepSignedIn(partition: string): Session {
+  const ses = session.fromPartition(partition);
+  if (kept.has(partition)) return ses;
+  kept.add(partition);
+  ses.cookies.on('changed', (_e, c, _cause, removed) => {
+    if (removed || c.expirationDate || !c.domain || !/(^|\.)(claude\.ai|anthropic\.com)$/.test(c.domain.replace(/^\./, ''))) return;
+    const host = c.domain.replace(/^\./, '');
+    void ses.cookies.set({
+      url: `https://${host}${c.path ?? '/'}`, name: c.name, value: c.value, domain: c.hostOnly ? undefined : c.domain, path: c.path,
+      secure: c.secure, httpOnly: c.httpOnly, sameSite: c.sameSite, expirationDate: Math.floor(Date.now() / 1000) + 30 * 86400,
+    }).catch(() => { /* a cookie we cannot rewrite stays a session cookie */ });
+  });
+  return ses;
+}
+export async function flushWebSessions(): Promise<void> {
+  await Promise.all([...kept].map(async (p) => { try { const ses = session.fromPartition(p); await ses.cookies.flushStore(); ses.flushStorageData(); } catch { /* best effort */ } }));
+}
+setInterval(() => void flushWebSessions(), 60000).unref?.();
+
 interface Bounds { x: number; y: number; width: number; height: number }
 interface Entry { view: WebContentsView; accountId: string; home: string }
 
@@ -61,6 +87,7 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
     return;
   }
   if (existing) detachWeb(win, id);
+  keepSignedIn(`persist:claude-${accountId}`);
   const view = new WebContentsView({
     webPreferences: { partition: `persist:claude-${accountId}`, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });

@@ -11,7 +11,7 @@ import { SessionManager } from './sessions';
 import { templateInfo, templates } from './templates';
 import { runSmoke } from './smoke';
 import { flushWorkspace, loadWorkspace, saveWorkspace } from './workspace';
-import { listProjects, readGit, readRelay, readTasks } from './projects';
+import { listProjects, projectGlance, readGit, readRelay, readTasks } from './projects';
 import { pickDocument, readDocument } from './files';
 import { endProgram, listProcessGroups } from './processes';
 import { hasHistory, listAccounts } from './accounts';
@@ -21,6 +21,7 @@ import { usageStats } from './usage';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
+import { flushWebSessions } from './webviews';
 import { attachWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
@@ -40,7 +41,7 @@ const send = (channel: string, ...args: unknown[]) => {
 
 const resources = new Resources(dataDir(), (r: ResourceSample) => send(Channels.resourcesUpdate, r));
 let tasks: Tasks | null = null;
-const ingest = new Ingest((t) => { send(Channels.telemetryUpdate, t); tasks?.onTelemetry(t); });
+const ingest = new Ingest((t) => { send(Channels.telemetryUpdate, t); tasks?.onTelemetry(t); }, (id, e) => send(Channels.readerUpdate, id, e));
 const sessions = new SessionManager(
   scrollbackDir(),
   {
@@ -157,6 +158,9 @@ function registerIpc(): void {
   ipcMain.handle(Channels.accountsList, () => listAccounts());
   ipcMain.handle(Channels.projectStats, () => projectStats());
   ipcMain.handle(Channels.usageStats, () => usageStats());
+  ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
+  ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
+  ipcMain.handle(Channels.readerGet, (_e, id: unknown) => (typeof id === 'string' ? ingest.reader(id) : []));
   ipcMain.handle(Channels.historyCheck, (_e, accountId: unknown, cwd: unknown) => hasHistory(String(accountId), String(cwd)));
   ipcMain.handle(Channels.telemetryAll, () => ingest.all());
   ipcMain.handle(Channels.watchersAll, () => watchers.all());
@@ -204,7 +208,7 @@ app.on('before-quit', (e) => {
   ingest.stop();
   disposeQuick();
   try { flushWorkspace(); } catch { /* never block quit */ }
-  void sessions.shutdown().finally(() => app.exit(0));
+  void Promise.all([sessions.shutdown(), flushWebSessions()]).finally(() => app.exit(0));
 });
 
 app.on('second-instance', () => showMain());

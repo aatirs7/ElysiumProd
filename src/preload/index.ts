@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type ElysiumApi, type ResourceSample, type SessionInfo, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
+import { Channels, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -38,6 +38,10 @@ const api: ElysiumApi = {
   accounts: () => ipcRenderer.invoke(Channels.accountsList),
   projectStats: () => ipcRenderer.invoke(Channels.projectStats),
   usage: () => ipcRenderer.invoke(Channels.usageStats),
+  reader: (id) => ipcRenderer.invoke(Channels.readerGet, id),
+  wrapUp: (projectId) => ipcRenderer.invoke(Channels.wrapUp, projectId),
+  glance: (projectId) => ipcRenderer.invoke(Channels.projectGlance, projectId),
+  onReader: (cb) => subscribe<[string, ReaderEntry]>(Channels.readerUpdate, cb),
   quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
   quickHide: () => ipcRenderer.send(Channels.quickHide),
   quickOpenMain: () => ipcRenderer.send(Channels.quickOpenMain),
