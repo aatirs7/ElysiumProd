@@ -4,7 +4,7 @@ Personal multi-agent development harness. Replaces the "several VS Code windows,
 
 Repository and project name: ElysiumProd. The identifier `elysiumprod` is used for the package name, the install directory and the data path.
 
-Status: specification, v2. Nothing is built yet.
+Status: specification, v3. Revised by the Phase A audit of 2026-10-11 (`AUDIT-SUMMARY.md`). Nothing is built yet.
 
 ---
 
@@ -23,58 +23,49 @@ Every one of those steps is manual, repeated per project, every day.
 
 ## 2. Evidence from the current workflow
 
-This section is an audit of how the Prime and Meridian model is actually performing, not how it is designed to perform. It drives several decisions below.
+Rewritten from the Phase A audit, which ran on the machine with every clone, config directory and transcript present. Version 2 of this section was a remote first pass from the Attestia board ledger. The local record overturned most of it. Sources and method are in `AUDIT-*.md`. Finding numbers below refer to `AUDIT-SUMMARY.md`.
 
-### 2.1 What was and was not auditable
+### 2.1 What was audited
 
-Audited: the Attestia board's agent session ledger for 2026-09-21 to 2026-10-11, the live relay file, and the documented working model.
+- 73 git checkouts, reducing to 55 remotes.
+- Both Claude Code config directories, all MCP definitions, the owner's plugin, and every project's hooks and settings.
+- 39 session transcripts, 337,412 lines, with 100 percent parse coverage.
+- Prompt history, PowerShell history and VS Code workspaces.
+- The Attestia and SecurITPosture boards and relays.
+- Read only outside this repository throughout.
 
-Not audited: the repos themselves, the local Claude Code configuration, the MCP servers, the plugin, the custom skills, and the session transcripts. The session that wrote this spec had no access to the machine.
+### 2.2 How the owner actually works
 
-**That audit is not optional and it is not skipped. It is delegated.** It is Phase A, section 21, and it runs before any code is written. The implementing session sits on the actual machine with every clone, every config directory and every transcript present, and it has full authority to go and look. Everything in section 2.2 and 2.3 below is therefore provisional: a remote first pass, to be confirmed, extended or overturned by Phase A.
+- **Four main projects run a Prime and Meridian pair:** Elysium Intern, SecurITPosture, Attestia and Gulf. Side projects run one session each.
+- **Concurrency is normal.** More than one session is active in 72 percent of working time, and more than one project in 41 percent. The peak is 14:00 to 18:00 Eastern.
+- **Sessions are resumed for days to weeks, not started per task.** The median session spans 7 active days, with 3 to 8 compactions over its life.
+- **Meridian does real work.** It made 53 and 57 percent of commit calls in Attestia and SecurITPosture, and 28 to 30 percent in the other two. The owner rarely types to it: 0 to 8 turns in three of the four projects. Prime drives it by message. (Finding 1)
+- **The in-CLI cockpit already exists.** The owner's `securitposture-mods` plugin shows context use, parks, compacts and resumes at 85 percent, shows the relay's waiting line and peer liveness, and has `/ram`. (Finding 2)
+- **The launcher already exists.** `cs.ps1` maps eight session titles to folders and flags. (Finding 3)
 
-### 2.2 Findings
+### 2.3 What actually goes wrong
 
-**Finding 1. The two sessions are almost never both working.**
+1. **Identity by string.** A rename on 2026-10-02 cut the Attestia pair's link for about 36 hours. The guard, the plugin, `cs.ps1` and the relay all match session titles as text. (Finding 4)
+2. **Liveness reported by hand.** The Attestia relay has said "Meridian is not running" for nine days, seven of them after it stopped being true. Issues 19 and 20 were routed a day late. (Finding 7)
+3. **The machine stops Meridian.** One Meridian was stopped by low memory and another is held by low disk. `C:` is 98 percent full. (Finding 6)
+4. **Prompts wait unseen.** A Meridian waits for a yes in its own pane. SecurITPosture has 23 decisions waiting on people. (Finding 7)
+5. **Watchers time out.** Board watchers run inside Prime with 30 minute and 2 hour timeouts. (Finding 9)
+6. **Hooks race.** Two SessionEnd hooks left a git index lock that blocked Attestia commits for four hours on 2026-09-28. (Finding 10)
 
-Session minutes by day, from the ledger:
+The board ledger figures that version 2 relied on are hook span timings. They show 0 minutes on days a session worked for hours, and 900-plus minutes for windows left open. Do not use them as activity. (Finding 5)
 
-| Day | Session A (16047ae8) | Session B (fabb5698) | Session C (a6950d7b) |
-|---|---|---|---|
-| 09-21 | 0 | 268 | |
-| 09-22 | 298 | 298 | |
-| 09-23 | 923 | | |
-| 09-24 | 308 | 0 | 8 |
-| 09-26 | | | 79 |
-| 09-27 | 904 | 24 | |
-| 09-28 | 0 | 255 | 23 |
-| 09-29 | 0 | 17 | |
+### 2.4 Verdict on Prime and Meridian
 
-On six of the eight active days, one session did effectively all the work while the other logged zero to twenty four minutes. The single day that looks parallel, 09-22, has both sessions sharing an identical start and end timestamp, which reads as co-started and co-stopped rather than two agents genuinely working at once.
+**Keep the pair, and launch it together, for the main projects.** The on demand Meridian of version 2 is withdrawn: Meridian carries up to 57 percent of the commits, and the blocker that motivated the change was a rename followed by a stale relay, not an idle session.
 
-**Finding 2. The current blocker is a session that is not running.**
+What ElysiumProd changes is the four things around the pair:
 
-The relay has read "Meridian is not running right now. Start it so the two sessions can message each other again" since 2026-10-02. That is nine days blocked, and the blocking action is launching a terminal. This is not an agent capability problem. It is a launcher problem, which is exactly what this app is for.
+- stable identity, in 7 and 8.3.2;
+- machine maintained liveness, in 11.6;
+- the resource gate, in 10.6;
+- the attention strip, in 8.1.
 
-**Finding 3. Session liveness has caused real data problems before.**
-
-The relay went thirty six hours stale from 2026-09-23 because only Prime writes it and Prime was not running. Separately, issues 19 and 20 were routed to Meridian a day late because Prime was not running when they arrived. Both were patched at the data layer by making `get_relay` read main live. The underlying cause, no visibility into whether a session is alive, was never addressed.
-
-**Finding 4. The board has been dark since 2026-09-29.** Twelve days with no recorded session on the project the owner calls the priority.
-
-**Finding 5. Sessions run very long and nobody can see the context ceiling.** Recorded sessions of 923, 904, 308, 298 and 255 minutes. Sessions that long auto-compact, probably repeatedly, and there is currently no indicator of when that is about to happen or what it costs.
-
-### 2.3 Provisional verdict on Prime and Meridian
-
-Provisional, pending Phase A. Keep the architecture, change the default.
-
-The two-session model, the message guard, the relay, and the rule that Attestia's sessions talk only to each other are all load-bearing for the product's own story, and tearing them out would be expensive for no gain. But the evidence says a permanently-running second session is not earning its keep: Meridian idles for days, and its idleness silently blocks Prime.
-
-So: **default to one session per project, with the second as an on-demand pane.** Meridian becomes a template with `autoStart: false` that Prime's relay can request, ElysiumProd surfaces as an alert, and one keystroke starts. That turns a nine-day blocker into a notification.
-
-The real parallelism win was never two agents inside one repo. It is one agent each in two repos at the same time, which is the thing the current setup makes awkward and this app makes trivial.
-
-Phase A step A.4 tests this against the local record and may overturn it. If it does, the local evidence wins and this section gets rewritten.
+Side projects default to one session.
 
 ## 3. Goals
 
@@ -86,6 +77,11 @@ Phase A step A.4 tests this against the local record and may overturn it. If it 
 - Push notifications to phone so long runs do not need babysitting.
 - Clone and register a repo from inside the app.
 - Route a single task to a different model or provider without leaving the app.
+- Session identity that survives a rename: one stable id per template, and the title, plugin name and peer list are derived from it.
+- Be the machine's source of truth for which sessions are alive, so no relay or note has to say so by hand.
+- Keep the Surface from running out of memory or disk under a full set of sessions.
+- Keep each project's board watcher running without occupying a session.
+- Work with the owner's existing `securitposture-mods` plugin and `cs.ps1` launcher, importing from them rather than replacing them.
 - Installable on the laptop like any other program.
 - Modifiable by its owner in an evening: plain config files, small modules, no framework ceremony.
 
@@ -94,6 +90,9 @@ Phase A step A.4 tests this against the local record and may overturn it. If it 
 - Not a code editor. VS Code stays open for editing. ElysiumProd owns orchestration.
 - Not multi-user, not commercial, no auth layer, no telemetry leaving the machine.
 - Not a Claude Code reimplementation. It drives the real CLI as a child process, unwrapped, so every slash command and skill works normally.
+- Not a second in-terminal status line. The `securitposture-mods` plugin owns the line above the prompt, the compaction guard and `/ram` inside each session. ElysiumProd shows the cross session and whole machine view.
+- Not a home for shared hooks and slash commands. The copies of `no-em-dash`, `day-start` and `day-end` across repos belong in the plugin.
+- No authentication provider of any kind. Clerk and similar are out.
 - No cloud component. Only outbound traffic is the phone notification webhook and any declared HTTP provider.
 
 ## 5. Target environment
@@ -101,6 +100,7 @@ Phase A step A.4 tests this against the local record and may overturn it. If it 
 - Windows 11 on ARM64 (Surface Pro). Primary and only supported target.
 - Node 20 LTS or newer, Claude Code CLI and Git on PATH.
 - PowerShell 7 as the default spawned shell, configurable per project.
+- Resource constrained in practice. At audit time `C:` was 98 percent full with 14 GB free, and a Meridian had been stopped for low memory. Treat disk and RAM as first class limits from Phase 1.
 
 ARM64 is the single biggest build risk. See section 17.
 
@@ -144,10 +144,10 @@ Workspace
 
 ```ts
 interface Account {
-  id: string;                    // "max-primary", "max-secondary"
+  id: string;                    // "main", "account2"
   label: string;
   color: string;                 // pane accent, never pure white or black
-  configDir: string;             // absolute, e.g. C:\Users\x\.claude-primary
+  configDir: string;             // absolute; the real ones are C:\Users\aatir\.claude and C:\Users\aatir\.claude-account2
   kind: "claude-max" | "api-key";
   state: "ok" | "rate-limited" | "needs-login" | "unknown";
   fiveHourRemaining: number | null;   // from statusline rate_limits
@@ -164,8 +164,10 @@ interface Project {
   failoverAccountId: string | null;
   shell: string;
   env: Record<string, string>;
-  relayTool: string | null;      // e.g. "mcp__Attestia__get_relay"
-  relayBoard: string | null;     // e.g. "aatirs7/attestia"
+  relay: RelaySource | null;     // imported from .claude/mods.json
+  waitingHeading: string | null; // "Blocked on the owner", "Waiting on Aatir"; from mods.json
+  watcher: WatcherSpec | null;   // section 13.1; from mods.json watchStart
+  tier: "main" | "side";         // main defaults to the full profile, side to solo
   bootProfiles: BootProfile[];
   defaultProfileId: string;
   color: string;
@@ -179,14 +181,33 @@ interface BootProfile {
   postLaunch: string[];          // shell commands run once after spawn
 }
 
+interface RelaySource {
+  repo: string;                  // "aatirs7/attestia"
+  file: string | null;           // "tracker/relay/from-prime.md"
+  issue: string | null;          // "105" for SecurITPosture
+}
+
+interface WatcherSpec {
+  command: string;               // e.g. "node scripts/board-watch.mjs"
+  deliverTo: string;             // template id that receives its output, normally Prime
+}
+
 interface SessionTemplate {
-  id: string;
-  label: string;                 // "Prime Attestia", "Meridian Attestia"
-  command: string;
-  args: string[];
+  id: string;                    // stable, ElysiumProd owned, never shown or retyped: "attestia.prime"
+  role: "prime" | "meridian" | "solo";
+  title: string;                 // derived, passed with -n / --resume: "Prime Attestia"
+  pluginName: string;            // SP_SESSION_NAME for securitposture-mods: "Prime Attestia", or "Prime" for Posture
+  command: string;               // "claude"
+  args: string[];                // extra flags only; the fields below are rendered into flags
+  model: string | null;          // "claude-opus-5-5"
+  advisor: string | null;        // "claude-fable-5-1"
+  effort: string | null;
+  pluginDir: string | null;      // C:\Users\aatir\securitposture_2026\plugins\securitposture-mods
+  skipPermissions: boolean;      // every imported template is true, matching cs.ps1
+  resume: "by-title" | "fresh";  // cs.ps1 resumes by title unless -New
   accountId: string | null;      // null means project default
   autoStart: boolean;
-  cwd: string | null;
+  cwd: string | null;            // a worktree or second clone, e.g. Gulf-meridian
 }
 
 interface SessionTelemetry {
@@ -215,25 +236,28 @@ Home is the first tab in the left rail and the default view on app start. It is 
 
 ### 8.1 Attention strip
 
-Pinned at the top, full width, centered. The single most valuable widget in the app, given findings 2 and 3. It lists everything currently waiting on the owner, across all projects, newest first:
+Pinned at the top, full width, centered. The single most valuable widget in the app, given section 2.3 items 2 to 4. It lists everything currently waiting on the owner, across all projects, newest first:
 
-- Sessions in `awaiting-input`
-- Relay items under "blocked on the owner" or "waiting on you"
-- GitHub issues labelled `needs:owner`
+- Sessions in `awaiting-input`, from the `Notification` hook. This is the case of a Meridian waiting for a yes in its own pane.
+- Relay items under the project's own `waitingHeading`, which differs per repo: "Blocked on the owner", "Waiting on Aatir".
+- GitHub issues labelled `needs:owner`, and board decisions over a configurable age.
 - Sessions within a configurable margin of auto-compact
 - Accounts rate limited, with reset countdown
 - Projects whose boot profile expects a session that is not running
+- A peer link down: a pair where both sessions run but no message has passed for a configurable time, or where a template's title no longer matches its peers.
+- Free disk or RAM under the warning floor, naming the sessions it suggests stopping.
+- A board watcher that has exited and not restarted.
 
 Each row has a one-click action: focus the pane, start the missing session, open the issue. When the strip is empty it collapses to a single centered line saying nothing needs you, rather than taking up space.
 
-Had this existed in September, the nine-day Meridian blocker would have been a nine-second fix.
+Had this existed on 2026-10-02, the rename that cut the Attestia pair for 36 hours would have shown as a peer link down within minutes.
 
 ### 8.2 Project cards
 
 A responsive grid, centered content in each card:
 
 - Project name in its color, with a status dot
-- Last activity, relative ("3 hours ago", "12 days ago"). Dark projects say so plainly; the Attestia board sitting twelve days cold should be visible without being asked for.
+- Last activity, relative ("3 hours ago", "12 days ago"), from agent activity and development commits. Automated commits such as the daily `chore(tracker): day end` do not count, so a paused project reads as paused. Attestia's repo committed every day from 10-03 to 10-10 while no development happened.
 - Session row: one chip per template, green running, grey stopped, amber awaiting input, red error
 - Git line: branch, ahead/behind, dirty file count
 - Relay line: counts for open, blocked, waiting on owner
@@ -246,19 +270,44 @@ One click, idempotent:
 
 1. Verify the repo path exists. If missing but a remote is recorded, offer to clone.
 2. `git fetch` in the background, do not block on it.
-3. Spawn every template in the chosen profile, each with its account's `CLAUDE_CONFIG_DIR`, scrubbed env, correct cwd.
-4. Open the profile's non-terminal panes.
-5. Restore the saved Dockview layout for the project.
-6. Run `postLaunch` commands.
-7. Focus the first terminal pane.
+3. Check free RAM and disk against the floors in 10.6. Below the floor, start Prime only and raise an attention row for the rest.
+4. Spawn every template in the chosen profile, each with its account's `CLAUDE_CONFIG_DIR`, scrubbed env, correct cwd, `SP_SESSION_NAME` set to the template's `pluginName`, and flags rendered from the template: `--resume <title>` or `-n <title>`, `--model`, `--advisor`, `--plugin-dir`, `--dangerously-skip-permissions`. This is exactly what `cs.ps1` does today, per template instead of per hardcoded map.
+5. Start the project's board watcher if it is not running (13.1).
+6. Open the profile's non-terminal panes.
+7. Restore the saved Dockview layout for the project.
+8. Run `postLaunch` commands.
+9. Focus the first terminal pane.
 
 Clicking Launch on an already-running project just switches to it. Launching a profile when some of its sessions are already up starts only the missing ones.
 
 Three stock profiles, editable per project:
 
-- **solo**: Prime, relay, git. The new default, per section 2.3.
-- **full**: Prime, Meridian, relay, git, notes.
+- **full**: Prime, Meridian, relay, git, notes. The default for `tier: main` projects, per section 2.4.
+- **solo**: one session, git. The default for `tier: side` projects. A relay pane only if the project has a relay.
 - **review**: no PTY at all, just the router pane. For when the task is a single headless query.
+
+### 8.3.1 First run import
+
+The first launch of ElysiumProd builds its projects from what is already on the machine, with a review screen before anything is saved:
+
+1. Parse `C:\Users\aatir\cs.ps1`: the `$map` of titles to folders and plugin names, the `--plugin-dir` value, and the per title model and advisor flags. Each pair becomes a `tier: main` project with Prime and Meridian templates.
+2. Read each project's `.claude/mods.json` for the relay source, `waitingHeading`, session colours and the watcher command, and `.claude/sessions.json` for the peer list.
+3. Detect a second checkout of the same remote, such as `Gulf-meridian` or `elysiumintern-v4`, and offer it as the Meridian template's `cwd`.
+4. Offer every other repo with Claude activity in the last 30 days as a `tier: side` project with a solo profile.
+5. Register `C:\Users\aatir\.claude` and `C:\Users\aatir\.claude-account2` as the two accounts.
+
+Import is read only against those files. Writing back is section 8.3.2.
+
+### 8.3.2 Session identity
+
+The template `id` is the identity. The title is a derived label. When a title or a peer list changes in ElysiumProd, it writes the change to every place that matches by string, in one action, after showing the diff:
+
+- the template;
+- the project's `.claude/sessions.json` peer list;
+- the `sessions` option in `.claude/mods.json`;
+- the running CLI session, through `/rename` sent to the PTY, if it is running.
+
+It never edits `cs.ps1`; once ElysiumProd launches the sessions, `cs` is a fallback. A mismatch between a running session's title and its peers' lists raises the "peer link down" attention row. This is the failure of 2026-10-02.
 
 `Ctrl+Shift+1..9` launches project N on its default profile from anywhere in the app.
 
@@ -266,7 +315,7 @@ Three stock profiles, editable per project:
 
 A strip above the project grid, and a wider panel below it.
 
-Live counters: sessions running, sessions awaiting input, accounts healthy, machine CPU and RAM.
+Live counters: sessions running, sessions awaiting input, accounts healthy, machine CPU, RAM and free disk.
 
 Today: active agent minutes, commits, lines added and removed, spend in USD, compactions. All of these come free from the telemetry channel in section 10, which means they are real figures rather than estimates.
 
@@ -280,9 +329,9 @@ Dockview container per project. Panes dock, resize, float, and the layout serial
 
 **Terminal pane.** xterm instance. Header, centered: template label, account chip in the account color, status dot, and a compact context meter. Right-aligned: restart, switch account, close. Pane border takes the account color at 2px so a glance tells you which account you are on.
 
-**Relay pane.** Polls the project's configured relay tool, default 60s, manual refresh. Four centered cards: shipped, open, blocked, waiting on owner. Read only in v1; see open question 3.
+**Relay pane.** Reads the project's relay source from `mods.json`: a file on the default branch for Attestia, Elysium Intern and Gulf, a GitHub issue for SecurITPosture. It reads through `gh` and the system credential manager, polling every 60s with manual refresh. It does not go through MCP: the owner's board servers serve the claude.ai planning chat, and terminal side tools already read the relay file directly. Four centered cards: shipped, open, blocked, and the project's `waitingHeading`. Beside the relay's own text it shows the relay's age and a "liveness from ElysiumProd" line from 11.6, so a hand written "not running" that has gone stale is visibly contradicted. Read only in v1; see open question 3.
 
-**Git pane.** Branch, ahead/behind, dirty count, last three commits, fetch and pull buttons. Not a git client.
+**Git pane.** Branch, ahead/behind, dirty count, last three commits, fetch and pull buttons. Also lists every worktree and sibling clone of the same remote with branch, last commit date and dirty count, read only. At audit time 5 of the 7 Attestia worktrees were 17 or more days stale, and the primary Attestia checkout was on a detached HEAD. Not a git client.
 
 **Notes pane.** Per-project markdown scratch, saved to SQLite. Where a plan pasted from the web UI lands before being fed to a session.
 
@@ -317,6 +366,8 @@ All three feed one local ingest server in the main process: bound to `127.0.0.1`
 
 Claude Code supports a custom `statusLine` command. It runs a script and passes JSON on stdin. ElysiumProd writes a tiny shim script into each account's config directory; the shim POSTs the JSON to the ingest and prints a minimal line back to the terminal.
 
+No settings scope on the machine sets `statusLine` today, so the shim takes nothing away. The `securitposture-mods` plugin draws its own line above the prompt and already shows the session badge and context use. The shim therefore prints an empty line by default, so the owner does not see context twice, with a config switch to print a short line in sessions that do not load the plugin.
+
 Documented fields this delivers:
 
 - `session_id`, `session_name`, `model.display_name`, `cwd`, `workspace.*`, `workspace.repo.{host,owner,name}`
@@ -338,6 +389,12 @@ Caveats to honor in the UI:
 ### 10.2 Hooks (events)
 
 ElysiumProd writes hook definitions into each account's config directory. Each hook POSTs its stdin JSON to the ingest and exits zero.
+
+Rules learned from the existing setup:
+
+- The main repos already run their own hooks on the same events: SessionStart and SessionEnd scripts that write git, 1 to 9 PostToolUse checks, a PreToolUse session guard and a Stop inbox. ElysiumProd's hooks run beside them. Phase 0 must confirm that user scope hooks in the account directory add to project hooks rather than replace them.
+- **ElysiumProd hooks never touch git or the repo, and never block.** Claude Code runs an event's hooks in parallel. On 2026-09-28 two parallel SessionEnd hooks raced on the git index and blocked Attestia commits for four hours. ElysiumProd's hook is one POST with a 2 second timeout, then exit 0.
+- Expect hook events from the plugin's own activity. A `PreCompact` with trigger `manual` is usually the plugin's automatic park and compact, not the owner. Label manual compactions "manual or plugin" unless Phase 0 finds a hook or OTel field that tells them apart. Do not read transcripts to decide (10.4).
 
 Hooks subscribed in v1: `SessionStart`, `SessionEnd`, `Stop`, `Notification`, `PreCompact`, `PostCompact`, `PreModelSwitch`, `PostModelSwitch`.
 
@@ -403,15 +460,35 @@ effectiveWindow = project.autoCompactWindow ?? documentedDefaultFor(model)
 tokensToCompact = effectiveWindow - context_window.total_input_tokens
 ```
 
-Displayed as a bar plus a token figure, always labelled an estimate, with the one-turn lag noted. Colour thresholds: calm above 40 percent remaining, amber below 20, red below 8, and a notification fires on crossing the amber line so a long run can be checkpointed before it compacts rather than after.
+Displayed as a bar plus a token figure, always labelled an estimate, with the one-turn lag noted.
 
-The ledger shows sessions of 900-plus minutes. Those compacted repeatedly and silently. This meter is the single feature most likely to change day to day behavior.
+**Thresholds come from the plugin, not from ElysiumProd.** The `securitposture-mods` plugin warns at `warnPercent`, default 75, and parks, compacts and resumes at `parkPercent`, default 85. ElysiumProd reads those options and colours the bar to match: calm below warn, amber from warn, red from park. One source, so the pane header and the line above the prompt never disagree.
+
+**ElysiumProd never triggers a compaction.** The plugin already does that safely: it refuses during a running turn, with a prompt draft, or while a heavy job lock is held, and it writes a resume note first. ElysiumProd's job is the cross session view: which of the eight paired sessions is closest to park, compaction counts per day, and a phone push on crossing amber only when the owner is away from the machine.
+
+Expect frequent compactions on Meridian at low owner turn counts. Meridian sessions compacted after 0 to 7 prompt turns, because peer messages fill their context. Chart compactions per session against time, not against turns.
+
+Correction to v2: version 2 said sessions "compacted repeatedly and silently" with "no indicator". The audit found the plugin's meter in every main session from 2026-10-02, and 14 of the 16 manual compactions in the window fall on or after that date.
 
 ### 10.6 Machine resources
 
-Per session: resident set size of the PTY process tree, sampled every 5s.
-System: CPU percentage and RAM used against total, sampled every 2s, shown in the bottom bar and on Home.
-A warning banner at 85 percent RAM, and the new-session button disables above 92 percent rather than letting the machine thrash.
+Promoted by the audit: memory and disk are what actually stop Meridian on this machine (section 2.3 item 3). Built in Phase 1, not Phase 4.
+
+Per session: resident set size of the PTY process tree, sampled every 5s, including the subagents, renders and dev servers the session started.
+System: CPU percentage and RAM used against total, sampled every 2s; free disk on the system drive and on the drive holding `%APPDATA%\elysiumprod`, sampled every 60s. All shown in the bottom bar and on Home.
+
+Floors, editable in `config.jsonc`:
+
+| Signal | Warn | Refuse new sessions |
+|---|---|---|
+| RAM used | 85 percent | 92 percent |
+| Free disk | 20 GB | 8 GB |
+
+At audit time free disk was 14 GB, which is below the warn floor. That is intended: the first launch should say so.
+
+On a warning, the attention strip names what to stop, in this order: idle Meridians, idle side project sessions, then the largest process trees. It never stops anything itself. The plugin's `/ram` stays the in-session tool; ElysiumProd adds the whole machine view the plugin cannot see.
+
+ElysiumProd's own disk use counts too: scrollback is capped from Phase 1 (section 15), and the Home stats show the size of each account's `projects/` transcript folder, which was about 1.8 GB at audit time.
 
 ### 10.7 Residual regex classifier
 
@@ -424,9 +501,13 @@ Still needed for one case the structured channels do not cover: `needs-login`. P
 Claude Code reads `CLAUDE_CONFIG_DIR`. When set, the config directory moves wholesale: `settings.json`, `.credentials.json`, transcripts under `projects/`, `history.jsonl`, skills and plugins. So two accounts means two directories:
 
 ```
-C:\Users\<user>\.claude-primary
-C:\Users\<user>\.claude-secondary
+C:\Users\aatir\.claude            main account, every session to date
+C:\Users\aatir\.claude-account2   second account, logged in 2026-09-21, never used
 ```
+
+Use these existing directories. Do not create new ones; the second is already logged in and has its own `.claude.json`.
+
+The main account directory has no `CLAUDE_CONFIG_DIR` set today, so the CLI uses it by default. ElysiumProd sets the variable explicitly for both, so a pane's account never depends on the default.
 
 ElysiumProd injects it into each spawned PTY's environment. Never globally, never into a settings file, since project and local settings files are not permitted to set it. First launch against a fresh directory triggers a normal interactive login, inside the pane the owner is already looking at.
 
@@ -446,7 +527,8 @@ Each takes precedence over the subscription login. If any is inherited, both ses
 
 - Console sign-in without an API key stores credentials outside `CLAUDE_CONFIG_DIR` and would collide. Does not apply here; both accounts are Max.
 - Expired logins need interactive `/login`. Surface as `needs-login`, not as a merely idle pane.
-- UNVERIFIED: whether `~/.claude.json` moves with `CLAUDE_CONFIG_DIR`. It holds the OAuth session, per-project trust, and user-scope and local-scope MCP definitions. The docs place it as a sibling of `~/.claude/` and never say it relocates. Test in Phase 0. If it does not move, both accounts share user-scope and local-scope MCP config, and the mitigation is to put every MCP server in project-scope `.mcp.json` committed to each repo, which is better practice regardless.
+- Largely resolved by the audit: `.claude.json` does move with `CLAUDE_CONFIG_DIR`. `C:\Users\aatir\.claude-account2\.claude.json` exists with its own `oauthAccount`, `userID` and project trust list. Phase 0 confirms only that `%USERPROFILE%\.claude.json` is left untouched while the variable is set. Consequence: the two accounts do not share user scope MCP servers. `elysiumvault` and `elysiumintern` are registered only in the main account today and must be added to the second, or moved to project `.mcp.json`. The claude.ai connectors, including Attestia, securITposture and Elysium Intern, follow the claude.ai login, so each account needs them connected separately.
+- The second account exists and has never run a session (created 2026-09-21, no `projects/` folder). Meanwhile `/login` was run 9 to 10 times in the window. Ask the owner what those logins were for before designing switching around them.
 - UNVERIFIED: whether concurrent use of two Max accounts is permitted under Anthropic's terms. Resolve before building automatic failover. If not, keep account switching manual and drop section 11.5.
 
 ### 11.4 Switching
@@ -456,6 +538,28 @@ Kill the PTY, respawn against the other account's config dir, with `--continue` 
 ### 11.5 Failover
 
 On `rate_limits.five_hour` from the status line crossing a configured floor, or on a hard rate-limit signal, switch to the failover account automatically and notify. Off by default. Gated on the terms question in 11.3. Always writes a loud visible banner into the pane; never silent.
+
+### 11.6 Liveness file
+
+ElysiumProd is the only process that knows for certain which sessions are alive, so it publishes that fact rather than leaving it to agents.
+
+For every project with a running session, it maintains `.claude/sessions-live.json` in the checkout, rewritten on every change and at least every 60 seconds:
+
+```jsonc
+{
+  "writtenBy": "elysiumprod",
+  "at": "2026-10-11T19:20:00Z",
+  "sessions": [
+    { "template": "attestia.prime", "title": "Prime Attestia", "state": "running", "since": "...", "lastTurnEnd": "...", "awaitingInput": false },
+    { "template": "attestia.meridian", "title": "Meridian Attestia", "state": "stopped", "since": "...", "reason": "low-memory" }
+  ]
+}
+```
+
+- Written only when ElysiumProd is running. A file older than 5 minutes means ElysiumProd itself is down, and readers must say "unknown", never "running".
+- Add it to each repo's `.gitignore` through the review screen in 8.3.1; it is never committed by ElysiumProd.
+- Readers it is meant for: the plugin's peers line, `inbox.mjs`, and Prime when it writes the relay's Now lines. Changing those readers is plugin work, outside this repo; the file format is the contract.
+- Open question 7: whether the board servers should see liveness, which would need it pushed somewhere.
 
 ## 12. Routing to other providers
 
@@ -470,7 +574,7 @@ A Router pane with a prompt box and a target selector. Targets declared in confi
       "kind": "cli-headless",
       "command": "claude",
       "args": ["-p", "{{prompt}}", "--output-format", "json"],
-      "accountId": "max-secondary"
+      "accountId": "account2"
     },
     {
       "id": "gpt",
@@ -502,18 +606,41 @@ Clone from the command palette or the Home add button:
 1. GitHub URL or `owner/repo` shorthand.
 2. Target defaults to `<workspaceRoot>\<repo>`, editable.
 3. `git clone` streamed into a transient pane.
-4. Create the Project. Auto-detect: read `.mcp.json` for expected servers, `package.json` for a display name, assign a color by hash.
-5. Prompt once for default and failover account.
-6. Offer the stock boot profiles.
+4. Create the Project. Auto-detect: read `.mcp.json` for expected servers, `.claude/mods.json` and `.claude/sessions.json` as in 8.3.1, `package.json` for a display name, assign a color by hash.
+5. Prompt once for default and failover account, and for the tier, main or side.
+6. Offer the stock boot profiles, with `full` preselected for main and `solo` for side.
 
 Auth goes through the system git credential manager. ElysiumProd never handles tokens.
+
+Default `workspaceRoot` is `C:\Users\aatir`, where 51 of the 73 checkouts already live; the other 22 are under `Documents`. Open question 1 still stands for new clones.
+
+### 13.1 Board watcher process
+
+Each main project has a board or chat watcher, declared in `mods.json` as `watchStart`:
+
+- Attestia: `node packages/cli/bin/attestia.mjs watch ...`, run today as a Monitor with a 30 minute timeout.
+- Elysium Intern: `node scripts/board-watch.mjs`, run as background Bash with a 2 hour timeout.
+- Gulf: `node scripts/board-watch.mjs --replay`, run as a Monitor with a 30 minute timeout.
+
+Today each one runs inside Prime, times out, and depends on Prime noticing and restarting it. The plugin grew a restart prompt, back off and `/watch` to cope.
+
+ElysiumProd runs each watcher as a supervised child process of the main process, in the project's directory, with no timeout:
+
+- restarted on exit with back off, 5s doubling to 5 minutes, and an attention row after three failures;
+- stdout lines are delivered to the template named in `WatcherSpec.deliverTo` by writing them where `inbox.mjs` already looks, so Prime sees them at its next tool call or turn end through the existing hook path. ElysiumProd never types into a busy PTY;
+- the plugin's watcher status reads the 11.6 liveness file, so its restart prompt stays quiet while ElysiumProd owns the watcher.
+
+UNVERIFIED: what each watcher writes and where `inbox.mjs` reads from. Phase 0 reads those two scripts, as configuration, before this is built. If delivery through the inbox path does not fit, fall back to leaving the watcher in Prime and only supervising its restart.
 
 ## 14. Notifications
 
 Events, each individually toggleable:
 
 - Session entered `awaiting-input` (from the `Notification` hook)
-- Turn finished (from `Stop`)
+- Turn finished (from `Stop`). On by default for Prime and solo sessions only. Meridian's turns end constantly on peer messages, about 77 in one Meridian's life, and would bury everything else.
+- Peer link down (8.1)
+- RAM or disk crossed a warn floor (10.6)
+- A board watcher failed to restart (13.1)
 - Session exited, with code
 - Context crossed the amber threshold
 - Compaction occurred
@@ -544,7 +671,8 @@ CREATE TABLE projects (
   remote TEXT, default_account_id TEXT REFERENCES accounts(id),
   failover_account_id TEXT REFERENCES accounts(id),
   shell TEXT NOT NULL DEFAULT 'pwsh', color TEXT NOT NULL,
-  relay_tool TEXT, relay_board TEXT, env_json TEXT NOT NULL DEFAULT '{}',
+  relay_json TEXT, waiting_heading TEXT, watcher_json TEXT,
+  tier TEXT NOT NULL DEFAULT 'side', env_json TEXT NOT NULL DEFAULT '{}',
   default_profile_id TEXT, auto_compact_window INTEGER,
   sort_order INTEGER NOT NULL DEFAULT 0
 );
@@ -558,7 +686,10 @@ CREATE TABLE boot_profiles (
 CREATE TABLE session_templates (
   id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
   profile_id TEXT REFERENCES boot_profiles(id) ON DELETE CASCADE,
-  label TEXT NOT NULL, command TEXT NOT NULL, args_json TEXT NOT NULL DEFAULT '[]',
+  role TEXT NOT NULL, title TEXT NOT NULL, plugin_name TEXT,
+  command TEXT NOT NULL, args_json TEXT NOT NULL DEFAULT '[]',
+  model TEXT, advisor TEXT, effort TEXT, plugin_dir TEXT,
+  skip_permissions INTEGER NOT NULL DEFAULT 1, resume TEXT NOT NULL DEFAULT 'by-title',
   account_id TEXT REFERENCES accounts(id), auto_start INTEGER NOT NULL DEFAULT 0, cwd TEXT
 );
 
@@ -600,7 +731,7 @@ CREATE TABLE events (
 
 `metrics` is the OTel sink and backs every chart. Roll up to daily aggregates nightly and prune raw rows past 90 days.
 
-Scrollback lives at `%APPDATA%\elysiumprod\scrollback\<sessionId>.log`, rotated at 10MB, pruned after 30 days.
+Scrollback lives at `%APPDATA%\elysiumprod\scrollback\<sessionId>.log`, rotated at 10MB, pruned after 30 days, with a total cap of 1 GB across all sessions, oldest pruned first. The cap is there from Phase 1 because the disk was 98 percent full at audit time.
 
 Human-editable config sits beside the db as `%APPDATA%\elysiumprod\config.jsonc`: providers, notification channels, detection patterns, thresholds, keybindings. Watched and hot-reloaded. The db is state, the jsonc is preferences, and the jsonc is the customization surface.
 
@@ -629,33 +760,35 @@ Yes, it should be a real installed program, and it is not hard. It is a config b
 
 Each phase ends in something usable. Do not start one before the previous runs on the real machine.
 
+**Phase A, workflow audit. Done 2026-10-11.** Output: `AUDIT-REPOS.md`, `AUDIT-TOOLING.md`, `AUDIT-SESSIONS.md`, `AUDIT-WORKFLOW.md`, `AUDIT-FRICTION.md`, `AUDIT-SUMMARY.md`, and this revision. Ends when the owner has read `AUDIT-SUMMARY.md`.
+
 **Phase 0, spike, half a day.** Prove the risky things before writing app code.
 1. `node-pty` installs or builds for Electron on win32-arm64, and a PowerShell session round-trips through ConPTY.
-2. Two `CLAUDE_CONFIG_DIR` directories give two genuinely independent logins. Record whether `%USERPROFILE%\.claude.json` is modified and whether a `claude.json` appears inside the new directories.
+2. Launch one session with `CLAUDE_CONFIG_DIR=C:\Users\aatir\.claude-account2` and confirm `%USERPROFILE%\.claude.json` is not modified. The per directory `.claude.json` is already observed (11.3).
 3. A status line shim receives JSON on stdin. Dump the raw object and confirm which documented fields actually arrive on this CLI version, especially `context_window.*` and `rate_limits.*`.
-4. Register all eight hooks from 10.2 to a logging script and capture raw stdin for each, especially `PreCompact`, `Stop`, `SessionEnd` and `Notification`.
+4. Register all eight hooks from 10.2 to a logging script in the account directory and capture raw stdin for each, especially `PreCompact`, `Stop`, `SessionEnd` and `Notification`. In the same run, confirm the project hooks of `securitposture_2026` still fire, so user scope and project scope hooks add up.
 5. Confirm the OTLP exporter reaches a trivial local HTTP receiver.
-Output: `PHASE0.md`. Phase A must already be complete; see section 21. If (1) fails, fall back to Electron x64 under emulation, or accept a Tauri rewrite of section 6.
+6. Launch one session exactly as `cs prime posture` does, from node-pty, with `SP_SESSION_NAME`, `--plugin-dir`, `--model`, `--advisor` and `--resume`, and confirm the plugin's line appears and its peers line sees the other session.
+7. Read, as configuration, `inbox.mjs` and one `board-watch.mjs` to settle the watcher delivery path in 13.1.
+Output: `PHASE0.md`. If (1) fails, fall back to Electron x64 under emulation, or accept a Tauri rewrite of section 6.
 
-**Phase A, workflow audit.** Section 21. Runs before everything. Ends when `AUDIT-SUMMARY.md` exists and the owner has read it.
+**Phase 1, one terminal and the resource gate.** Electron shell, one xterm pane, SessionManager, one PTY, scrollback to disk with the total cap, resize, clean shutdown. RAM and free disk in the bottom bar with the floors in 10.6. Hardcode one template imported from `cs.ps1`, no db.
 
-**Phase 1, one terminal.** Electron shell, one xterm pane, SessionManager, one PTY, scrollback to disk, resize, clean shutdown. Hardcode one project, no db.
+**Phase 2, projects, templates and import.** SQLite, project CRUD, left rail, Dockview, multiple panes, layout persistence, session templates with the full field set in 7, the first run import in 8.3.1, and stable identity in 8.3.2.
 
-**Phase 2, projects and layout.** SQLite, project CRUD, left rail, Dockview, multiple panes, layout persistence, session templates.
+**Phase 3, accounts and liveness.** Account records for `.claude` and `.claude-account2`, per-session config dir injection, env scrubbing, account chips and pane borders, manual switch with confirm. The liveness file in 11.6.
 
-**Phase 3, accounts.** Account records, per-session config dir injection, env scrubbing, account chips and pane borders, manual switch with confirm.
+**Phase 4, telemetry.** Ingest server, status line shim, hooks, OTLP receiver, telemetry table, context meter in the pane header using the plugin's thresholds. This is the phase that makes the app worth having.
 
-**Phase 4, telemetry.** Ingest server, status line shim, hooks, OTLP receiver, telemetry table, context meter in the pane header, bottom bar resources. This is the phase that makes the app worth having.
+**Phase 5, Home.** Attention strip with every row in 8.1, project cards, Launch and boot profiles, stats and sparklines.
 
-**Phase 5, Home.** Attention strip, project cards, Launch and boot profiles, stats and sparklines.
+**Phase 6, notifications and watchers.** OS toasts, ntfy push, rules in config. Supervised board watchers in 13.1.
 
-**Phase 6, notifications.** OS toasts, ntfy push, rules in config.
-
-**Phase 7, repo and git.** Clone flow, auto-detect, git pane.
+**Phase 7, repo and git.** Clone flow, auto-detect, git pane with worktrees and sibling clones.
 
 **Phase 8, router and relay.** Router pane, both provider kinds, insert-into-session, relay pane, notes, command palette, settings UI.
 
-**Phase 9, failover and polish.** Only after the terms question in 11.3 resolves. Auto-update if wanted.
+**Phase 9, failover and polish.** Only after the terms question in 11.3 resolves, and after the owner explains the repeated logins. Auto-update if wanted.
 
 ## 19. Risks
 
@@ -663,22 +796,32 @@ Output: `PHASE0.md`. Phase A must already be complete; see section 21. If (1) fa
 |---|---|---|
 | node-pty on win32-arm64 | High | Phase 0. Fallbacks named. |
 | Native modules inside asar | High | `asarUnpack` from the first packaged build, not at the end. |
-| `~/.claude.json` ignores `CLAUDE_CONFIG_DIR`, so MCP config is shared | Medium | Phase 0 test. Move all MCP servers to project-scope `.mcp.json`. |
+| `~/.claude.json` ignores `CLAUDE_CONFIG_DIR`, so MCP config is shared | Low | Audit found a separate `.claude.json` in `.claude-account2`. Phase 0 step 2 confirms the main one is untouched. The new consequence is the opposite one: user scope servers must be added to each account. |
 | Multi-account concurrency may not be permitted | Medium | Verify before Phase 9. Manual switching only if not. |
 | Hook and status line schemas shift between CLI versions | Medium | Treat every field as optional, render nulls as unknown, log unrecognized shapes rather than crashing. Phase 0 captures a baseline. |
 | Six-plus WebGL xterm instances on an ARM Surface | Medium | Benchmark in Phase 2. Canvas renderer fallback; pause rendering for hidden panes while still consuming the stream. |
 | Scope creep into building an editor | High | Section 4 exists for this. Reread it. |
 | Building the dashboard before the data channel works | Medium | Phase 4 precedes Phase 5 deliberately. A dashboard of guesses is worse than no dashboard. |
+| Duplicating the owner's plugin: a second compaction controller, status line or RAM tool that fights `securitposture-mods` | High | Section 4 and 10.5. ElysiumProd reads plugin options and never triggers compaction. |
+| Disk exhaustion on a drive already 98 percent full | High | Resource gate in Phase 1, scrollback cap, free disk on Home. |
+| ElysiumProd hooks racing project hooks on git or the repo | Medium | 10.2: one POST, short timeout, exit 0, never touch git. |
+| Session titles drifting from the plugin options and peer lists | Medium | Stable identity, 8.3.2. |
+| Writing into other repos: `.gitignore` entries and the liveness file | Low | Shown in a review screen first; the liveness file is gitignored and never committed. |
 
 ## 20. Open questions for the owner
 
-1. Workspace root directory for cloned repos.
-2. ntfy or Pushover for phone push.
+1. Workspace root directory for cloned repos. Proposed default: `C:\Users\aatir`, where 51 of 73 checkouts live.
+2. ntfy or Pushover for phone push. `agentPushNotifEnabled` is already on in Claude Code; say whether that is enough for in-CLI events.
 3. Should the relay pane post notes back, or stay read only given the standing approval rules on the Attestia and Gulf boards.
-4. Confirm the section 2.3 verdict: default to one session per project, Meridian on demand. If you disagree, say so and `full` becomes the default profile instead.
-5. Which two projects to dogfood first. The stated pair is SecuriTPosture and Elysium Intern; the evidence suggests Attestia belongs in there too, since it is the project the current workflow is stalling.
+4. **Changed by the audit.** Confirm the reversed verdict in 2.4: the four main projects launch Prime and Meridian together by default, and side projects launch one session.
+5. **Answered by the audit, confirm.** Dogfood first on SecurITPosture and Elysium Intern, the two busiest repos in the window. Attestia's development has been paused since 10-02 and its work moved to Gulf, so add Gulf rather than Attestia, unless Attestia is restarting.
+6. What were the 9 to 10 `/login` runs in the window for, given the second account directory has never been used?
+7. Should the board servers learn liveness from ElysiumProd (11.6)? That would mean pushing the file somewhere, which conflicts with the no off machine traffic rule in 4.
+8. The cached plugin copy is 0.3.0 while `--plugin-dir` loads 0.3.9 from source. Should ElysiumProd always pass `--plugin-dir`, as `cs.ps1` does, and should `mods-switch` be run so the cached copy cannot load twice?
 
 ## 21. Phase A: audit the operator, then revise this spec
+
+Completed 2026-10-11. The instructions below are kept as the record of what was asked; the results are in the `AUDIT-*.md` files, and sections 2 to 20 above have been revised from them.
 
 This runs first, before Phase 0, before any code. Its output changes the rest of this document.
 
@@ -772,12 +915,8 @@ Then edit `SPEC.md` directly on a branch and open a PR. Amend sections, add feat
 
 ## 22. Kickoff prompt for the implementing session
 
-Paste into a fresh Claude Code session in an empty repo:
+Phase A is done. For Phase 0, paste into a fresh Claude Code session in this repository:
 
-> Read SPEC.md in full. Then execute Phase A, section 21, and nothing else.
+> Read SPEC.md in full, then AUDIT-SUMMARY.md. Execute Phase 0, section 18, and nothing else.
 >
-> Phase A is an audit of how I actually work, run on this machine. You have full autonomy inside the boundaries in section 21.7: explore every repository I have worked in over the last twenty days, every Claude Code config directory, every MCP server and plugin and skill I have built, and the session transcripts. Do not ask me which repos matter or whether you may look at something. Work it out from the evidence and go.
->
-> Produce AUDIT-REPOS.md, AUDIT-TOOLING.md, AUDIT-SESSIONS.md, AUDIT-WORKFLOW.md, AUDIT-FRICTION.md and AUDIT-SUMMARY.md, then open a PR revising SPEC.md against what you found. This spec was written without access to this machine, so treat it as a draft and change whatever the evidence contradicts, including the Prime and Meridian verdict in section 2.3.
->
-> Read only outside this repo. Never record a secret's contents. Every claim carries its evidence. Stop when AUDIT-SUMMARY.md is written; do not start Phase 0 or Phase 1. Do not use em dashes.
+> Write PHASE0.md with the raw results of each of the seven steps, including the exact stdin captured from every hook and the status line, the CLI version, and whether the securitposture-mods plugin's line and peers line appear when the session is launched from node-pty. Read only outside this repository, except that step 2 may launch one session against C:\Users\aatir\.claude-account2. Never record a secret's contents. Stop when PHASE0.md is written; do not start Phase 1. Do not use em dashes.
