@@ -62,6 +62,10 @@ const watchers = new Watchers(
   },
 );
 
+function appIcon(): string {
+  return app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(app.getAppPath(), 'resources', 'icon.png');
+}
+
 function loadRenderer(w: BrowserWindow, hash = ''): void {
   if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash ? `#${hash}` : ''}`);
   else void w.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined);
@@ -82,6 +86,8 @@ function createWindow(): BrowserWindow {
     minHeight: 500,
     backgroundColor: '#262624',
     title: 'ElysiumProd',
+    // The Elysium mark in the taskbar, Alt+Tab and the window corner.
+    icon: appIcon(),
     autoHideMenuBar: true,
     show: false,
     // The Windows 11 caption buttons float over the app's own top bar, so there

@@ -474,7 +474,7 @@ input[type="range"] { width: 11rem; accent-color: var(--accent); }
 /* ---------- Onboarding ---------- */
 .onboard { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 1.5rem; background: var(--bg); animation: fade .3s var(--ease) both; overflow: auto; }
 .onboard-card { width: 100%; max-width: 40rem; text-align: center; animation: rise .4s var(--ease) both; }
-.onboard-card .logo { width: 3rem; height: 3rem; margin-bottom: 1rem; }
+.onboard-card .logo { display: block; width: 3rem; height: 3rem; margin: 0 auto 1rem; }
 .onboard-card h1 { font-family: var(--font-display); font-weight: 400; font-size: 2rem; margin: 0 0 .5rem; }
 .onboard-card > p { color: var(--text-2); margin: 0 0 1.6rem; line-height: 1.6; }
 .onboard-list { text-align: left; display: flex; flex-direction: column; gap: .5rem; margin-bottom: 1.6rem; }

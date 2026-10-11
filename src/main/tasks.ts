@@ -3,7 +3,7 @@
 // The session starts on the project's account if it is not running, the task is
 // pasted once the session reports it is ready, and a Windows notification says
 // when it finishes or needs you. Clicking the notification opens that session.
-import { Notification } from 'electron';
+import { app, Notification } from 'electron';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Telemetry } from '@shared/ipc';
@@ -88,7 +88,7 @@ export class Tasks {
 
   private notify(sessionId: string, title: string, body: string): void {
     if (!Notification.isSupported()) return;
-    const n = new Notification({ title, body, silent: false });
+    const n = new Notification({ title, body, silent: false, icon: join(app.isPackaged ? process.resourcesPath : join(app.getAppPath(), 'resources'), 'icon.png') });
     n.on('click', () => {
       const s = this.sessions.list().find((x) => x.id === sessionId);
       if (s) this.focus(sessionId, s.templateId);
