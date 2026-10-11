@@ -1,6 +1,7 @@
 // ElysiumProd main process: the main window, the quick bar and tray, sessions,
 // telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { existsSync } from 'node:fs';
 import { userInfo } from 'node:os';
 import { join } from 'node:path';
 import { Channels, type ResourceSample, type SessionInfo } from '@shared/ipc';
@@ -63,8 +64,35 @@ const watchers = new Watchers(
   },
 );
 
+function resourcePath(name: string): string {
+  return app.isPackaged ? join(process.resourcesPath, name) : join(app.getAppPath(), 'resources', name);
+}
 function appIcon(): string {
-  return app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(app.getAppPath(), 'resources', 'icon.png');
+  return resourcePath(process.platform === 'win32' ? 'icon.ico' : 'icon.png');
+}
+
+/**
+ * Windows takes a taskbar button's icon from the Start Menu shortcut that
+ * carries the app's ID; without one it shows the program file's own icon,
+ * which in development is Electron's. So ElysiumProd keeps a Start Menu
+ * shortcut with its ID and the Elysium mark. It also gives you an
+ * "ElysiumProd" entry to launch and pin.
+ */
+function ensureStartMenuShortcut(): void {
+  if (process.platform !== 'win32') return;
+  try {
+    const lnk = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'ElysiumProd.lnk');
+    const options = {
+      target: process.execPath,
+      args: app.isPackaged ? '' : `"${app.getAppPath()}"`,
+      cwd: app.isPackaged ? undefined : app.getAppPath(),
+      description: 'ElysiumProd',
+      icon: resourcePath('icon.ico'),
+      iconIndex: 0,
+      appUserModelId: 'ElysiumProd',
+    };
+    shell.writeShortcutLink(lnk, existsSync(lnk) ? 'replace' : 'create', options);
+  } catch { /* the window icon still applies */ }
 }
 
 function loadRenderer(w: BrowserWindow, hash = ''): void {
@@ -221,6 +249,7 @@ app.whenReady().then(async () => {
   registerIpc();
   await resources.start();
   await ingest.start();
+  if (!SMOKE) ensureStartMenuShortcut();
   win = createWindow();
   tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); });
   if (!SMOKE) {
