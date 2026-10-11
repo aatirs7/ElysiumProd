@@ -14,14 +14,19 @@ interface Live {
   pty: IPty | null;
   scrollback: Scrollback;
   pending: string;
+  /** Recent output, so a pane that remounts (moved, floated, view switched) can redraw. */
+  history: string;
+  /** Total characters emitted; lets a pane drop live chunks its replay already covered. */
+  offset: number;
 }
 
 export interface SessionEvents {
-  data(sessionId: string, data: string): void;
+  data(sessionId: string, data: string, endOffset: number): void;
   update(info: SessionInfo): void;
 }
 
 const FLUSH_MS = 16;
+const HISTORY_CHARS = 512 * 1024;
 
 export class SessionManager {
   private live = new Map<string, Live>();
@@ -45,9 +50,13 @@ export class SessionManager {
     const command = t.command();
     if (!command) return { ok: false, reason: 'Claude Code was not found on PATH or in the npm global folder.' };
     if (!existsSync(t.cwd)) return { ok: false, reason: `The folder ${t.cwd} does not exist.` };
-    for (const l of this.live.values()) {
-      if (l.info.templateId === templateId && (l.info.status === 'running' || l.info.status === 'starting')) {
-        return { ok: false, reason: `${t.title} is already running in this window.` };
+    // A Claude template resumes one named session; two copies of it would fight.
+    // Shells are independent, so any number may run.
+    if (t.kind === 'claude') {
+      for (const l of this.live.values()) {
+        if (l.info.templateId === templateId && (l.info.status === 'running' || l.info.status === 'starting')) {
+          return { ok: false, reason: `${t.title} is already running in this window.` };
+        }
       }
     }
 
@@ -57,7 +66,7 @@ export class SessionManager {
       id, templateId, title: t.title, status: 'starting', pid: null,
       startedAt: new Date().toISOString(), exitCode: null, scrollbackPath: scrollback.path,
     };
-    const l: Live = { info, pty: null, scrollback, pending: '' };
+    const l: Live = { info, pty: null, scrollback, pending: '', history: '', offset: 0 };
     this.live.set(id, l);
 
     try {
@@ -79,6 +88,9 @@ export class SessionManager {
       p.onData((d) => {
         l.scrollback.write(d);
         l.pending += d;
+        l.offset += d.length;
+        l.history += d;
+        if (l.history.length > HISTORY_CHARS * 1.25) l.history = l.history.slice(-HISTORY_CHARS);
         this.scheduleFlush();
       });
       p.onExit(({ exitCode }) => {
@@ -97,6 +109,14 @@ export class SessionManager {
     }
     this.events.update({ ...info });
     return { ok: true, session: { ...info } };
+  }
+
+  /** Recent output and the offset it ends at, for a pane that is (re)attaching. */
+  replay(id: string): { info: SessionInfo; data: string; endOffset: number } | null {
+    const l = this.live.get(id);
+    if (!l) return null;
+    this.flush();
+    return { info: { ...l.info }, data: l.history, endOffset: l.offset };
   }
 
   write(id: string, data: string): void {
@@ -141,7 +161,7 @@ export class SessionManager {
       if (!l.pending) continue;
       const d = l.pending;
       l.pending = '';
-      this.events.data(l.info.id, d);
+      this.events.data(l.info.id, d, l.offset);
     }
   }
 }

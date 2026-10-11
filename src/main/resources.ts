@@ -7,7 +7,8 @@ import type { Level, ResourceSample } from '@shared/ipc';
 
 export const FLOORS = {
   ramWarnPercent: 85,
-  ramRefusePercent: 92,
+  // Windows compresses memory, so 90 percent is ordinary on this machine; refuse only near the edge.
+  ramRefusePercent: 97,
   diskWarnBytes: 20 * 1024 ** 3,
   diskRefuseBytes: 8 * 1024 ** 3,
 };

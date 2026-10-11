@@ -22,6 +22,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await new Promise<void>((res) => (ctx.win.webContents.isLoading() ? ctx.win.webContents.once('did-finish-load', () => res()) : res()));
     await sleep(1500);
     r.resources = ctx.resources.latest();
+    writeFileSync(join(out, 'home.png'), (await ctx.win.webContents.capturePage()).toPNG());
     // Launch through the renderer, the same path a click takes.
     r.launch = await ctx.win.webContents.executeJavaScript(`window.__smoke && window.__smoke.launch('local.shell')`);
     await sleep(2500);
@@ -32,6 +33,8 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(2500);
     r.screenText = await ctx.win.webContents.executeJavaScript(`window.__smoke.screen()`);
     r.echoSeenInXterm = typeof r.screenText === 'string' && (r.screenText as string).includes('smoke-42');
+    r.dom = await ctx.win.webContents.executeJavaScript(`(() => { const h = document.querySelector('.dv-groupview'); const p = document.querySelector('.term-panel'); const c = document.querySelector('.term canvas'); return { headText: h && h.innerText, paneOpacity: p && getComputedStyle(p).opacity, paneAnim: p && getComputedStyle(p).animationName, headRect: h && h.getBoundingClientRect().height, canvas: !!c, xtermRows: document.querySelectorAll('.xterm-rows > div').length, visibility: document.visibilityState, focused: document.hasFocus() }; })()`);
+    r.strip = await ctx.win.webContents.executeJavaScript(`(() => { const t = document.querySelector('.term-panel'); if (!t) return null; const b = t.getBoundingClientRect(); const out = []; for (const dy of [4, 10, 16]) { const el = document.elementFromPoint(b.left + b.width / 2, b.bottom - dy); out.push(el ? el.tagName + '.' + el.className + ' bg=' + getComputedStyle(el).backgroundColor + ' h=' + Math.round(el.getBoundingClientRect().height) : null); } return out; })()`);
     const img = await ctx.win.webContents.capturePage();
     writeFileSync(join(out, 'window.png'), img.toPNG());
     r.scrollbackExists = existsSync(s.scrollbackPath);
