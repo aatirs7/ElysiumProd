@@ -14,7 +14,9 @@ Phase A, step 21.3. Session level facts only. No message content was read into a
 
 ## Every session active in the window
 
-| Repo | Session | Name | First | Last | Active min | Days | Owner turns | Compactions (auto/manual) | Resumes | Subagent files | Cost USD |
+"Prompt turns" counts every non tool, non meta user record: the owner's own prompts plus messages from the peer session, background task notifications and plugin prompts. Owner typed turns, from `origin.kind = human`, are given per session in AUDIT-WORKFLOW for the paired sessions.
+
+| Repo | Session | Name | First | Last | Active min | Days | Prompt turns | Compactions (auto/manual) | Resumes | Subagent files | Cost USD |
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | AppData-Local-Temp-claude-secu | 5e662344 | - | 2026-10-06 | 2026-10-06 | 10 | 1 | 1 | 0 (0/0) | 0 | 0 | 0 |
 | Documents-sharjeelcrm | 3145aebb | sharjeel-crm-affiliate-upgrade | 2026-07-08 | 2026-10-07 | 870 | 7 | 70 | 2 (1/1) | 11 | 3 | 221 |
@@ -81,8 +83,8 @@ Reading: more than one session is active in 72 percent of working time, and more
 
 - Sessions are not started per task. They are **resumed by title for days or weeks**. Median life of a window session is 7 active days; elysiumbuilds `6f1446cd` has activity on 35 days since 2026-07-21, and Meridian Attestia `fabb5698` on 16.
 - Median active time per session is 870 minutes; the maximum is 2,930 (Prime Intern `217d4788`).
-- Owner turns between compactions: median 15, across 57 compactions.
-- The median hides a split by role. Prime sessions compact after 13 to 67 owner turns. **Meridian sessions compact after 0 to 7 owner turns** (Meridian Posture `feb72296`: 3, 1, 0, 0, 5, 4, 1, 6; Meridian Intern `2affe11c`: 7, 4, 3, 1, 1, 1). Meridian's context is filled by peer messages and its own tool work, not by the owner, so an owner turn count says nothing about when it will compact.
+- Prompt turns between compactions: median 15, across 57 compactions.
+- The median hides a split by role. Prime sessions compact after 13 to 67 prompt turns. **Meridian sessions compact after 0 to 7 prompt turns** (Meridian Posture `feb72296`: 3, 1, 0, 0, 5, 4, 1, 6; Meridian Intern `2affe11c`: 7, 4, 3, 1, 1, 1). Meridian's context is filled by peer messages and its own tool work, not by the owner, so a turn count says nothing about when it will compact.
 - Manual compactions are 16 of 57, and 14 of those 16 fall on or after 2026-10-02, the day the plugin's compaction guard (park at 85 percent, then compact) went live; Prime Intern has 4 of its 6 manual, Meridian Posture 4 of 8.
 
 ## Fresh versus resumed
