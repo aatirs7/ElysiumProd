@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FunctionComponent } from 'react';
+import { createPortal } from 'react-dom';
 import {
   DockviewReact,
   type DockviewApi,
@@ -9,7 +10,7 @@ import {
   type IWatermarkPanelProps,
 } from 'dockview-react';
 import {
-  Activity, BookOpen, Eye, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
+  Activity, BookOpen, Check, Eye, FoldVertical, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
 import { useLive } from './live';
@@ -111,6 +112,18 @@ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, acco
   setTimeout(() => { try { left.api.setSize({ width: 260 }); } catch { /* sizes are a nicety */ } }, 60);
 }
 
+/** Pane colours: a soft tint on the tab bar and a ring around the pane, so sessions are easy to tell apart. */
+export const TINTS: { name: string; value: string }[] = [
+  { name: 'None', value: '' },
+  { name: 'Blue', value: '#5B8DEF' },
+  { name: 'Violet', value: '#9B7BE0' },
+  { name: 'Pink', value: '#E06C8C' },
+  { name: 'Red', value: '#E5534B' },
+  { name: 'Amber', value: '#D9A043' },
+  { name: 'Green', value: '#4FA97A' },
+  { name: 'Teal', value: '#3FB5B0' },
+];
+
 function Tab(props: IDockviewPanelHeaderProps) {
   const { sessions, templates, telemetry } = useLive();
   const kind = kindOf(props.api.id);
@@ -131,8 +144,36 @@ function Tab(props: IDockviewPanelHeaderProps) {
     setNote(r.ok ? null : r.reason);
   };
   const state = s?.status !== 'running' ? s?.status ?? 'exited' : tel?.state ?? 'running';
+
+  // The pane's colour lives in its params, so it is saved with the layout.
+  const [tint, setTint] = useState<string>((props.params as { tint?: string }).tint ?? '');
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => { if (!menu) return; overlayOpened(); return () => overlayClosed(); }, [menu]);
+  useEffect(() => {
+    // Paint the group while this pane is the one it shows; a pane without a colour clears it.
+    const paint = () => {
+      const g = props.api.group;
+      const el = g?.element as HTMLElement | undefined;
+      if (!el || g.activePanel?.id !== props.api.id) return;
+      if (tint) { el.style.setProperty('--tint', tint); el.classList.add('tinted'); }
+      else { el.style.removeProperty('--tint'); el.classList.remove('tinted'); }
+    };
+    paint();
+    const ds = [props.api.onDidActiveChange(paint), props.api.onDidVisibilityChange(paint), props.api.onDidGroupChange(() => setTimeout(paint, 0))];
+    return () => { for (const d of ds) d.dispose(); };
+  }, [tint, props.api]);
+  const chooseTint = (value: string) => {
+    setTint(value);
+    props.api.updateParameters({ ...(props.params as object), tint: value || undefined });
+    setMenu(null);
+  };
+  const canCompact = kind === 'terminal' && t?.kind === 'claude' && s?.status === 'running';
+
   return (
-    <div className="ep-tab" onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); props.api.close(); } }}>
+    <div className="ep-tab" style={tint ? ({ '--tint': tint } as React.CSSProperties) : undefined}
+      onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); props.api.close(); } }}
+      onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setMenu({ x: e.clientX, y: e.clientY }); }}>
+      {tint && <span className="tint-dot" />}
       <Icon size={14} />
       <span className="ep-tab-title">{title}</span>
       {kind === 'terminal' && <span className={`dot ${state}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
@@ -144,6 +185,27 @@ function Tab(props: IDockviewPanelHeaderProps) {
         </button>
       )}
       <button className="ep-tab-close" onClick={(e) => { e.stopPropagation(); props.api.close(); }} aria-label={`Close ${title}`}><X size={13} /></button>
+      {menu && createPortal(
+        <div className="menu-backdrop" onMouseDown={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
+          <div className="tab-menu over-native" style={{ left: Math.min(menu.x, window.innerWidth - 250), top: Math.min(menu.y + 6, window.innerHeight - 200) }} onMouseDown={(e) => e.stopPropagation()} role="menu">
+            <div className="tab-menu-label">Pane colour</div>
+            <div className="tint-row">
+              {TINTS.map((c) => (
+                <button key={c.name} className={`tint-swatch ${c.value ? '' : 'none'}`} style={c.value ? { background: c.value } : undefined} title={c.name} aria-label={c.name} onClick={() => chooseTint(c.value)}>
+                  {tint === c.value && <Check size={12} strokeWidth={3} />}
+                </button>
+              ))}
+            </div>
+            {canCompact && (
+              <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); void window.elysium.compact([params.sessionId!]); }}>
+                <FoldVertical size={14} />Compact this session
+              </button>
+            )}
+            <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); props.api.close(); }}><X size={14} />Close</button>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }

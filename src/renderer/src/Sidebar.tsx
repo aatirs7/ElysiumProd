@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, CircleHelp, Home, Layers, MemoryStick, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
+import { BarChart3, CircleHelp, Home, Layers, MemoryStick, PinOff, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -16,12 +16,14 @@ interface Props {
 }
 
 export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) {
-  const { doc, activeView, openProject, setActiveView, renameView, addView } = useWorkspace();
+  const { doc, activeView, openProject, setActiveView, renameView, addView, togglePin } = useWorkspace();
+  const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry } = useLive();
   const { res } = useMachine();
   const [editing, setEditing] = useState<string | null>(null);
   const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects;
   const freeViews = doc.views.filter((v) => !v.projectId);
+  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id));
 
   /** A project's status: waiting on you beats busy beats running. */
   const status = (projectId: string) => {
@@ -48,19 +50,33 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) 
       </button>
 
       <div className="side-scroll">
-        <div className="side-label">Projects</div>
+        <div className="side-label">
+          <span>Projects</span>
+          {unpinned.length > 0 && <button className="ghost-icon tiny" onClick={() => setAdding((a) => !a)} title="Pin a project" aria-label="Pin a project" aria-expanded={adding}><Plus size={14} /></button>}
+        </div>
+        {adding && (
+          <div className="pin-picker" role="menu">
+            {unpinned.map((p) => (
+              <button key={p.id} className="nav" role="menuitem" onClick={() => { togglePin(p.id); if (unpinned.length === 1) setAdding(false); }} title={p.folder}>
+                <ProjectLogo projectId={p.id} /><span className="grow">{p.name}</span><Plus size={14} className="muted" />
+              </button>
+            ))}
+          </div>
+        )}
         {pinned.map((p) => {
           const st = status(p.id);
           const active = page === 'workspace' && activeView?.projectId === p.id;
           return (
-            <button key={p.id} className={`nav ${active ? 'active' : ''}`} onClick={() => { openProject(p.id, p.name); go('workspace'); }} title={p.folder}>
+            <div key={p.id} className={`nav view-item ${active ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => { openProject(p.id, p.name); go('workspace'); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { openProject(p.id, p.name); go('workspace'); } }} title={p.folder}>
               <ProjectLogo projectId={p.id} />
               <span className="grow">{p.name}</span>
               {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
-            </button>
+              <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); togglePin(p.id); }} title="Unpin" aria-label={`Unpin ${p.name}`}><PinOff size={13} /></button>
+            </div>
           );
         })}
-        {!pinned.length && <div className="nav muted">Pin projects in Settings</div>}
+        {!pinned.length && !adding && <div className="nav muted">Use the plus to pin projects</div>}
 
         <div className="side-label">
           <span>Views</span>

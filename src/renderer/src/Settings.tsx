@@ -73,7 +73,23 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
         </section>
 
         <section className="settings-card">
+          <h2>Sessions</h2>
+          <Row label="Tell me when Claude replies" hint="A card in the corner when a session you are not looking at replies or needs you. With the window in the background, a Windows notification instead.">
+            <Seg value={s.notifyReplies === false ? 'off' : 'on'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ notifyReplies: v === 'on' })} />
+          </Row>
+          <Row label="Compact automatically" hint={s.autoCompact.enabled ? `At ${s.autoCompact.percent}% context, a session saves its notes at a clean stopping point, compacts, then carries on` : 'Off. Use Compact in the top bar, or right-click a tab.'}>
+            <Seg value={s.autoCompact.enabled ? 'on' : 'off'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ autoCompact: { ...s.autoCompact, enabled: v === 'on' } })} />
+          </Row>
+          {s.autoCompact.enabled && (
+            <Row label="Compact at" hint={`${s.autoCompact.percent}% of the context window. Main projects' own plugin also compacts at 85%; this runs first when it is lower.`}>
+              <input type="range" min={60} max={90} step={5} value={s.autoCompact.percent} onChange={(e) => setSettings({ autoCompact: { ...s.autoCompact, percent: Number(e.target.value) } })} />
+            </Row>
+          )}
+        </section>
+
+        <section className="settings-card">
           <h2>Projects</h2>
+          <p className="setting-hint" style={{ margin: '-.2rem 0 .6rem' }}>The pin puts a project in the sidebar and on Home. You can also use the plus beside Projects in the sidebar.</p>
           {projects.map((p) => {
             const acc = doc.projectAccounts[p.id] || 'main';
             const pinned = doc.pinned.includes(p.id);

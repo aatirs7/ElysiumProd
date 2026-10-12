@@ -1,7 +1,7 @@
 // Live data shared by the whole app: machine resources, sessions and their
 // telemetry, accounts, watchers, and projects with this week's activity.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { AccountInfo, ProjectInfo, ProjectStats, ResourceSample, SessionInfo, Telemetry, TemplateInfo, WatcherState } from '@shared/ipc';
+import type { AccountInfo, AccountLimits, CompactState, ProjectInfo, ProjectStats, ResourceSample, SessionInfo, Telemetry, TemplateInfo, WatcherState } from '@shared/ipc';
 
 const HISTORY = 90; // samples, two seconds apart: three minutes
 
@@ -18,10 +18,14 @@ interface Live {
   watchers: Record<string, WatcherState>;
   projects: ProjectInfo[];
   stats: ProjectStats[];
+  /** Last known plan limits per account id. */
+  limits: Record<string, AccountLimits>;
+  /** Sessions being compacted, by session id, until they finish. */
+  compacting: Record<string, CompactState>;
   refreshStats(): void;
 }
 
-const LiveContext = createContext<Live>({ sessions: [], templates: [], telemetry: {}, accounts: [], watchers: {}, projects: [], stats: [], refreshStats: () => {} });
+const LiveContext = createContext<Live>({ sessions: [], templates: [], telemetry: {}, accounts: [], watchers: {}, projects: [], stats: [], limits: {}, compacting: {}, refreshStats: () => {} });
 export const useLive = () => useContext(LiveContext);
 
 export function LiveProvider({ children }: { children: ReactNode }) {
@@ -34,6 +38,8 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [stats, setStats] = useState<ProjectStats[]>([]);
   const [statsTick, setStatsTick] = useState(0);
+  const [limits, setLimits] = useState<Record<string, AccountLimits>>({});
+  const [compacting, setCompacting] = useState<Record<string, CompactState>>({});
 
   useEffect(() => {
     void window.elysium.templates().then(setTemplates);
@@ -42,12 +48,19 @@ export function LiveProvider({ children }: { children: ReactNode }) {
     void window.elysium.resources().then((r) => { if (r) setHistory([r]); });
     void window.elysium.sessions().then((list) => setSessions(new Map(list.map((s) => [s.id, s]))));
     void window.elysium.telemetry().then((list) => setTelemetry(Object.fromEntries(list.map((t) => [t.sessionId, t]))));
+    void window.elysium.limits().then((list) => setLimits(Object.fromEntries(list.map((l) => [l.accountId, l]))));
     void window.elysium.watchers().then((list) => setWatchers(Object.fromEntries(list.map((w) => [w.projectId, w]))));
     const offs = [
       window.elysium.onResources((r) => setHistory((h) => [...h.slice(-(HISTORY - 1)), r])),
       window.elysium.onSession((s) => setSessions((m) => new Map(m).set(s.id, s))),
       window.elysium.onTelemetry((t) => setTelemetry((m) => ({ ...m, [t.sessionId]: t }))),
       window.elysium.onWatcher((w) => setWatchers((m) => ({ ...m, [w.projectId]: w }))),
+      window.elysium.onLimits((l) => setLimits((m) => ({ ...m, [l.accountId]: l }))),
+      window.elysium.onCompact((c) => setCompacting((m) => {
+        const next = { ...m, [c.sessionId]: c };
+        if (c.stage === 'done' || c.stage === 'failed') delete next[c.sessionId];
+        return next;
+      })),
     ];
     return () => { for (const o of offs) o(); };
   }, []);
@@ -61,9 +74,9 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   const machine = useMemo<Machine>(() => ({ res: history[history.length - 1] ?? null, history }), [history]);
   const value = useMemo<Live>(() => ({
     sessions: [...sessions.values()].sort((a, b) => b.startedAt.localeCompare(a.startedAt)),
-    templates, telemetry, accounts, watchers, projects, stats,
+    templates, telemetry, accounts, watchers, projects, stats, limits, compacting,
     refreshStats: () => setStatsTick((x) => x + 1),
-  }), [sessions, templates, telemetry, accounts, watchers, projects, stats]);
+  }), [sessions, templates, telemetry, accounts, watchers, projects, stats, limits, compacting]);
   return <MachineContext.Provider value={machine}><LiveContext.Provider value={value}>{children}</LiveContext.Provider></MachineContext.Provider>;
 }
 

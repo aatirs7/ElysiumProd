@@ -32,6 +32,10 @@ export interface Settings {
   gap: number;
   /** Opt in. Above the threshold, ElysiumProd ends only the programs listed here. */
   autoEnd: { enabled: boolean; thresholdPercent: number; programs: string[] };
+  /** Main reads this from workspace.json: past the percent, a session saves its notes and compacts. */
+  autoCompact: { enabled: boolean; percent: number };
+  /** A notice when Claude replies in a session you are not looking at. */
+  notifyReplies: boolean;
 }
 
 export interface AccountPrefs { label: string }
@@ -106,6 +110,8 @@ export const DEFAULT_SETTINGS: Settings = {
   termStyle: 'soft',
   gap: 8,
   autoEnd: { enabled: false, thresholdPercent: 90, programs: [] },
+  autoCompact: { enabled: true, percent: 80 },
+  notifyReplies: true,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -128,7 +134,7 @@ function parse(json: string | null): WorkspaceDoc {
     const theme = THEMES.some((t) => t.id === d.settings?.theme) ? (d.settings!.theme as ThemeId) : 'system';
     return {
       version: 1,
-      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) } },
+      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) }, autoCompact: { ...DEFAULT_SETTINGS.autoCompact, ...(d.settings?.autoCompact ?? {}) } },
       views,
       activeViewId: views.some((v) => v.id === d.activeViewId) ? d.activeViewId! : views[0]?.id ?? null,
       notes: d.notes ?? {},

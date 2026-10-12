@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
+import { Channels, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -58,6 +58,13 @@ const api: ElysiumApi = {
   watchers: () => ipcRenderer.invoke(Channels.watchersAll),
   onWatcher: (cb) => subscribe<[WatcherState]>(Channels.watcherUpdate, cb),
   renameSession: (id, title) => ipcRenderer.invoke(Channels.sessionRename, id, title),
+  limits: () => ipcRenderer.invoke(Channels.limitsAll),
+  onLimits: (cb) => subscribe<[AccountLimits]>(Channels.limitsUpdate, cb),
+  compact: (ids) => ipcRenderer.invoke(Channels.compact, ids),
+  onCompact: (cb) => subscribe<[CompactState]>(Channels.compactUpdate, cb),
+  chatWatch: (projectId) => ipcRenderer.invoke(Channels.chatWatchGet, projectId),
+  setChatWatch: (projectId, on) => ipcRenderer.invoke(Channels.chatWatchSet, projectId, on),
+  notifyOs: (sessionId, title, body) => ipcRenderer.send(Channels.notifyOs, sessionId, title, body),
   loadWorkspace: () => ipcRenderer.invoke(Channels.workspaceGet),
   saveWorkspace: (json) => ipcRenderer.send(Channels.workspaceSet, json),
   onData: (cb) => subscribe<[string, string, number]>(Channels.sessionData, cb),

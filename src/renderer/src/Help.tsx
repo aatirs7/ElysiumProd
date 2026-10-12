@@ -53,6 +53,14 @@ const ARTICLES: Article[] = [
       <p>Start Prime and Meridian from the Launch pane and they open one above the other. Ctrl K, Stack terminals rearranges any view's terminals into one column.</p>
       <h3>Wrap up</h3>
       <p>When a project has sessions running, its top bar shows <strong>Wrap up</strong>. Every Claude session in the project is asked to bring its current step to a clean stopping point, commit or note what is unfinished, and update its resume note and relay line. Each one then closes by itself. If one stops to ask you something, you get a notification first.</p>
+      <h3>Compact</h3>
+      <p>Beside Wrap up, <strong>Compact</strong> frees up context without losing work. Each session first finishes its current step and saves its resume note and relay line, then compacts and carries on. It also happens by itself when a session passes the percent set in Settings, under Sessions. To compact one session only, right-click its tab.</p>
+      <h3>Pane colours</h3>
+      <p>Right-click any tab to give its pane a colour. The tab bar takes a soft tint and the pane a coloured edge, so Prime, Meridian and the rest are easy to tell apart. The colour is saved with the view.</p>
+      <h3>Chat watcher and usage</h3>
+      <p>In a project with a chat watcher, the top bar shows <strong>Watcher on</strong> or <strong>Watcher off</strong>. Clicking it tells the sessions to start or stop the watcher. Turning it off also ends the watcher program. The figures on the right of the top bar are each Claude account's five hour and weekly use, as its sessions last reported them.</p>
+      <h3>Replies while you are away</h3>
+      <p>When a session you are not looking at replies or needs you, a card appears in the top right corner. Click it to jump there. With the window in the background you get a Windows notification instead. Turn this off in Settings, under Sessions.</p>
       <h3>Name drift</h3>
       <p>Prime and Meridian find each other by name. If a session is running under a different name than expected, its tab shows a warning; click it to rename the session back while it is idle.</p>
       <h3>Moving and closing</h3>

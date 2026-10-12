@@ -21,6 +21,9 @@ import { projectStats } from './stats';
 import { usageStats } from './usage';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
+import { Limits } from './limits';
+import { endWatchers, findWatchers } from './chatwatch';
+import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
 import { attachWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
@@ -51,7 +54,13 @@ const send = (channel: string, ...args: unknown[]) => {
 
 const resources = new Resources(dataDir(), (r: ResourceSample) => send(Channels.resourcesUpdate, r));
 let tasks: Tasks | null = null;
-const ingest = new Ingest((t) => { send(Channels.telemetryUpdate, t); tasks?.onTelemetry(t); }, (id, e) => send(Channels.readerUpdate, id, e));
+const limits = new Limits((l) => send(Channels.limitsUpdate, l));
+const ingest = new Ingest((t) => {
+  send(Channels.telemetryUpdate, t);
+  tasks?.onTelemetry(t);
+  const acc = sessions.list().find((x) => x.id === t.sessionId)?.accountId;
+  if (acc) limits.update(acc, t);
+}, (id, e) => send(Channels.readerUpdate, id, e));
 const sessions = new SessionManager(
   scrollbackDir(),
   {
@@ -137,7 +146,7 @@ function createWindow(): BrowserWindow {
     // The Windows 11 caption buttons float over the app's own top bar, so there
     // is no separate, old style title bar. The renderer recolours them per theme.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#262624', symbolColor: '#C3C1B8', height: 44 },
+    titleBarOverlay: { color: '#262624', symbolColor: '#C3C1B8', height: 54 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -168,6 +177,14 @@ function createWindow(): BrowserWindow {
   });
   loadRenderer(w);
   return w;
+}
+
+/** Whether a project's chat watcher is running, telling its watcher apart from other projects'. */
+function chatWatch(projectId: string) {
+  const pidsOf = (pred: (project: string | null | undefined) => boolean) => sessions.list()
+    .filter((x) => x.status === 'running' && x.pid && pred(findTemplate(x.templateId)?.project))
+    .map((x) => x.pid as number);
+  return findWatchers(projectId, pidsOf((p) => p === projectId), pidsOf((p) => Boolean(p) && p !== projectId));
 }
 
 function registerIpc(): void {
@@ -213,6 +230,23 @@ function registerIpc(): void {
   ipcMain.handle(Channels.usageStats, () => usageStats());
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
+  ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.compact, (_e, ids: unknown) => (Array.isArray(ids) && tasks ? tasks.compact(ids.filter((x): x is string => typeof x === 'string')) : []));
+  ipcMain.handle(Channels.chatWatchGet, (_e, projectId: unknown) => chatWatch(String(projectId)));
+  ipcMain.handle(Channels.chatWatchSet, async (_e, projectId: unknown, on: unknown) => {
+    const id = String(projectId);
+    const w = await chatWatch(id);
+    if (!w.available) return { ok: false, reason: 'This project has no chat watcher.' };
+    const told = tasks ? tasks.chatWatchMessage(id, Boolean(on)) : 0;
+    if (on) return told ? { ok: true, reason: null } : { ok: false, reason: 'Start Prime first; the watcher runs inside its session.' };
+    // Give the session a moment to read "do not start it again" before its watcher ends.
+    await new Promise((r) => setTimeout(r, 3000));
+    await endWatchers(id, w.pids);
+    return { ok: true, reason: null };
+  });
+  ipcMain.on(Channels.notifyOs, (_e, sessionId: unknown, title: unknown, body: unknown) => {
+    if (typeof sessionId === 'string' && typeof title === 'string' && typeof body === 'string') tasks?.notify(sessionId, title.slice(0, 120), body.slice(0, 300));
+  });
   ipcMain.handle(Channels.readerGet, (_e, id: unknown) => (typeof id === 'string' ? ingest.reader(id) : []));
   ipcMain.handle(Channels.historyCheck, (_e, accountId: unknown, cwd: unknown) => hasHistory(String(accountId), String(cwd)));
   ipcMain.handle(Channels.telemetryAll, () => ingest.all());
@@ -246,7 +280,7 @@ function registerIpc(): void {
   ipcMain.on(Channels.titleBarColors, (_e, color: unknown, symbol: unknown) => {
     const hex = /^#[0-9a-f]{6}$/i;
     if (win && typeof color === 'string' && typeof symbol === 'string' && hex.test(color) && hex.test(symbol)) {
-      try { win.setTitleBarOverlay({ color, symbolColor: symbol, height: 44 }); } catch { /* not supported */ }
+      try { win.setTitleBarOverlay({ color, symbolColor: symbol, height: 54 }); } catch { /* not supported */ }
     }
   });
   ipcMain.on(Channels.workspaceSet, (_e, json: unknown) => { if (typeof json === 'string') saveWorkspace(json); });
@@ -291,7 +325,7 @@ app.whenReady().then(async () => {
   await ingest.start();
   if (!SMOKE) ensureStartMenuShortcut();
   win = createWindow();
-  tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); });
+  tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); }, (c) => send(Channels.compactUpdate, c));
   if (!SMOKE) {
     createQuickWindow(loadRenderer);
     registerShortcut();

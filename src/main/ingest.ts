@@ -75,7 +75,7 @@ export class Ingest {
     const secret = randomBytes(18).toString('hex');
     const t: Telemetry = {
       sessionId, state: 'starting', model: null, contextPercent: null, contextTokens: null, windowSize: null,
-      sessionName: null, fiveHourPercent: null, sevenDayPercent: null, fiveHourResetsAt: null, costUsd: null,
+      sessionName: null, fiveHourPercent: null, sevenDayPercent: null, fiveHourResetsAt: null, sevenDayResetsAt: null, costUsd: null,
       compactions: 0, lastEventAt: null, waitingMessage: null,
     };
     this.sessions.set(sessionId, { secret, t, reader: [] });
@@ -114,6 +114,7 @@ export class Ingest {
       t.fiveHourPercent = p.rate_limits?.five_hour?.used_percentage ?? t.fiveHourPercent;
       t.sevenDayPercent = p.rate_limits?.seven_day?.used_percentage ?? t.sevenDayPercent;
       t.fiveHourResetsAt = p.rate_limits?.five_hour?.resets_at ?? t.fiveHourResetsAt;
+      t.sevenDayResetsAt = p.rate_limits?.seven_day?.resets_at ?? t.sevenDayResetsAt;
       if (t.state === 'starting') t.state = 'idle';
     } else {
       switch (m.event) {

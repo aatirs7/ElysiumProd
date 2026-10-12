@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { Moon, ShieldAlert, X } from 'lucide-react';
+import { FoldVertical, Moon, ShieldAlert, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -15,6 +15,7 @@ import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/s
 import { Workspace, addPanel } from './workspace/Workspace';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
+import { AccountUsage, ChatWatchSwitch, NoticeStack, useNotices, type Notice } from './TopBarExtras';
 
 interface Confirm { title: string; body: string; yes: string; run(): void }
 
@@ -84,7 +85,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [palette, setPalette] = useState(false);
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const { templates, sessions, telemetry } = useLive();
+  const { templates, sessions, telemetry, compacting } = useLive();
   const { res } = useMachine();
   const [wrapping, setWrapping] = useState<string[]>([]);
   const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding } = useWorkspace();
@@ -109,7 +110,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   }, [templates, open, openProject]);
 
   // A notification click: show that session, opening its pane if it has none.
-  useEffect(() => window.elysium.onFocusSession((sessionId, templateId) => {
+  const focusSession = useCallback((sessionId: string, templateId: string) => {
     for (const v of doc.views) {
       const p = apiFor(v.id)?.panels.find((x) => (x.params as { sessionId?: string } | undefined)?.sessionId === sessionId);
       if (p) { setActiveView(v.id); setPage('workspace'); p.api.setActive(); return; }
@@ -118,7 +119,32 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     if (t?.project) openProject(t.project, t.projectName ?? t.project);
     setPage('workspace');
     setTimeout(() => open({ kind: 'terminal', templateId, title: t?.title, params: { sessionId } }), 50);
-  }), [doc.views, apiFor, setActiveView, templates, openProject, open]);
+  }, [doc.views, apiFor, setActiveView, templates, openProject, open]);
+  useEffect(() => window.elysium.onFocusSession(focusSession), [focusSession]);
+
+  // Whether you can see a session right now: its pane is showing in the open view of a focused window.
+  const pageRef = useRef(page);
+  pageRef.current = page;
+  const isVisible = useCallback((sessionId: string) => {
+    if (pageRef.current !== 'workspace' || !activeView || !document.hasFocus()) return false;
+    const p = apiFor(activeView.id)?.panels.find((x) => (x.params as { sessionId?: string } | undefined)?.sessionId === sessionId);
+    return Boolean(p?.api.isVisible);
+  }, [activeView, apiFor]);
+  const { notices, push, dismiss } = useNotices(isVisible, doc.settings.notifyReplies !== false);
+  const openNotice = useCallback((n: Notice) => focusSession(n.sessionId, n.templateId), [focusSession]);
+
+  // Say when a session starts compacting by itself, so the pause is not a surprise.
+  const seenCompact = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    for (const c of Object.values(compacting)) {
+      if (!c.auto || seenCompact.current.has(c.sessionId)) continue;
+      seenCompact.current.add(c.sessionId);
+      const sInfo = sessions.find((x) => x.id === c.sessionId);
+      const t = templates.find((x) => x.id === sInfo?.templateId);
+      if (sInfo) push({ sessionId: c.sessionId, templateId: sInfo.templateId, projectId: t?.project ?? null, title: `Compacting ${t?.title ?? 'a session'}`, body: `Its context passed ${doc.settings.autoCompact.percent}%. It is saving its notes first, then it carries on.`, kind: 'info' });
+    }
+    for (const id of [...seenCompact.current]) if (!compacting[id]) seenCompact.current.delete(id);
+  }, [compacting, sessions, templates, push, doc.settings.autoCompact.percent]);
 
   const removeView = useCallback((id: string) => {
     const v = doc.views.find((x) => x.id === id);
@@ -186,6 +212,22 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     });
   };
   const wrappingHere = projectRunning.filter((x) => wrapping.includes(x.id));
+  const claudeHere = projectRunning.filter((x) => templates.find((t) => t.id === x.templateId)?.kind === 'claude');
+  const compactingHere = claudeHere.filter((x) => compacting[x.id]);
+  const compactNow = () => {
+    if (!claudeHere.length) return;
+    const names = claudeHere.map((x) => templates.find((t) => t.id === x.templateId)?.title ?? x.title);
+    setConfirm({
+      title: `Compact ${names.length === 1 ? names[0] : names.join(' and ')}?`,
+      body: `${names.length === 1 ? 'It' : 'Each'} first finishes its current step and saves its resume note and relay line, then compacts and carries on. Nothing is typed into a session while it is in the middle of a turn.`,
+      yes: 'Compact',
+      run: () => void window.elysium.compact(claudeHere.map((x) => x.id)),
+    });
+  };
+  const compactStage = (() => {
+    const st = compactingHere.map((x) => compacting[x.id].stage);
+    return st.includes('compacting') ? 'compacting' : st.includes('stopping') ? 'saving notes' : st.includes('resuming') ? 'carrying on' : 'waiting for a pause';
+  })();
 
   // The project at a glance, in place of the plugin's line in each terminal.
   const [glance, setGlance] = useState<{ awsTotal: number | null; awsCap: number | null; waiting: number | null } | null>(null);
@@ -244,16 +286,23 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
               </button>
             );
           })}
+          {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
+          <AccountUsage />
           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
           {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting on you</button> : null}
+          {projectId && claudeHere.length > 0 && !wrappingHere.length && (
+            compactingHere.length
+              ? <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>
+              : <button className="pill" onClick={compactNow} title="Save notes at a clean stopping point, then compact"><FoldVertical size={14} />Compact</button>
+          )}
           {projectId && projectRunning.length > 0 && (
             wrappingHere.length
               ? <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>
               : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
           )}
         </div>
-        {page === 'home' && <Home name={name || 'there'} onOpen={goProject} />}
+        {page === 'home' && <Home name={name || 'there'} onOpen={goProject} onFocus={focusSession} />}
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
@@ -261,7 +310,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
       </div>
 
       {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={restart} />}
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {toast && <div className="toast over-native" role="status">{toast}</div>}
+      <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
 
       {memory && (
         <div className="backdrop" onClick={() => setMemory(false)}>

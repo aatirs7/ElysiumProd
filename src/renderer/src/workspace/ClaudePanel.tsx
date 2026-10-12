@@ -18,7 +18,7 @@ type Box = { x: number; y: number; width: number; height: number };
 function clearOfFloats(el: HTMLElement): Box {
   const h = el.getBoundingClientRect();
   let box: Box = { x: h.x, y: h.y, width: h.width, height: h.height };
-  for (const f of document.querySelectorAll<HTMLElement>('.dv-resize-container')) {
+  for (const f of document.querySelectorAll<HTMLElement>('.dv-resize-container, .over-native')) {
     if (f.contains(el)) continue;
     const o = f.getBoundingClientRect();
     const right = box.x + box.width, bottom = box.y + box.height;

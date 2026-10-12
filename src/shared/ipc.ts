@@ -101,6 +101,13 @@ export const Channels = {
   projectGlance: 'project:glance',
   readerUpdate: 'reader:update',
   clipboardRead: 'clipboard:read',
+  limitsAll: 'limits:all',
+  limitsUpdate: 'limits:update',
+  compact: 'session:compact',
+  compactUpdate: 'compact:update',
+  chatWatchGet: 'chatwatch:get',
+  chatWatchSet: 'chatwatch:set',
+  notifyOs: 'notify:os',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
@@ -182,7 +189,23 @@ export interface ElysiumApi {
   onData(cb: (sessionId: string, data: string, endOffset: number) => void): () => void;
   onSession(cb: (s: SessionInfo) => void): () => void;
   onResources(cb: (r: ResourceSample) => void): () => void;
+  /** Last known Claude plan limits per account, kept across restarts. */
+  limits(): Promise<AccountLimits[]>;
+  onLimits(cb: (l: AccountLimits) => void): () => void;
+  /** Asks each session to reach a clean stopping point, then runs /compact. Returns the sessions started. */
+  compact(sessionIds: string[]): Promise<string[]>;
+  onCompact(cb: (c: CompactState) => void): () => void;
+  chatWatch(projectId: string): Promise<ChatWatch>;
+  setChatWatch(projectId: string, on: boolean): Promise<{ ok: boolean; reason: string | null }>;
+  /** A Windows notification that opens the session when clicked. */
+  notifyOs(sessionId: string, title: string, body: string): void;
 }
+
+export interface AccountLimits { accountId: string; fiveHourPercent: number | null; sevenDayPercent: number | null; fiveHourResetsAt: number | null; sevenDayResetsAt: number | null; at: string }
+
+export interface CompactState { sessionId: string; stage: 'asked' | 'stopping' | 'compacting' | 'resuming' | 'done' | 'failed'; auto: boolean; note: string | null }
+
+export interface ChatWatch { available: boolean; running: boolean; pids: number[]; script: string | null }
 
 export interface AccountInfo { id: string; configDir: string; isDefault: boolean; loggedIn: boolean }
 
@@ -200,6 +223,7 @@ export interface Telemetry {
   fiveHourPercent: number | null;
   sevenDayPercent: number | null;
   fiveHourResetsAt: number | null;
+  sevenDayResetsAt: number | null;
   costUsd: number | null;
   compactions: number;
   lastEventAt: string | null;
