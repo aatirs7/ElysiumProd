@@ -670,3 +670,12 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 /* Breathing room above the brand and the first nav rows. */
 .sidebar { padding-top: .9rem; }
 .brand { margin-bottom: .55rem; }
+
+/* The top bar stays one line: nothing wraps, the crumb gives way first. */
+.topbar { gap: .45rem; min-width: 0; }
+.topbar > * { flex: none; white-space: nowrap; }
+.topbar .crumb { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.topbar .pill, .topbar .glance-btn { padding: .26rem .65rem; }
+.topbar .glance { font-size: .8rem; color: var(--text-3); }
+@media (max-width: 1350px) { .usage-num small, .topbar .glance { display: none; } }
+@media (max-width: 1150px) { .usage-strip { display: none; } }

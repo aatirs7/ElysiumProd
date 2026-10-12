@@ -290,7 +290,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           <span className="spacer" />
           <AccountUsage />
           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
-          {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting on you</button> : null}
+          {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting</button> : null}
           {projectId && claudeHere.length > 0 && !wrappingHere.length && (
             compactingHere.length
               ? <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>

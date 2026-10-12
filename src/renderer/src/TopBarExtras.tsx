@@ -43,20 +43,30 @@ export function AccountUsage() {
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 60000); return () => clearInterval(t); }, []);
   const label = (id: string) => doc.accounts[id]?.label ?? (id === 'main' ? 'Main' : id);
-  const rows = accounts.map((a) => ({ id: a.id, l: limits[a.id] })).filter((r) => r.l);
+  // Two config folders signed in to the same Claude account report the same figures; show them once.
+  const rows: { id: string; ids: string[]; l: AccountLimits }[] = [];
+  for (const a of accounts) {
+    const l = limits[a.id];
+    if (!l) continue;
+    const same = rows.find((r) => r.l.fiveHourResetsAt === l.fiveHourResetsAt && r.l.sevenDayResetsAt === l.sevenDayResetsAt
+      && r.l.fiveHourPercent === l.fiveHourPercent && r.l.sevenDayPercent === l.sevenDayPercent);
+    if (same) same.ids.push(a.id); else rows.push({ id: a.id, ids: [a.id], l });
+  }
   if (!rows.length) return null;
   return (
     <div className="usage-strip" aria-label="Claude plan usage">
-      {rows.map(({ id, l }) => {
+      {rows.map(({ id, ids, l }) => {
         const e = effective(l!);
+        const names = ids.map(label).join(' and ');
         const tip = [
-          `${label(id)}: ${e.five ?? '?'}% of the five hour limit${e.fiveReset ? `, resets ${when(e.fiveReset)}` : ''}.`,
+          `${names}: ${e.five ?? '?'}% of the five hour limit${e.fiveReset ? `, resets ${when(e.fiveReset)}` : ''}.`,
           `${e.week ?? '?'}% of the weekly limit${e.weekReset ? `, resets ${when(e.weekReset)}` : ''}.`,
           `Last reported ${ago(l!.at)} by one of its sessions.`,
+          ids.length > 1 ? 'These are signed in to the same Claude account, so they share one limit.' : '',
         ].join(' ');
         return (
           <span key={id} className="usage-acc" title={tip}>
-            <span className="usage-name">{label(id)}</span>
+            <span className="usage-name">{ids.length > 1 ? ids.map(label).join() : label(id)}</span>
             <span className={`usage-num ${tone(e.five)}`}>{e.five == null ? '–' : `${Math.round(e.five)}%`}<small>5h</small></span>
             <span className={`usage-num ${tone(e.week)}`}>{e.week == null ? '–' : `${Math.round(e.week)}%`}<small>wk</small></span>
           </span>
@@ -97,7 +107,7 @@ export function ChatWatchSwitch({ projectId, onNote }: { projectId: string; onNo
     if (!r.ok) { setPending(null); if (r.reason) onNote(r.reason); }
     load();
   };
-  const label = pending ? (pending.on ? 'Starting watcher' : 'Stopping watcher') : w.running ? 'Watcher on' : 'Watcher off';
+  const label = pending ? (pending.on ? 'Starting' : 'Stopping') : w.running ? 'Watcher' : 'Watcher off';
   return (
     <button className={`pill watch-switch ${w.running ? 'on' : ''}`} onClick={() => void toggle()} disabled={Boolean(pending)}
       title={w.running ? 'The chat watcher is checking for new tasks. Click to stop it.' : 'The chat watcher is not running. Click to have the watching session start it.'}>
