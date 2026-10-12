@@ -153,7 +153,8 @@ function Tab(props: IDockviewPanelHeaderProps) {
     // Paint the group while this pane is the one it shows; a pane without a colour clears it.
     const paint = () => {
       const g = props.api.group;
-      const el = g?.element as HTMLElement | undefined;
+      const raw = g?.element as HTMLElement | undefined;
+      const el = raw ? (raw.classList.contains('dv-groupview') ? raw : (raw.querySelector('.dv-groupview') as HTMLElement | null) ?? (raw.closest('.dv-groupview') as HTMLElement | null) ?? raw) : undefined;
       if (!el || g.activePanel?.id !== props.api.id) return;
       if (tint) { el.style.setProperty('--tint', tint); el.classList.add('tinted'); }
       else { el.style.removeProperty('--tint'); el.classList.remove('tinted'); }

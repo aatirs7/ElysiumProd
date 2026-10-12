@@ -37,7 +37,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) 
 
   return (
     <aside className="sidebar" aria-label="Navigation">
-      <div className="brand"><Logo />ElysiumProd</div>
+      <div className="brand"><Logo />Elysium</div>
 
       <button className="nav" onClick={onPalette}>
         <Search size={17} strokeWidth={1.75} /><span className="grow">Search and run</span><span className="hint">Ctrl K</span>

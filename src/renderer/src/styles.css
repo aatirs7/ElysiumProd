@@ -605,7 +605,7 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .pin-picker .nav { font-size: .88rem; }
 
 /* ---- Home ---- */
-.home { position: relative; }
+.home { position: relative; overflow-x: hidden; }
 .home-aura { position: absolute; left: 50%; top: -14rem; width: 56rem; height: 30rem; transform: translateX(-50%); pointer-events: none; z-index: 0;
   background: radial-gradient(closest-side, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%), radial-gradient(closest-side at 30% 60%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 75%);
   filter: blur(8px); animation: aura 14s ease-in-out infinite alternate; }

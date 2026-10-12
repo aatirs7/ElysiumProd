@@ -76,7 +76,7 @@ export function ChatWatchSwitch({ projectId, onNote }: { projectId: string; onNo
   useEffect(() => {
     live.current = true; setW(null); setPending(null);
     load();
-    const t = setInterval(load, 15000);
+    const t = setInterval(() => { if (document.visibilityState === 'visible') load(); }, 60000);
     return () => { live.current = false; clearInterval(t); };
   }, [load]);
   // While switching, look more often and stop waiting once it shows the new state (or after three minutes).
@@ -127,10 +127,10 @@ export function plainLine(text: string, max = 180): string {
  * as a Windows notification instead.
  */
 export function useNotices(isVisible: (sessionId: string) => boolean, enabled: boolean) {
-  const { sessions, templates, telemetry } = useLive();
+  const { sessions, templates, telemetry, compacting } = useLive();
   const [notices, setNotices] = useState<Notice[]>([]);
-  const ref = useRef({ sessions, templates, isVisible, enabled });
-  ref.current = { sessions, templates, isVisible, enabled };
+  const ref = useRef({ sessions, templates, isVisible, enabled, compacting });
+  ref.current = { sessions, templates, isVisible, enabled, compacting };
   const lastState = useRef<Record<string, string>>({});
 
   const push = useCallback((n: Omit<Notice, 'id'>) => {
@@ -146,7 +146,7 @@ export function useNotices(isVisible: (sessionId: string) => boolean, enabled: b
   }, []);
 
   useEffect(() => window.elysium.onReader((sessionId: string, e: ReaderEntry) => {
-    if (e.role !== 'claude' || !ref.current.enabled || ref.current.isVisible(sessionId)) return;
+    if (e.role !== 'claude' || !ref.current.enabled || ref.current.isVisible(sessionId) || ref.current.compacting[sessionId]) return;
     const { s, t, name } = about(sessionId);
     if (!s || t?.kind !== 'claude') return;
     push({ sessionId, templateId: s.templateId, projectId: t.project, title: `${name} replied`, body: plainLine(e.text), kind: 'reply' });

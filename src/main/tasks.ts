@@ -64,6 +64,8 @@ export class Tasks {
   private watching = new Map<string, { projectName: string; lastState: string }>();
   private compacts = new Map<string, Compact>();
   private lastAuto = new Map<string, number>();
+  /** A watcher on or off message held until its session's turn ends. */
+  private watchMsg = new Map<string, string>();
 
   constructor(
     private sessions: SessionManager,
@@ -151,6 +153,13 @@ export class Tasks {
     }
   }
 
+  private sendWatchMsg(id: string): void {
+    const text = this.watchMsg.get(id);
+    if (!text || this.ingest.get(id)?.state !== 'idle') return;
+    this.watchMsg.delete(id);
+    paste(this.sessions, id, text);
+  }
+
   private maybeAutoCompact(t: Telemetry): void {
     const a = autoCompactSettings();
     if (!a.enabled || t.contextPercent == null || t.contextPercent < a.percent) return;
@@ -173,9 +182,10 @@ export class Tasks {
       n += 1;
       this.sessions.write(s.id, on ? '/watch on' : '/watch off');
       setTimeout(() => this.sessions.write(s.id, '\r'), 200);
-      setTimeout(() => paste(this.sessions, s.id, on
+      this.watchMsg.set(s.id, on
         ? 'Chat watcher on: if you are the session that runs the chat watcher, start it now unless it is already running, and keep it running as your rules describe. Then carry on.'
-        : 'Chat watcher off: if you are running the chat watcher, stop it now and do not start it again until I turn it back on. Then carry on with what you were doing.'), 1200);
+        : 'Chat watcher off: if you are running the chat watcher, stop it now and do not start it again until I turn it back on. Then carry on with what you were doing.');
+      setTimeout(() => this.sendWatchMsg(s.id), 1200);
     }
     return n;
   }
@@ -253,6 +263,7 @@ export class Tasks {
   onTelemetry(t: Telemetry): void {
     this.stepWrap(t.sessionId);
     this.stepCompact(t.sessionId);
+    this.sendWatchMsg(t.sessionId);
     this.maybeAutoCompact(t);
     this.trySend(t.sessionId);
     const w = this.watching.get(t.sessionId);
