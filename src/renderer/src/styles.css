@@ -83,7 +83,7 @@
   --font-display: "Segoe UI Variable Display", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
   --mono: "Cascadia Mono", "Cascadia Code", Consolas, monospace;
   --ease: cubic-bezier(.2, .8, .2, 1);
-  --titlebar: 54px;
+  --titlebar: 44px;
   --sidebar-w: 16.5rem;
   --tab-h: 2.4rem;
   --pad: 1rem;
@@ -666,3 +666,7 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .pin-card-wrap { position: relative; }
 .pin-list { position: absolute; left: 0; right: 0; top: calc(100% + .4rem); z-index: 5; padding: .3rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: drop .18s var(--ease) both; max-height: 18rem; overflow: auto; }
 @media (max-width: 760px) { .week-card { grid-template-columns: 1fr; } }
+
+/* Breathing room above the brand and the first nav rows. */
+.sidebar { padding-top: .9rem; }
+.brand { margin-bottom: .55rem; }

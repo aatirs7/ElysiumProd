@@ -146,7 +146,7 @@ function createWindow(): BrowserWindow {
     // The Windows 11 caption buttons float over the app's own top bar, so there
     // is no separate, old style title bar. The renderer recolours them per theme.
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#262624', symbolColor: '#C3C1B8', height: 54 },
+    titleBarOverlay: { color: '#262624', symbolColor: '#C3C1B8', height: 44 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       contextIsolation: true,
@@ -280,7 +280,7 @@ function registerIpc(): void {
   ipcMain.on(Channels.titleBarColors, (_e, color: unknown, symbol: unknown) => {
     const hex = /^#[0-9a-f]{6}$/i;
     if (win && typeof color === 'string' && typeof symbol === 'string' && hex.test(color) && hex.test(symbol)) {
-      try { win.setTitleBarOverlay({ color, symbolColor: symbol, height: 54 }); } catch { /* not supported */ }
+      try { win.setTitleBarOverlay({ color, symbolColor: symbol, height: 44 }); } catch { /* not supported */ }
     }
   });
   ipcMain.on(Channels.workspaceSet, (_e, json: unknown) => { if (typeof json === 'string') saveWorkspace(json); });
