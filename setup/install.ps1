@@ -22,7 +22,7 @@ $Host.UI.RawUI.WindowTitle = 'Installing Elysium'
 
 function Say($text, $color = 'Gray') { Write-Host "  $text" -ForegroundColor $color }
 function Step($n, $text) { Write-Host ''; Write-Host "  [$n/6] $text" -ForegroundColor Cyan }
-function Ok($text) { Write-Host "        $([char]0x2713) $text" -ForegroundColor Green }
+function Ok($text) { Write-Host "        OK  $text" -ForegroundColor Green }
 function Have($cmd) { [bool](Get-Command $cmd -ErrorAction SilentlyContinue) }
 function RefreshPath {
   $env:Path = [Environment]::GetEnvironmentVariable('Path', 'Machine') + ';' + [Environment]::GetEnvironmentVariable('Path', 'User')
