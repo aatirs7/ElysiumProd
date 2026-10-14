@@ -80,6 +80,11 @@ Push-Location $Dir
 try {
   npm ci --no-audit --no-fund --loglevel=error | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'npm ci failed. Run it in the folder above to see why.' }
+  # npm sometimes skips Electron's own download; fetch it if the program is missing.
+  if (-not (Test-Path 'node_modules\electron\dist\electron.exe')) {
+    node node_modules\electron\install.js | Out-Null
+    if (-not (Test-Path 'node_modules\electron\dist\electron.exe')) { throw 'Electron did not download. Check the connection and run this again.' }
+  }
   npx electron-vite build | Out-Null
   if ($LASTEXITCODE -ne 0) { throw 'The build failed. Run "npx electron-vite build" in the folder above to see why.' }
 } finally { Pop-Location }
