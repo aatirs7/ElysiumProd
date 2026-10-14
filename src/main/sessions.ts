@@ -51,8 +51,8 @@ export class SessionManager {
   create(templateId: string, cols: number, rows: number, opts: CreateOptions = {}, resumeId?: string): CreateResult {
     const t = findTemplate(templateId);
     if (!t) return { ok: false, reason: `No template called ${templateId}.` };
-    const refused = this.gate();
-    if (refused) return { ok: false, reason: refused };
+    const refused = opts.override ? null : this.gate();
+    if (refused) return { ok: false, reason: refused, lowResources: true };
     const command = t.command();
     if (!command) return { ok: false, reason: 'Claude Code was not found on PATH or in the npm global folder.' };
     if (!existsSync(t.cwd)) return { ok: false, reason: `The folder ${t.cwd} does not exist.` };

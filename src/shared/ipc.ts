@@ -36,6 +36,7 @@ export interface ResourceSample {
   cpuPercent: number | null;
   ramUsedPercent: number;
   ramUsedBytes: number;
+  ramFreeBytes: number;
   ramTotalBytes: number;
   diskFreeBytes: number | null;
   diskPath: string;
@@ -45,7 +46,7 @@ export interface ResourceSample {
   refuseReason: string | null;
 }
 
-export type CreateResult = { ok: true; session: SessionInfo } | { ok: false; reason: string };
+export type CreateResult = { ok: true; session: SessionInfo } | { ok: false; reason: string; /** Refused only for low memory or disk; Start anyway overrides it. */ lowResources?: boolean };
 
 export const Channels = {
   templatesList: 'templates:list',
@@ -322,7 +323,7 @@ export interface WatcherState {
   error: string | null;
 }
 
-export interface CreateOptions { accountId?: string | null }
+export interface CreateOptions { accountId?: string | null; /** Start even though memory or disk is low. */ override?: boolean }
 
 export interface WebState { id: string; url: string; title: string; loading: boolean; error: string | null; accountId: string }
 

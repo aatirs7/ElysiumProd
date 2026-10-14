@@ -80,6 +80,8 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const termRef = useRef<Terminal | null>(null);
   const [gone, setGone] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lowRes, setLowRes] = useState(false);
+  const overrideRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const sessionId = props.params.sessionId;
   const session = sessions.find((s) => s.id === sessionId);
@@ -187,7 +189,9 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       }
       // The project's account: terminals and the Claude pane of a project always share it.
       const tpl = templates.find((x) => x.id === props.params.templateId);
-      const r = await window.elysium.create(props.params.templateId, term.cols, term.rows, { accountId: accountFor(tpl?.project) });
+      const override = overrideRef.current;
+      overrideRef.current = false;
+      const r = await window.elysium.create(props.params.templateId, term.cols, term.rows, { accountId: accountFor(tpl?.project), override });
       if (disposed) { if (r.ok) void window.elysium.kill(r.session.id); return; }
       if (!r.ok) {
         // Already running (a pane from before, or the quick bar started it): connect to it instead.
@@ -198,6 +202,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
           return;
         }
         setError(r.reason);
+        setLowRes(Boolean(r.lowResources));
         return;
       }
       attach(r.session.id);
@@ -223,6 +228,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const startAgain = () => {
     setGone(false);
     setError(null);
+    setLowRes(false);
     setPending(false);
     const keep = props.params as { tint?: string; reader?: boolean };
     props.api.updateParameters({ templateId: props.params.templateId, ...(keep.tint ? { tint: keep.tint } : {}), ...(keep.reader ? { reader: true } : {}) });
@@ -261,7 +267,10 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
           <div className="overlay-card">
             <strong>{error ? 'Could not start' : pending ? (template?.title ?? 'Terminal') : 'This session has ended'}</strong>
             <p>{error ?? (pending ? 'Saved in this layout, not started yet.' : 'It stopped when ElysiumProd last closed. Its scrollback is kept on disk.')}</p>
-            <button className="btn primary" onClick={startAgain}><RotateCcw size={14} />{verb}</button>
+            <div className="row-gap">
+              {lowRes ? <button className="btn primary" onClick={() => { overrideRef.current = true; startAgain(); }}><RotateCcw size={14} />Start anyway</button>
+                : <button className="btn primary" onClick={startAgain}><RotateCcw size={14} />{verb}</button>}
+            </div>
           </div>
         </div>
       )}

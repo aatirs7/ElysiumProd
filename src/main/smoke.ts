@@ -86,11 +86,13 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await shot('12-home-command');
     r.themeBefore = await js(`document.documentElement.dataset.theme`);
     await js(`document.querySelector('.topbar .glance-btn.icon-only')?.click()`);
+    await sleep(500);
+    r.themeItems = await js(`document.querySelectorAll('.theme-item').length`);
+    await shot('13a-theme-menu');
+    await js(`[...document.querySelectorAll('.theme-item')].find((x) => x.textContent.includes('Midnight'))?.click()`);
     await sleep(800);
     r.themeAfter = await js(`document.documentElement.dataset.theme`);
     await shot('13-theme-toggle');
-    await js(`document.querySelector('.topbar .glance-btn.icon-only')?.click()`);
-    await sleep(400);
     // New project: the dialog, then a from scratch project made and removed through the same calls.
     await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
     await sleep(400);

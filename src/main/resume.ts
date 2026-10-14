@@ -31,7 +31,7 @@ export function resumeRunning(sessions: SessionManager): number {
   for (const e of Array.isArray(list) ? list : []) {
     if (!e || typeof e.templateId !== 'string' || findTemplate(e.templateId)?.kind !== 'claude') continue;
     const resumeId = typeof e.resumeId === 'string' && UUID.test(e.resumeId) ? e.resumeId : undefined;
-    const r = sessions.create(e.templateId, 120, 40, { accountId: typeof e.accountId === 'string' ? e.accountId : null }, resumeId);
+    const r = sessions.create(e.templateId, 120, 40, { accountId: typeof e.accountId === 'string' ? e.accountId : null, override: true }, resumeId);
     if (r.ok) n += 1;
   }
   return n;

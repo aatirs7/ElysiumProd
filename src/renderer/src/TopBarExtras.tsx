@@ -1,11 +1,11 @@
 // Top bar pieces: plan usage for every Claude account, the chat watcher switch,
 // and the notices that say a session you are not looking at has replied.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Moon, Radio, Sun, X } from 'lucide-react';
+import { Check, Moon, Radio, Sun, X } from 'lucide-react';
 import type { AccountLimits, ChatWatch, ReaderEntry } from '@shared/ipc';
 import { ProjectLogo } from './ProjectLogo';
 import { ago, useLive } from './workspace/live';
-import { useWorkspace } from './workspace/store';
+import { THEMES, useWorkspace } from './workspace/store';
 
 /** resets_at arrives as epoch seconds or as a date string, depending on the CLI version. */
 function toMs(v: number | string | null | undefined): number | null {
@@ -202,16 +202,36 @@ export function NoticeStack({ notices, onOpen, onDismiss }: { notices: Notice[];
   );
 }
 
-/** Light or dark in one click. Settings still has every theme. */
+/** Every theme, one click from the top bar. */
 export function ThemeToggle() {
   const { doc, setSettings } = useWorkspace();
-  const [, redraw] = useState(0);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('mousedown', off); window.addEventListener('keydown', esc);
+    return () => { window.removeEventListener('mousedown', off); window.removeEventListener('keydown', esc); };
+  }, [open]);
   const light = ['claude-light', 'paper'].includes(document.documentElement.dataset.theme ?? '');
-  useEffect(() => { requestAnimationFrame(() => redraw((n) => n + 1)); }, [doc.settings.theme]);
   return (
-    <button className="glance-btn icon-only" onClick={() => setSettings({ theme: light ? 'claude-dark' : 'claude-light' })}
-      title={light ? 'Switch to dark' : 'Switch to light'} aria-label={light ? 'Switch to dark theme' : 'Switch to light theme'}>
-      {light ? <Moon size={14} /> : <Sun size={14} />}
-    </button>
+    <div className="theme-pick" ref={ref}>
+      <button className="glance-btn icon-only" onClick={() => setOpen((o) => !o)} title="Theme" aria-label="Choose a theme" aria-expanded={open}>
+        {light ? <Sun size={14} /> : <Moon size={14} />}
+      </button>
+      {open && (
+        <div className="theme-menu" role="menu">
+          {THEMES.map((t) => (
+            <button key={t.id} role="menuitemradio" aria-checked={doc.settings.theme === t.id} className={`theme-item ${doc.settings.theme === t.id ? 'on' : ''}`}
+              onClick={() => { setSettings({ theme: t.id }); setOpen(false); }}>
+              <span className="theme-sw">{t.swatch.map((c, i) => <span key={i} style={{ background: c }} />)}</span>
+              <span className="theme-name">{t.name}</span>
+              {doc.settings.theme === t.id && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

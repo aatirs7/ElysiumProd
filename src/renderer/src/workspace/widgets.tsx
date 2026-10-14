@@ -56,8 +56,9 @@ export function MachineWidget() {
   return (
     <div className="widget pad stack-lg">
       <div className="hero-stat">
-        <div className={`hero-num ${res?.ramLevel ?? ''}`}>{pct === null ? '...' : `${pct}%`}</div>
-        <div className="hero-label">memory in use{res ? `, ${gb(res.ramUsedBytes)} of ${gb(res.ramTotalBytes)}` : ''}</div>
+        <div className={`hero-num ${res?.ramLevel ?? ''}`}>{res ? gb(res.ramFreeBytes) : '...'}</div>
+        <div className="hero-label">memory free{res ? `, of ${gb(res.ramTotalBytes)} (${pct}% in use)` : ''}</div>
+        {res && res.diskFreeBytes !== null && <div className={`hero-note ${res.diskLevel}`}>Disk {res.diskPath}: {gb(res.diskFreeBytes)} free{res.diskLevel !== 'ok' ? '. Low; the Laptop session can find what to clear.' : '.'}</div>}
         {res && <div className="hero-note">{pct! >= 85 ? 'High. Closing the programs below frees the most.' : pct! >= 70 ? 'Fine. Windows keeps spare memory busy as cache.' : 'Plenty free.'}</div>}
       </div>
 

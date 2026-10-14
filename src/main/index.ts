@@ -204,7 +204,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.templatesList, () => templates.map(templateInfo));
   ipcMain.handle(Channels.sessionsList, () => sessions.list());
   ipcMain.handle(Channels.sessionCreate, (_e, templateId: unknown, cols: unknown, rows: unknown, opts: unknown) =>
-    sessions.create(String(templateId), Number(cols) || 120, Number(rows) || 30, { accountId: typeof (opts as { accountId?: unknown })?.accountId === 'string' ? (opts as { accountId: string }).accountId : null }));
+    sessions.create(String(templateId), Number(cols) || 120, Number(rows) || 30, { accountId: typeof (opts as { accountId?: unknown })?.accountId === 'string' ? (opts as { accountId: string }).accountId : null, override: (opts as { override?: unknown })?.override === true }));
   ipcMain.on(Channels.sessionWrite, (_e, id: unknown, data: unknown) => {
     if (typeof id === 'string' && typeof data === 'string') sessions.write(id, data);
   });

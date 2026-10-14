@@ -36,7 +36,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
     return states.includes('waiting') ? 'waiting' : states.includes('busy') ? 'busy' : 'idle';
   };
   const ram = res ? Math.round(res.ramUsedPercent) : null;
-  const ramTone = !res ? '' : res.ramLevel === 'refuse' ? 'bad' : res.ramUsedPercent >= 85 ? 'warn' : '';
+  const ramTone = !res ? '' : res.ramLevel === 'refuse' || res.diskLevel === 'refuse' ? 'bad' : res.ramUsedPercent >= 85 || res.diskLevel === 'warn' ? 'warn' : '';
 
   return (
     <aside className="sidebar" aria-label="Navigation">
@@ -116,8 +116,9 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
         <SettingsIcon size={17} strokeWidth={1.75} /><span className="grow">Settings</span><span className="hint">Ctrl ,</span>
       </button>
       <div className="foot">
-        <button className={`pill ${ramTone}`} onClick={onMemory} title="What is using memory, and what to do about it">
-          <MemoryStick size={14} />{ram === null ? 'Memory' : `Memory ${ram}%`}{ramTone ? ' · why?' : ''}
+        <button className={`pill ${ramTone}`} onClick={onMemory} title={res ? `Memory: ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free of ${(res.ramTotalBytes / 1024 ** 3).toFixed(1)} GB. Disk ${res.diskPath}: ${res.diskFreeBytes === null ? 'unknown' : `${(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB free`}.` : 'Memory and disk'}>
+          <MemoryStick size={14} />{!res ? 'Memory' : `Memory ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free`}
+          {res && res.diskFreeBytes !== null && res.diskLevel !== 'ok' && <span className="muted">· disk {(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB</span>}
         </button>
       </div>
     </aside>
