@@ -28,6 +28,7 @@ import { createProject, loadCustomProjects, removeProject } from './newproject';
 import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
 import { projectAction, runCommand } from './command';
+import { DEMO } from './demo';
 import { addClaudeAccount, connect, connections, scanRepos } from './connect';
 import { Chats } from './chat';
 import { accountForProject } from './tasks';
@@ -164,7 +165,7 @@ function createWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 500,
     backgroundColor: '#262624',
-    title: 'Elysium',
+    title: DEMO ? 'Elysium (demo)' : 'Elysium',
     // The Elysium mark in the taskbar, Alt+Tab and the window corner.
     icon: appIcon(),
     autoHideMenuBar: true,
@@ -191,7 +192,7 @@ function createWindow(): BrowserWindow {
   w.webContents.on('will-navigate', (e) => e.preventDefault());
   // Closing the window keeps ElysiumProd in the tray, so agents and the quick bar keep working.
   w.on('close', (e) => {
-    if (quitting || SMOKE) return;
+    if (quitting || SMOKE || DEMO) return;
     e.preventDefault();
     w.hide();
     // The first time only: say where it went, so closing never looks like a quit.
@@ -293,6 +294,7 @@ function registerIpc(): void {
   });
   ipcMain.handle(Channels.costsGet, (_e, force: unknown) => costReport(Boolean(force)));
   ipcMain.handle(Channels.projectCreate, async (_e, req: unknown) => {
+    if (DEMO) return { ok: true, reason: null, projectId: `demo-${Math.random().toString(36).slice(2, 8)}` };
     const r = await createProject((req ?? {}) as Parameters<typeof createProject>[0]);
     if (r.ok) send(Channels.projectsChanged);
     return r;
@@ -393,7 +395,7 @@ app.on('second-instance', (_e, argv, _cwd, data) => {
 });
 
 // With the tray, closing the window does not quit; only Quit from the tray or the app does.
-app.on('window-all-closed', () => { if (SMOKE) app.quit(); });
+app.on('window-all-closed', () => { if (SMOKE || DEMO) app.quit(); });
 
 // Projects made in the app join the table before anything reads it.
 loadCustomProjects();
@@ -405,15 +407,15 @@ app.whenReady().then(async () => {
   registerIpc();
   await resources.start();
   await ingest.start();
-  if (!SMOKE) ensureStartMenuShortcut();
+  if (!SMOKE && !DEMO) ensureStartMenuShortcut();
   win = createWindow();
   tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); }, (c) => send(Channels.compactUpdate, c));
-  if (!SMOKE) {
+  if (!SMOKE && !DEMO) {
     createQuickWindow(loadRenderer);
     registerShortcut();
     createTray(showMain, () => app.quit(), restartApp);
   }
-  if (!SMOKE) resumeRunning(sessions);
+  if (!SMOKE && !DEMO) resumeRunning(sessions);
   if (!SMOKE) setTimeout(warmCosts, 4000);
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });

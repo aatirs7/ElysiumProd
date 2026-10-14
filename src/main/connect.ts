@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { ConnectService, ConnectStatus, RepoCandidate } from '@shared/ipc';
 import { listAccounts } from './accounts';
+import { DEMO, demoAddAccount, demoConnect, demoConnections, demoRepos } from './demo';
 import { resolveClaude } from './claude';
 import { PROJECT_FOLDERS } from './templates';
 
@@ -33,6 +34,7 @@ async function ghPath(): Promise<string | null> {
 
 /** Everything the Connect step shows, checked in parallel. */
 export async function connections(): Promise<ConnectStatus[]> {
+  if (DEMO) return demoConnections();
   const [git, gh, node, vercelBin] = await Promise.all([which('git'), ghPath(), which('node'), existsSync(VERCEL_JS) ? Promise.resolve(VERCEL_JS) : which('vercel')]);
   const ghAuth = gh ? await run(gh, ['auth', 'status', '--hostname', 'github.com'], 10000) : null;
   const ghUser = ghAuth?.out.match(/account\s+(\S+)/i)?.[1] ?? ghAuth?.out.match(/as\s+(\S+)/i)?.[1] ?? null;
@@ -59,6 +61,7 @@ function openWindow(title: string, lines: string[]): void {
 }
 
 export async function connect(service: ConnectService, action: 'install' | 'signin', accountId?: string): Promise<{ ok: boolean; reason: string | null }> {
+  if (DEMO) return demoConnect(service, action, accountId);
   const npm = 'npm install -g';
   switch (service) {
     case 'claude': {
@@ -91,6 +94,7 @@ export async function connect(service: ConnectService, action: 'install' | 'sign
 
 /** A second (or third) Claude account: its own config folder, signed in separately. */
 export function addClaudeAccount(name: string): { ok: boolean; reason: string | null; accountId?: string } {
+  if (DEMO) return demoAddAccount(name);
   const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 24);
   if (!slug || slug === 'main') return { ok: false, reason: 'Give it a short name, like work or personal.' };
   const dir = join(homedir(), `.claude-${slug}`);
@@ -101,6 +105,7 @@ export function addClaudeAccount(name: string): { ok: boolean; reason: string | 
 
 /** Git repositories in the usual places that are not projects yet, newest first. */
 export function scanRepos(): RepoCandidate[] {
+  if (DEMO) return demoRepos();
   const h = homedir();
   const roots = [h, join(h, 'Documents'), join(h, 'Desktop'), join(h, 'source', 'repos'), join(h, 'Projects'), join(h, 'projects'), join(h, 'dev'), join(h, 'code'), join(h, 'GitHub'), join(h, 'Documents', 'GitHub')];
   const known = new Set(Object.values(PROJECT_FOLDERS).map((p) => p.folder.toLowerCase()));
