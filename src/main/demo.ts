@@ -18,12 +18,13 @@ const state: Record<string, Fake> = {
   stripe: { installed: false, signedIn: false, who: null },
   cloudflare: { installed: true, signedIn: false, who: null },
   netlify: { installed: true, signedIn: false, who: null },
+  azure: { installed: false, signedIn: false, who: null },
   firebase: { installed: true, signedIn: false, who: null },
 };
 const accounts: { id: string; configDir: string; signedIn: boolean }[] = [{ id: 'main', configDir: 'C:\\Users\\you\\.claude', signedIn: false }];
 const WHO: Partial<Record<ConnectService, string>> = { github: 'you-on-github', vercel: 'you-on-vercel' };
 
-const MORE = ['aws', 'supabase', 'stripe', 'cloudflare', 'netlify', 'firebase'];
+const MORE = ['aws', 'supabase', 'stripe', 'cloudflare', 'netlify', 'azure', 'firebase'];
 const META: Record<string, { name: string; what: string; required: boolean }> = {
   claude: { name: 'Claude Code', what: 'Runs every session. Add more accounts to run more at once.', required: true },
   git: { name: 'Git', what: 'Tracks changes in your projects.', required: true },
@@ -35,6 +36,7 @@ const META: Record<string, { name: string; what: string; required: boolean }> = 
   stripe: { name: 'Stripe', what: 'Payments, test events and webhooks.', required: false },
   cloudflare: { name: 'Cloudflare', what: 'Workers, Pages, DNS and R2.', required: false },
   netlify: { name: 'Netlify', what: 'Sites and deploys.', required: false },
+  azure: { name: 'Azure', what: 'Subscriptions, apps and resources.', required: false },
   firebase: { name: 'Firebase', what: 'Hosting, Firestore and functions.', required: false },
 };
 

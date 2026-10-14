@@ -1,7 +1,7 @@
 // `electron . --smoke`: drives the real app end to end and writes screenshots and
 // smoke-out/result.json, then quits. It starts only a PowerShell session; it
 // never starts or resumes a Claude session.
-import { app, type BrowserWindow } from 'electron';
+import { app, BrowserWindow } from 'electron';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Resources } from './resources';
@@ -114,6 +114,29 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(800); await shot('15b-help-topic');
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+    await sleep(1500);
+    await js(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Customize Home')?.click()`);
+    await sleep(700); await shot('19-home-customize');
+    await js(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Done')?.click()`);
+    await js(`window.__smoke.open({ kind: 'files', title: 'Files', params: { projectId: 'elysiumprod' } })`);
+    await sleep(1500);
+    r.filesRows = await js(`document.querySelectorAll('.file-row').length`);
+    await js(`[...document.querySelectorAll('.file-row')].find((x) => x.textContent.trim().endsWith('package.json'))?.click()`);
+    await sleep(1500);
+    r.codeLines = await js(`(document.querySelector('.code-gutter')?.textContent ?? '').split(String.fromCharCode(10)).length`);
+    await shot('20-files');
+    const logs: string[] = [];
+    ctx.win.webContents.on('console-message', (e) => { const m = (e as unknown as { message?: string }).message; if (m) logs.push(m.slice(0, 300)); });
+    const before = BrowserWindow.getAllWindows().length;
+    await js(`(() => { const t = document.querySelector('.dv-tab'); const b = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 10, clientY: b.top + 10 })); })()`);
+    await sleep(400);
+    await js(`document.querySelector('.menu-backdrop')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
+    r.popoutResult = await js(`window.__smoke.popout()`);
+    await sleep(2500);
+    r.popout = { before, after: BrowserWindow.getAllWindows().length, menu: await js(`[...document.querySelectorAll('.tab-menu-item')].map((x) => x.textContent)`), logs };
+    const pop = BrowserWindow.getAllWindows().find((w) => w !== ctx.win && w.webContents.getURL().includes('popout'));
+    if (pop) { const img = await pop.webContents.capturePage(); writeFileSync(join(out, '21-popout.png'), img.toPNG()); }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim().startsWith('Usage'))?.click()`);
     await sleep(6000); await shot('17-usage-page');

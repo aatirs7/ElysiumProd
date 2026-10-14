@@ -73,7 +73,7 @@ const TOPICS: Topic[] = [
   {
     id: 'keys', title: 'Shortcuts', blurb: 'The keys worth knowing', icon: Keyboard,
     items: [
-      { q: 'Keyboard shortcuts', a: <ul><li><K>Ctrl K</K> search and run anything</li><li><K>Alt Space</K> hand a project a task from anywhere</li><li><K>Ctrl 0</K> Home</li><li><K>Ctrl ,</K> Settings</li><li><K>Ctrl Shift T</K> new PowerShell</li><li><K>Ctrl V</K> in a Claude pane pastes a picture too</li><li>Middle click a tab to close it</li></ul>, words: 'keyboard hotkey' },
+      { q: 'Keyboard shortcuts', a: <ul><li><K>Ctrl K</K> search and run anything</li><li><K>Alt Space</K> hand a project a task from anywhere</li><li><K>Ctrl 0</K> Home</li><li><K>Ctrl Shift S</K> Settings</li><li><K>Ctrl Shift T</K> new PowerShell</li><li><K>Ctrl V</K> in a Claude pane pastes a picture too</li><li>Middle click a tab to close it</li></ul>, words: 'keyboard hotkey' },
     ],
   },
   {

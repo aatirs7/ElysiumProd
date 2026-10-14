@@ -71,7 +71,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
 
   return (
     <aside className="sidebar" aria-label="Navigation">
-      <div className="brand"><Logo />Elysium</div>
+      <div className="brand"><Logo /><span>Elysium <span className="brand-sub">Development</span></span></div>
 
       <button className="nav" onClick={onPalette}>
         <Search size={17} strokeWidth={1.75} /><span className="grow">Search and run</span><span className="hint">Ctrl K</span>
@@ -297,7 +297,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
         <CircleHelp size={17} strokeWidth={1.75} /><span className="grow">Help</span>
       </button>
       <button className={`nav ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}>
-        <SettingsIcon size={17} strokeWidth={1.75} /><span className="grow">Settings</span><span className="hint">Ctrl ,</span>
+        <SettingsIcon size={17} strokeWidth={1.75} /><span className="grow">Settings</span><span className="hint">Ctrl Shift S</span>
       </button>
       <div className="foot">
         <button className={`pill ${ramTone}`} onClick={onMemory} title={res ? `Memory: ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free of ${(res.ramTotalBytes / 1024 ** 3).toFixed(1)} GB. Disk ${res.diskPath}: ${res.diskFreeBytes === null ? 'unknown' : `${(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB free`}.` : 'Memory and disk'}>

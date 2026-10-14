@@ -53,6 +53,8 @@ export interface Settings {
   displayName: string;
   /** Saver mode: fewer extra tokens (no Flow summaries or Sonnet fallback, chats on Sonnet). */
   saver: boolean;
+  /** Home widgets, in order. */
+  homeWidgets: string[];
   /** Tools you connected yourself on the Connect step. */
   customTools: { id: string; name: string; check: string; signin: string }[];
 }
@@ -164,6 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flowSummaries: true,
   displayName: '',
   saver: false,
+  homeWidgets: ['live', 'week', 'recent', 'news'],
   customTools: [],
 };
 
@@ -222,7 +225,7 @@ function parse(json: string | null): WorkspaceDoc {
   }
 }
 
-export type PanelKind = 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
+export type PanelKind = 'files' | 'code' | 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
 
 export interface OpenRequest {
   kind: PanelKind;

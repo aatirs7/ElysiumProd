@@ -9,7 +9,7 @@ import {
   type IDockviewPanelProps,
   type IWatermarkPanelProps,
 } from 'dockview-react';
-import {
+import { AppWindow, FolderTree,
   Activity, BookOpen, Check, Eye, FoldVertical, Workflow, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
@@ -25,6 +25,7 @@ import { SitePanel } from './SitePanel';
 import { Dashboard, PROJECT_EXTRAS } from './Dashboard';
 import { ToolIntro } from './ToolIntro';
 import { ChatPanel } from './ChatPanel';
+import { CodePanel, FilesPanel } from './FilesPanel';
 import { TOOL_INFO } from '../tools';
 import { FlowPanel } from './FlowPanel';
 
@@ -37,6 +38,7 @@ export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: Fun
   { kind: 'launcher', title: 'Launch', blurb: 'Start a session', icon: Rocket },
   { kind: 'sessions', title: 'Sessions', blurb: 'Everything running, with context', icon: Activity },
   { kind: 'watcher', title: 'Watcher', blurb: 'New board tasks as they arrive', icon: Eye },
+  { kind: 'files', title: 'Files', blurb: 'The project\'s folders, like VS Code\'s explorer', icon: FolderTree },
   { kind: 'git', title: 'Git', blurb: 'Branch, changes, recent commits', icon: GitBranch },
   { kind: 'machine', title: 'Memory', blurb: 'What uses RAM, and how to free it', icon: MemoryStick },
   { kind: 'document', title: 'Document', blurb: 'Markdown, PDF, text', icon: BookOpen },
@@ -65,6 +67,8 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
   tool: ToolIntro as FunctionComponent<IDockviewPanelProps>,
   chat: ChatPanel as FunctionComponent<IDockviewPanelProps>,
+  files: FilesPanel as FunctionComponent<IDockviewPanelProps>,
+  code: CodePanel as FunctionComponent<IDockviewPanelProps>,
   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
 };
 
@@ -87,10 +91,21 @@ export function addPanel(api: DockviewApi, req: OpenRequest): void {
     else if (termGroups.length > 1) position = { referenceGroup: termGroups[termGroups.length - 1].id };
     else if (launcherGroup) position = { referenceGroup: launcherGroup.id, direction: 'right' };
     else if (ref) position = { referenceGroup: ref.id, direction: ref.panels.length ? 'right' : 'within' };
+  } else if (req.kind === 'files') {
+    // The explorer sits at the far left, as in VS Code.
+    position = { direction: 'left' };
+  } else if (req.kind === 'code') {
+    // Files open as tabs together, away from the explorer.
+    const codeGroup = api.groups.find((g) => g.panels.some((p) => kindOf(p.id) === 'code'));
+    const notFiles = api.groups.find((g) => !g.panels.some((p) => kindOf(p.id) === 'files'));
+    position = codeGroup ? { referenceGroup: codeGroup.id } : notFiles ? { referenceGroup: notFiles.id } : undefined;
   } else if (ref) {
     position = { referenceGroup: ref.id };
   }
+  const existing = req.kind === 'code' ? api.panels.find((p) => kindOf(p.id) === 'code' && (p.params as { path?: string })?.path === (params as { path?: string }).path) : undefined;
+  if (existing) { existing.api.setActive(); return; }
   api.addPanel({ id, component: req.kind, title, params, position });
+  if (req.kind === 'files') setTimeout(() => { try { api.getPanel(id)?.group.api.setSize({ width: 260 }); } catch { /* sizes are a nicety */ } }, 40);
 }
 
 /** Puts every terminal in the view one above another, in a single column. */
@@ -276,6 +291,7 @@ function Tab(props: IDockviewPanelHeaderProps) {
                 <FoldVertical size={14} />Compact this session
               </button>
             )}
+            <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); void props.containerApi.addPopoutGroup(props.api.group); }}><AppWindow size={14} />Open in new window</button>
             <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); props.api.close(); }}><X size={14} />Close</button>
           </div>
         </div>,
@@ -378,6 +394,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
         theme={theme}
         components={components}
         defaultTabComponent={Tab}
+        popoutUrl="popout.html"
         rightHeaderActionsComponent={GroupActions}
         watermarkComponent={Watermark}
         onReady={(e) => {

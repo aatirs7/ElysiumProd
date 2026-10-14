@@ -32,7 +32,7 @@ export function Onboarding({ name }: { name: string }) {
     <div className="ob" role="dialog" aria-modal="true" aria-label="Welcome to Elysium">
       <div className={`ob-bg step-${step}`} aria-hidden="true"><i className="ob-horizon" /><i className="ob-arc" /><i className="ob-grid" /></div>
       <header className="ob-top">
-        <div className="ob-brand"><Logo />Elysium</div>
+        <div className="ob-brand"><Logo />Elysium Development</div>
         <ol className="ob-rail" aria-label="Setup steps">
           {STEPS.map((t, i) => (
             <li key={t} className={i === step ? 'on' : i < step ? 'done' : ''}>
@@ -47,7 +47,7 @@ export function Onboarding({ name }: { name: string }) {
         {step === 0 && (
           <section className="ob-welcome">
             <div className="ob-mark"><Logo /></div>
-            <h1 className="ob-hero">Hi {shown}. Meet Elysium.</h1>
+            <h1 className="ob-hero">Welcome to Elysium Development, {shown}.</h1>
             <p className="ob-lede">One calm place to run all your projects with Claude. Built for people who keep several agents busy at once.</p>
             <div className="ob-colors" role="radiogroup" aria-label="Colour">
               {ACCENTS.filter((x) => x.value).map((x) => (
@@ -160,7 +160,7 @@ function Toggle({ icon: Icon, title, text, on, set }: { icon: typeof Bell; title
   );
 }
 
-const SERVICE_ICON: Record<string, typeof Bell> = { claude: Sparkles, git: GitBranch, github: GitPullRequest, vercel: Triangle, neon: Zap, aws: Cloud, supabase: Database, stripe: CreditCard, cloudflare: Cloud, netlify: Globe, firebase: Flame };
+const SERVICE_ICON: Record<string, typeof Bell> = { claude: Sparkles, git: GitBranch, github: GitPullRequest, vercel: Triangle, neon: Zap, aws: Cloud, supabase: Database, stripe: CreditCard, cloudflare: Cloud, netlify: Globe, azure: Cloud, firebase: Flame };
 
 function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: { id: string; isDefault: boolean }[]; setAccountLabel(id: string, label: string): void; accountLabels: Record<string, { label: string }> }) {
   const [list, setList] = useState<ConnectStatus[] | null>(null);
@@ -232,7 +232,7 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
         })}
         {list && (
           <div className="ob-more-row">
-            <button className="link-btn" onClick={() => setMore((m) => !m)}>{more ? 'Show fewer' : `Show more: AWS, Supabase, Stripe, Cloudflare, Netlify, Firebase${customs.length ? ', your own' : ''}`}</button>
+            <button className="link-btn" onClick={() => setMore((m) => !m)}>{more ? 'Show fewer' : `Show more: AWS, Azure, Supabase, Stripe, Cloudflare, Netlify, Firebase${customs.length ? ', your own' : ''}`}</button>
             {more && !addingTool && <button className="link-btn" onClick={() => setAddingTool(true)}><Plus size={13} />Add your own</button>}
           </div>
         )}

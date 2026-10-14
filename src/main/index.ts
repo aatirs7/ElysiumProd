@@ -1,9 +1,10 @@
 // ElysiumProd main process: the main window, the quick bar and tray, sessions,
 // telemetry, watchers, background tasks, and everything they read.
-import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, net, Notification, protocol, shell } from 'electron';
+import { pathToFileURL } from 'node:url';
 import { appendFileSync, existsSync, unlinkSync } from 'node:fs';
 import { homedir as userHome, userInfo } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { Channels, type ConnectService, type ResourceSample, type SessionInfo } from '@shared/ipc';
 import { dataDir, scrollbackDir } from './paths';
 import { Resources } from './resources';
@@ -13,7 +14,7 @@ import { templateInfo, templates } from './templates';
 import { runSmoke } from './smoke';
 import { flushWorkspace, loadWorkspace, saveWorkspace } from './workspace';
 import { listProjects, projectGlance, readGit, readRelay, readTasks } from './projects';
-import { pickDocument, readDocument } from './files';
+import { listDir, pickDocument, readDocument, readProjectFile, revealProjectFile } from './files';
 import { endProgram, listProcessGroups } from './processes';
 import { hasHistory, listAccounts } from './accounts';
 import { Ingest } from './ingest';
@@ -45,6 +46,9 @@ import { resumeRunning, saveRunning } from './resume';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
+
+// Must be declared before the app is ready: the UI's own address (see serveRenderer).
+protocol.registerSchemesAsPrivileged([{ scheme: 'elysium', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 // %APPDATA%\elysiumprod rather than Electron's default product-name folder.
 app.setPath('userData', dataDir());
@@ -123,15 +127,14 @@ function ensureStartMenuShortcut(): void {
   if (process.platform !== 'win32') return;
   try {
     const dir = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
-    const lnk = join(dir, 'Elysium.lnk');
-    // The entry used to be called ElysiumProd; one is enough.
-    const old = join(dir, 'ElysiumProd.lnk');
-    if (existsSync(old)) { try { unlinkSync(old); } catch { /* leave it */ } }
+    const lnk = join(dir, 'Elysium Development.lnk');
+    // The entry used to be called ElysiumProd, then Elysium; one is enough.
+    for (const name of ['ElysiumProd.lnk', 'Elysium.lnk']) { const old = join(dir, name); if (existsSync(old)) { try { unlinkSync(old); } catch { /* leave it */ } } }
     const options = {
       target: process.execPath,
       args: app.isPackaged ? '' : `"${app.getAppPath()}"`,
       cwd: app.isPackaged ? undefined : app.getAppPath(),
-      description: 'Elysium',
+      description: 'Elysium Development',
       icon: resourcePath('icon.ico'),
       iconIndex: 0,
       appUserModelId: 'ElysiumProd',
@@ -140,9 +143,24 @@ function ensureStartMenuShortcut(): void {
   } catch { /* the window icon still applies */ }
 }
 
+/**
+ * The UI loads from elysium://app/ rather than file://, so it has a real origin:
+ * panes can pop out into their own windows (which a file page may not do), and
+ * nothing outside the built UI folder can be read.
+ */
+const RENDERER_DIR = join(__dirname, '../renderer');
+function serveRenderer(): void {
+  protocol.handle('elysium', (req) => {
+    const u = new URL(req.url);
+    const file = resolve(RENDERER_DIR, '.' + decodeURIComponent(u.pathname));
+    if (!file.startsWith(resolve(RENDERER_DIR))) return new Response('Not found', { status: 404 });
+    return net.fetch(pathToFileURL(file).toString());
+  });
+}
+
 function loadRenderer(w: BrowserWindow, hash = ''): void {
   if (process.env.ELECTRON_RENDERER_URL) void w.loadURL(`${process.env.ELECTRON_RENDERER_URL}${hash ? `#${hash}` : ''}`);
-  else void w.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined);
+  else void w.loadURL(`elysium://app/index.html${hash ? `#${hash}` : ''}`);
 }
 
 /** Restart: the normal quit (sessions stop, cookies and layout saved), then start again with the same sessions resumed. */
@@ -166,7 +184,7 @@ function createWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 500,
     backgroundColor: '#262624',
-    title: DEMO ? 'Elysium (demo)' : 'Elysium',
+    title: DEMO ? 'Elysium Development (demo)' : 'Elysium Development',
     // The Elysium mark in the taskbar, Alt+Tab and the window corner.
     icon: appIcon(),
     autoHideMenuBar: true,
@@ -187,6 +205,10 @@ function createWindow(): BrowserWindow {
   w.once('ready-to-show', () => w.show());
   // No remote content and no new windows (spec 17).
   w.webContents.setWindowOpenHandler(({ url }) => {
+    // A pane popped out into its own window: the app's own page, framed like the main one.
+    if (/popout\.html/.test(url) && (url.startsWith('elysium://app/') || url.startsWith('http://localhost'))) {
+      return { action: 'allow', overrideBrowserWindowOptions: { width: 1100, height: 760, backgroundColor: '#262624', autoHideMenuBar: true, title: 'Elysium Development', icon: appIcon(), webPreferences: { sandbox: true, contextIsolation: true } } };
+    }
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
@@ -263,6 +285,9 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.handle(Channels.filesList, (_e, id: unknown, rel: unknown, hidden: unknown) => listDir(String(id), String(rel ?? ''), hidden === true));
+  ipcMain.handle(Channels.filesRead, (_e, id: unknown, rel: unknown) => readProjectFile(String(id), String(rel ?? '')));
+  ipcMain.on(Channels.filesReveal, (_e, id: unknown, rel: unknown, how: unknown) => revealProjectFile(String(id), String(rel ?? ''), how === 'vscode' ? 'vscode' : 'explorer'));
   ipcMain.handle(Channels.newsGet, (_e, force: unknown) => news(force === true));
   ipcMain.handle(Channels.updatesCheck, () => checkUpdates());
   ipcMain.handle(Channels.updatesApply, async () => ({ ...(await applyUpdate((step) => send(Channels.updatesProgress, step))), restartToInstall: updateNeedsRestartInstall() }));
@@ -275,7 +300,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.chatReset, (_e, id: unknown) => chats.reset(String(id)));
   ipcMain.handle(Channels.connections, () => connections());
   ipcMain.handle(Channels.connect, (_e, service: unknown, action: unknown, accountId: unknown) =>
-    (/^(claude|git|github|vercel|neon|aws|supabase|stripe|cloudflare|netlify|firebase|custom:[\w-]+)$/.test(String(service)) && (action === 'install' || action === 'signin')
+    (/^(claude|git|github|vercel|neon|aws|supabase|stripe|cloudflare|netlify|azure|firebase|custom:[\w-]+)$/.test(String(service)) && (action === 'install' || action === 'signin')
       ? connect(service as ConnectService, action, typeof accountId === 'string' ? accountId : undefined) : { ok: false, reason: 'Unknown service.' }));
   ipcMain.handle(Channels.addClaudeAccount, (_e, name: unknown) => addClaudeAccount(String(name ?? '')));
   ipcMain.handle(Channels.scanRepos, () => scanRepos());
@@ -406,6 +431,7 @@ loadCustomProjects();
 ingest.onConversation = (sid, conv) => sessions.noteConversation(sid, conv);
 
 app.whenReady().then(async () => {
+  serveRenderer();
   try { enforceCaps(scrollbackDir()); } catch { /* never block startup on cleanup */ }
   registerIpc();
   await resources.start();

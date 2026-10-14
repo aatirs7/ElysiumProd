@@ -1,6 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { NewsItem, ReaderEntry, UsageStats } from '@shared/ipc';
-import { ArrowUpRight } from 'lucide-react';
+import { ArrowDown, ArrowUp, ArrowUpRight, Plus, X } from 'lucide-react';
+import { CHECKS } from './tools';
+import { Meter, effectiveLimits } from './TopBarExtras';
+import { monthlyOf, useWorkspace } from './workspace/store';
+
+const HOME_WIDGETS = [
+  { id: 'live', name: 'Right now' }, { id: 'week', name: 'This week' }, { id: 'recent', name: 'Pick up where you left off' },
+  { id: 'news', name: 'What is new' }, { id: 'limits', name: 'Plan limits' }, { id: 'costs', name: 'This month' }, { id: 'checks', name: 'PC check-ups' },
+];
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { plainLine } from './TopBarExtras';
@@ -26,10 +34,44 @@ interface Props {
   onNewProject(): void;
 }
 
+const HomeCtx = createContext<{ widgets: string[]; editing: boolean; setWidgets(w: string[]): void }>({ widgets: [], editing: false, setWidgets: () => undefined });
+
+/** One Home widget: shown in your order, with move and remove while customizing. */
+function W({ id, size, children }: { id: string; size: 'full' | 'half'; children: React.ReactNode }) {
+  const { widgets, editing, setWidgets } = useContext(HomeCtx);
+  const i = widgets.indexOf(id);
+  if (i < 0) return null;
+  const move = (d: number) => { const n = [...widgets]; const j = i + d; if (j < 0 || j >= n.length) return; [n[i], n[j]] = [n[j], n[i]]; setWidgets(n); };
+  return (
+    <div className={size === 'full' ? 'home-w full' : 'home-w half'} style={{ order: i }}>
+      {editing && (
+        <div className="home-w-tools">
+          <button className="ghost-icon tiny" onClick={() => move(-1)} disabled={i === 0} aria-label="Move up"><ArrowUp size={13} /></button>
+          <button className="ghost-icon tiny" onClick={() => move(1)} disabled={i === widgets.length - 1} aria-label="Move down"><ArrowDown size={13} /></button>
+          <button className="ghost-icon tiny" onClick={() => setWidgets(widgets.filter((x) => x !== id))} aria-label="Remove"><X size={13} /></button>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
 export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [news, setNews] = useState<NewsItem[] | null>(null);
+  const { doc, setSettings } = useWorkspace();
+  const { accounts, limits } = useLive();
+  const [editing, setEditing] = useState(false);
+  const widgets = doc.settings.homeWidgets ?? ['live', 'week', 'recent', 'news'];
+  const setWidgets = (w: string[]) => setSettings({ homeWidgets: w });
+  const hiddenWidgets = HOME_WIDGETS.filter((w) => !widgets.includes(w.id));
+  const [costTotal, setCostTotal] = useState<number | null>(null);
+  useEffect(() => {
+    if (!widgets.includes('costs')) return;
+    void window.elysium.costs(false).then((r) => setCostTotal(r.items.reduce((n, i) => n + i.cost, 0) + doc.fixedCosts.reduce((n, f) => n + monthlyOf(f), 0)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widgets.join(',')]);
   useEffect(() => { void window.elysium.news().then((n) => setNews(n.items)).catch(() => setNews([])); }, []);
   const [lastSaid, setLastSaid] = useState<Record<string, ReaderEntry>>({});
   useEffect(() => { void window.elysium.usage().then(setUsage); }, []);
@@ -68,6 +110,7 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const peak = Math.max(60, ...days.map((d) => d.minutes));
 
   return (
+    <HomeCtx.Provider value={{ widgets, editing, setWidgets }}>
     <div className="home page-enter" onMouseMove={(e) => {
       const card = (e.target as HTMLElement).closest('.project-card, .live-card, .week-card') as HTMLElement | null;
       if (!card) return;
@@ -85,9 +128,13 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
 
         <CommandBox onOpenProject={(id) => onOpen(id, projects.find((p) => p.id === id)?.name ?? id)} />
 
-        {live.length > 0 && (
+        <div className={`home-widgets ${editing ? 'editing' : ''}`}>
+        {(live.length > 0 || editing) && (
+          <W id="live" size="full">
           <section className="home-block">
+
             <div className="section-title">Right now</div>
+            {!live.length && <p className="home-empty">Running sessions show here.</p>}
             <div className="live-grid">
               {live.map((s, i) => {
                 const t = templates.find((x) => x.id === s.templateId);
@@ -123,8 +170,10 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
               })}
             </div>
           </section>
+          </W>
         )}
 
+        <W id="week" size="full">
         <section className="home-block">
           <div className="week-card">
             <div className="week-main">
@@ -148,8 +197,9 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
             </div>
           </div>
         </section>
+        </W>
 
-        <div className="home-two">
+          <W id="recent" size="half">
           <section className="home-block home-recent">
             <div className="section-title">Pick up where you left off</div>
             {!recent.length && <p className="home-empty">Projects you work on show up here. Add one with the plus beside Projects.</p>}
@@ -162,6 +212,8 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
               </button>
             ))}
           </section>
+          </W>
+          <W id="news" size="half">
           <section className="home-block home-news">
             <div className="section-title">What is new<button className="link-btn news-refresh" onClick={() => void window.elysium.news(true).then((n) => setNews(n.items))}>Refresh</button></div>
             {!news && <div className="news-skeleton">{[0, 1, 2, 3].map((i) => <span key={i} />)}</div>}
@@ -174,9 +226,41 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
               </button>
             ))}
           </section>
+          </W>
+
+          <W id="limits" size="half">
+            <section className="home-block">
+              <div className="section-title">Plan limits</div>
+              {accounts.filter((a) => limits[a.id]).slice(0, 3).map((a) => { const e = effectiveLimits(limits[a.id]!); return <div key={a.id} className="home-limit"><Meter label={`${doc.accounts[a.id]?.label ?? a.id} · five hours`} pct={e.five} reset={e.fiveReset} /><Meter label="Week" pct={e.week} reset={e.weekReset} /></div>; })}
+              {!accounts.some((a) => limits[a.id]) && <p className="home-empty">Shows once a session has run.</p>}
+            </section>
+          </W>
+          <W id="costs" size="half">
+            <section className="home-block">
+              <div className="section-title">This month</div>
+              <div className="home-cost"><strong>{costTotal == null ? '…' : `$${costTotal.toFixed(2)}`}</strong><span>across hosting, databases and your other costs</span></div>
+            </section>
+          </W>
+          <W id="checks" size="half">
+            <section className="home-block">
+              <div className="section-title">PC check-ups</div>
+              {CHECKS.slice(0, 4).map((c) => <button key={c.id} className="recent-row" onClick={() => window.dispatchEvent(new CustomEvent('ep:run-check', { detail: c.id }))}><c.icon size={15} /><span className="recent-name">{c.title}</span><span className="recent-when">{c.blurb}</span></button>)}
+            </section>
+          </W>
+        </div>
+
+        <div className="home-customize">
+          {editing && hiddenWidgets.length > 0 && (
+            <div className="widget-tray">
+              <span className="muted small">Add:</span>
+              {hiddenWidgets.map((w) => <button key={w.id} className="cost-preset" onClick={() => setWidgets([...widgets, w.id])}><Plus size={12} />{w.name}</button>)}
+            </div>
+          )}
+          <button className="link-btn" onClick={() => setEditing((e) => !e)}>{editing ? 'Done' : 'Customize Home'}</button>
         </div>
 
       </div>
     </div>
+    </HomeCtx.Provider>
   );
 }

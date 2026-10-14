@@ -121,6 +121,9 @@ export const Channels = {
   commandRun: 'command:run',
   projectAction: 'project:action',
   homeDir: 'app:home-dir',
+  filesList: 'files:list',
+  filesRead: 'files:read',
+  filesReveal: 'files:reveal',
   newsGet: 'news:get',
   updatesCheck: 'updates:check',
   updatesApply: 'updates:apply',
@@ -155,6 +158,8 @@ export interface ConnectStatus {
   group?: 'core' | 'more' | 'custom';
   accounts?: { id: string; configDir: string; signedIn: boolean }[];
 }
+export interface FileEntry { name: string; path: string; dir: boolean; dim: boolean }
+export interface FileText { ok: boolean; error: string | null; text: string; size: number; binary: boolean }
 export interface NewsItem { title: string; url: string; source: string; at: string | null; points?: number }
 /** A tool you added yourself: a command that succeeds when you are signed in, and one that signs you in. */
 export interface CustomTool { id: string; name: string; check: string; signin: string }
@@ -282,6 +287,9 @@ export interface ElysiumApi {
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
+  listDir(projectId: string, rel: string, showHidden?: boolean): Promise<FileEntry[]>;
+  readProjectFile(projectId: string, rel: string): Promise<FileText>;
+  revealProjectFile(projectId: string, rel: string, how: 'explorer' | 'vscode'): void;
   news(force?: boolean): Promise<{ items: NewsItem[]; at: string }>;
   checkUpdates(): Promise<UpdateInfo>;
   applyUpdate(): Promise<{ ok: boolean; reason: string | null; restartToInstall?: boolean }>;

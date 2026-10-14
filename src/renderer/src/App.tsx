@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FoldVertical, LayoutGrid, Lightbulb, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
+import { FolderTree, FoldVertical, LayoutGrid, Lightbulb, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -165,6 +165,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   useEffect(() => window.elysium.onFocusSession(focusSession), [focusSession]);
   // Help and others can open a tool by id.
   useEffect(() => { const on = (e: Event) => { const id = (e as CustomEvent<string>).detail; goProject(id, TOOL_INFO[id]?.title ?? id); }; window.addEventListener('ep:open-tool', on); return () => window.removeEventListener('ep:open-tool', on); }, [goProject]);
+  useEffect(() => { const on = (e: Event) => void runCheck((e as CustomEvent<string>).detail); window.addEventListener('ep:run-check', on); return () => window.removeEventListener('ep:run-check', on); }, [runCheck]);
   useEffect(() => {
     const np = () => setNewProject(true);
     const goTo = (e: Event) => setPage((e as CustomEvent<Page>).detail);
@@ -225,7 +226,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
       const k = e.key.toLowerCase();
       if (!e.shiftKey && k === 'k') { e.preventDefault(); setPalette((p) => !p); }
       else if (!e.shiftKey && k === '0') { e.preventDefault(); go('home'); }
-      else if (!e.shiftKey && k === ',') { e.preventDefault(); go('settings'); }
+      else if (e.shiftKey && k === 's') { e.preventDefault(); go('settings'); }
       else if (e.shiftKey && k === 't') { e.preventDefault(); launch('local.shell'); }
     };
     window.addEventListener('keydown', onKey, true);
@@ -235,7 +236,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   // Lets the smoke test start a template the same way a click does.
   useEffect(() => {
     const prev = window.__smoke;
-    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id), open: (req: OpenRequest) => { setPage('workspace'); open(req); } };
+    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id), open: (req: OpenRequest) => { setPage('workspace'); open(req); }, popout: async () => { const api = activeView ? apiFor(activeView.id) : undefined; const g = api?.activeGroup ?? api?.groups[0]; if (!api || !g) return 'no group'; try { return String(await api.addPopoutGroup(g)); } catch (e) { return String(e); } } };
   }, [launch, open]);
 
   // Wrap up: once a wrapped session exits, close its pane.
@@ -307,6 +308,13 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const r = await window.elysium.quickRun(projectId, 'Make a Claude artifact page about what we are working on in this project right now: the goal, what is done, what is in progress, what is next, and anything blocked or waiting on me. Make it glanceable, with real numbers and links where you have them, and no filler. Publish it with your Artifact tool, then reply with the link and one line on what it shows.');
     setToast(r.ok ? 'Asked for an artifact. The link comes back as a notification when it is published.' : r.reason ?? 'Could not ask for it.');
   };
+  const toggleFiles = () => {
+    const api = activeView ? apiFor(activeView.id) : undefined;
+    if (!api || !projectId) return;
+    const have = api.panels.find((p) => p.id.startsWith('files-'));
+    if (have) { have.api.close(); return; }
+    addPanel(api, { kind: 'files', title: 'Files', params: { projectId } });
+  };
   const openPlan = () => {
     const api = activeView ? apiFor(activeView.id) : undefined;
     if (api && projectId) openChat(api, `plan:${projectId}`, projectId, 'Plan');
@@ -361,6 +369,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
             );
           })}
           {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
+          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={toggleFiles} title="Show or hide the project's files, like VS Code's explorer"><FolderTree size={14} />Files</button>}
           {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openPlan} title="A planning chat that knows this project and stays current, without touching code"><Lightbulb size={14} />Plan</button>}
           {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
           {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}

@@ -65,6 +65,7 @@ const EXTRAS: { id: string; name: string; what: string; bin?: string; npx?: bool
   { id: 'stripe', name: 'Stripe', what: 'Payments, test events and webhooks.', bin: 'stripe', files: [join(H, '.config', 'stripe', 'config.toml')], signin: 'stripe login', docs: 'https://docs.stripe.com/stripe-cli' },
   { id: 'cloudflare', name: 'Cloudflare', what: 'Workers, Pages, DNS and R2.', npx: true, files: [join(APPDATA, 'xdg.config', '.wrangler', 'config', 'default.toml'), join(H, '.wrangler', 'config', 'default.toml'), join(H, '.config', '.wrangler', 'config', 'default.toml')], signin: 'npx -y wrangler login' },
   { id: 'netlify', name: 'Netlify', what: 'Sites and deploys.', npx: true, files: [join(APPDATA, 'netlify', 'Config', 'config.json'), join(H, '.netlify', 'config.json')], signin: 'npx -y netlify-cli login' },
+  { id: 'azure', name: 'Azure', what: 'Subscriptions, apps and resources.', bin: 'az', files: [join(H, '.azure', 'msal_token_cache.json'), join(H, '.azure', 'msal_token_cache.bin'), join(H, '.azure', 'accessTokens.json')], signin: 'az login', install: 'winget install --id Microsoft.AzureCLI -e --source winget --accept-package-agreements --accept-source-agreements' },
   { id: 'firebase', name: 'Firebase', what: 'Hosting, Firestore and functions.', npx: true, files: [join(H, '.config', 'configstore', 'firebase-tools.json')], signin: 'npx -y firebase-tools login' },
 ];
 

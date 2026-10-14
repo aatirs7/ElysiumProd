@@ -1,4 +1,4 @@
-# Elysium
+# Elysium Development
 
 One calm place to run all your projects with Claude Code, on Windows.
 

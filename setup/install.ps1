@@ -96,12 +96,12 @@ $icon = Join-Path $Dir 'resources\icon.ico'
 $shell = New-Object -ComObject WScript.Shell
 # The Start menu entry is made by Elysium itself, with its taskbar identity.
 foreach ($where in @(if (-not $Quiet) { [Environment]::GetFolderPath('Desktop') })) {
-  $lnk = $shell.CreateShortcut((Join-Path $where 'Elysium.lnk'))
+  $lnk = $shell.CreateShortcut((Join-Path $where 'Elysium Development.lnk'))
   $lnk.TargetPath = $electron
   $lnk.Arguments = "`"$Dir`""
   $lnk.WorkingDirectory = $Dir
   if (Test-Path $icon) { $lnk.IconLocation = $icon }
-  $lnk.Description = 'Elysium'
+  $lnk.Description = 'Elysium Development'
   $lnk.Save()
 }
 Ok 'Desktop shortcut; the Start menu entry appears when Elysium first opens'
