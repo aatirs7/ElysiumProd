@@ -11,7 +11,7 @@ export function ToolIntro(props: IDockviewPanelProps<{ projectId: string }>) {
   const [note, setNote] = useState<string | null>(null);
   if (!info) return null;
   const send = async (t: string) => {
-    const r = await window.elysium.quickRun(id, t);
+    const r = await window.elysium.chatSend(`tool:${id}`, t);
     setNote(r.ok ? 'Sent. The reply shows in the session beside this and as a notification.' : r.reason ?? 'Could not send it.');
     if (r.ok) setText('');
   };

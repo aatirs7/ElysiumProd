@@ -40,6 +40,16 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     }
     await sleep(2500);
     await shot('3-home');
+    // A tool opens as a chat; one tiny real message goes through Claude Code.
+    await js(`[...document.querySelectorAll('.sidebar .view-item')].find((x) => x.textContent.includes('PC Helper'))?.click()`);
+    await sleep(2500);
+    await shot('3a-pc-helper');
+    r.chatSend = await js(`window.elysium.chatSend('tool:laptop', 'Reply with only the word ready. Do not use any tools.')`);
+    for (let i = 0; i < 60; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string }[]; error: string | null }; if (!st.running) { r.chatReply = st.messages[st.messages.length - 1]?.text; r.chatError = st.error; break; } }
+    await sleep(800);
+    await shot('3b-pc-helper-reply');
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+    await sleep(1000);
     r.launch = await js(`window.__smoke && window.__smoke.launch('local.shell')`);
     await sleep(4000);
     const s = ctx.sessions.list().find((x) => x.templateId === 'local.shell');

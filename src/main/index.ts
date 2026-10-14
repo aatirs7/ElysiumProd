@@ -27,6 +27,8 @@ import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
 import { projectAction, runCommand } from './command';
 import { addClaudeAccount, connect, connections, scanRepos } from './connect';
+import { Chats } from './chat';
+import { accountForProject } from './tasks';
 import { PROJECT_FOLDERS } from './templates';
 import { clipboard } from 'electron';
 import { execFile } from 'node:child_process';
@@ -79,6 +81,13 @@ const sessions = new SessionManager(
   },
   () => resources.latest()?.refuseReason ?? null,
   (id) => ingest.register(id),
+);
+
+/** Chats: Claude Code shown as messages (Customize Elysium, PC Helper, planning). */
+const chats = new Chats(
+  (e) => send(Channels.chatUpdate, e),
+  (projectId) => sessions.list().filter((s) => s.templateId.startsWith(`${projectId}.`)).flatMap((s) => ingest.reader(s.id).filter((r) => r.role === 'claude').slice(-4).map((r) => r.text)).slice(-8),
+  (projectId) => accountForProject(projectId),
 );
 
 /** A watcher line goes into Prime only when Prime runs here and is idle. */
@@ -246,6 +255,10 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.handle(Channels.chatGet, (_e, id: unknown) => chats.get(String(id)));
+  ipcMain.handle(Channels.chatSend, (_e, id: unknown, text: unknown) => chats.send(String(id), String(text ?? '')));
+  ipcMain.on(Channels.chatStop, (_e, id: unknown) => chats.stop(String(id)));
+  ipcMain.handle(Channels.chatReset, (_e, id: unknown) => chats.reset(String(id)));
   ipcMain.handle(Channels.connections, () => connections());
   ipcMain.handle(Channels.connect, (_e, service: unknown, action: unknown, accountId: unknown) =>
     (['claude', 'git', 'github', 'vercel', 'neon'].includes(String(service)) && (action === 'install' || action === 'signin')
@@ -346,6 +359,7 @@ app.on('before-quit', (e) => {
   quitting = true;
   resources.stop();
   watchers.stopAll();
+  chats.stopAll();
   ingest.stop();
   disposeQuick();
   try { flushWorkspace(); } catch { /* never block quit */ }

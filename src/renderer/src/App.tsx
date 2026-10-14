@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FoldVertical, LayoutGrid, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
+import { FoldVertical, LayoutGrid, Lightbulb, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -13,9 +13,9 @@ import { ProjectLogo } from './ProjectLogo';
 import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
-import { Workspace, addPanel, ensureProjectSessions, shortModel } from './workspace/Workspace';
+import { Workspace, addPanel, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
-import { CHECKS } from './tools';
+import { CHECKS, TOOL_INFO } from './tools';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
 import { AccountUsage, ChatWatchSwitch, NoticeStack, ThemeToggle, useNotices, type Notice } from './TopBarExtras';
@@ -119,7 +119,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const c = CHECKS.find((x) => x.id === checkId);
     if (!c) return;
     goProject('laptop', 'PC Helper');
-    const r = await window.elysium.quickRun('laptop', c.prompt);
+    const r = await window.elysium.chatSend('tool:laptop', c.prompt);
     setToast(r.ok ? `${c.title} started. The PC Helper reports back here.` : r.reason ?? 'Could not start it.');
   }, [goProject]);
   const dashboardFor = useCallback((projectId: string, projectName: string) => {
@@ -298,6 +298,10 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const r = await window.elysium.quickRun(projectId, 'Make a Claude artifact page about what we are working on in this project right now: the goal, what is done, what is in progress, what is next, and anything blocked or waiting on me. Make it glanceable, with real numbers and links where you have them, and no filler. Publish it with your Artifact tool, then reply with the link and one line on what it shows.');
     setToast(r.ok ? 'Asked for an artifact. The link comes back as a notification when it is published.' : r.reason ?? 'Could not ask for it.');
   };
+  const openPlan = () => {
+    const api = activeView ? apiFor(activeView.id) : undefined;
+    if (api && projectId) openChat(api, `plan:${projectId}`, projectId, 'Plan');
+  };
   const openFlow = () => {
     const api = activeView ? apiFor(activeView.id) : undefined;
     const p = api?.panels.find((x) => x.id.startsWith('flow-'));
@@ -347,9 +351,10 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
               </button>
             );
           })}
-          {projectId && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
-          {projectId && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
-          {projectId && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}
+          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
+          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openPlan} title="A planning chat that knows this project and stays current, without touching code"><Lightbulb size={14} />Plan</button>}
+          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
+          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}
           {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
           <AccountUsage />

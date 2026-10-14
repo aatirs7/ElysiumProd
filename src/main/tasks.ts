@@ -15,7 +15,7 @@ import { findTemplate, leadTemplate } from './templates';
 interface Pending { sessionId: string; projectName: string; text: string; sent: boolean; startedAt: number }
 
 /** The account the owner assigned to a project in the app (workspace.json), else main. */
-function accountForProject(projectId: string): string {
+export function accountForProject(projectId: string): string {
   try {
     const d = JSON.parse(readFileSync(join(dataDir(), 'workspace.json'), 'utf8')) as { projectAccounts?: Record<string, string> };
     return d.projectAccounts?.[projectId] || 'main';

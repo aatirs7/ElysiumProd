@@ -121,6 +121,11 @@ export const Channels = {
   commandRun: 'command:run',
   projectAction: 'project:action',
   homeDir: 'app:home-dir',
+  chatGet: 'chat:get',
+  chatSend: 'chat:send',
+  chatStop: 'chat:stop',
+  chatReset: 'chat:reset',
+  chatUpdate: 'chat:update',
   connections: 'connect:status',
   connect: 'connect:run',
   addClaudeAccount: 'connect:add-claude',
@@ -132,6 +137,9 @@ export const Channels = {
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
 
+export interface ChatMessage { id: string; role: 'you' | 'claude'; text: string; at: string; steps: FlowEvent[]; costUsd?: number }
+export interface ChatState { id: string; conversationId: string | null; messages: ChatMessage[]; running: boolean; error: string | null }
+export interface ChatEvent { chatId: string; state: ChatState; finished?: boolean }
 export type ConnectService = 'claude' | 'git' | 'github' | 'vercel' | 'neon';
 export interface ConnectStatus {
   id: ConnectService; name: string; what: string; installed: boolean; signedIn: boolean; who: string | null; required: boolean;
@@ -261,6 +269,11 @@ export interface ElysiumApi {
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
+  chatGet(chatId: string): Promise<ChatState>;
+  chatSend(chatId: string, text: string): Promise<{ ok: boolean; reason: string | null }>;
+  chatStop(chatId: string): void;
+  chatReset(chatId: string): Promise<ChatState>;
+  onChat(cb: (e: ChatEvent) => void): () => void;
   connections(): Promise<ConnectStatus[]>;
   connect(service: ConnectService, action: 'install' | 'signin', accountId?: string): Promise<{ ok: boolean; reason: string | null }>;
   addClaudeAccount(name: string): Promise<{ ok: boolean; reason: string | null; accountId?: string }>;

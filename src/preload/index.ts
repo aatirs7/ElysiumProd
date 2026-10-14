@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
+import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type ChatEvent, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -43,6 +43,11 @@ const api: ElysiumApi = {
   wrapUp: (projectId) => ipcRenderer.invoke(Channels.wrapUp, projectId),
   glance: (projectId) => ipcRenderer.invoke(Channels.projectGlance, projectId),
   onReader: (cb) => subscribe<[string, ReaderEntry]>(Channels.readerUpdate, cb),
+  onChat: (cb) => subscribe<[ChatEvent]>(Channels.chatUpdate, cb),
+  chatGet: (id) => ipcRenderer.invoke(Channels.chatGet, id),
+  chatSend: (id, text) => ipcRenderer.invoke(Channels.chatSend, id, text),
+  chatStop: (id) => ipcRenderer.send(Channels.chatStop, id),
+  chatReset: (id) => ipcRenderer.invoke(Channels.chatReset, id),
   quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
   quickHide: () => ipcRenderer.send(Channels.quickHide),
   restartApp: () => ipcRenderer.send(Channels.appRestart),

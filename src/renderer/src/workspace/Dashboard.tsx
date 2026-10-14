@@ -95,7 +95,7 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
       'Build it in the ElysiumProd repository. Keep to the app\'s UI rules (clean, glanceable, no em dashes, no dense tables). Run the typecheck, the build and the isolated smoke test, then commit and push to the current branch.',
       'Do not restart ElysiumProd yourself; the owner restarts it to load the change. Reply with one short line saying what you built.',
     ].join('\n');
-    const r = await window.elysium.quickRun('elysiumprod', prompt);
+    const r = await window.elysium.chatSend('tool:elysiumprod', prompt);
     const entry = { id: uid(), projectId, text, at: new Date().toISOString(), sent: r.ok, note: r.ok ? null : r.reason };
     patchDoc({ featureRequests: [entry, ...doc.featureRequests].slice(0, 60) });
     if (r.ok) { setAsk(''); setNote('Sent to the Elysium Builder. You get a notification when it is done.'); } else setNote(r.reason ?? 'Could not send it.');

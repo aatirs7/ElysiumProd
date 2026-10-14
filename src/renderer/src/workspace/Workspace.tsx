@@ -24,6 +24,7 @@ import { ClaudePanel, overlayClosed, overlayOpened } from './ClaudePanel';
 import { SitePanel } from './SitePanel';
 import { Dashboard, PROJECT_EXTRAS } from './Dashboard';
 import { ToolIntro } from './ToolIntro';
+import { ChatPanel } from './ChatPanel';
 import { TOOL_INFO } from '../tools';
 import { FlowPanel } from './FlowPanel';
 
@@ -63,6 +64,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   web: SitePanel as FunctionComponent<IDockviewPanelProps>,
   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
   tool: ToolIntro as FunctionComponent<IDockviewPanelProps>,
+  chat: ChatPanel as FunctionComponent<IDockviewPanelProps>,
   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
 };
 
@@ -108,7 +110,20 @@ export function stackTerminals(api: DockviewApi): number {
  * account on the right, and the board (relay and tasks, or git) tabbed with it.
  * Terminals open between them. A plain view starts with Launch and Claude.
  */
+/** A chat pane for a tool or a project's planning; shown if it exists, added beside Claude if not. */
+export function openChat(api: DockviewApi, chatId: string, projectId: string, title: string): void {
+  const have = api.panels.find((p) => (p.params as { chatId?: string } | undefined)?.chatId === chatId);
+  if (have) { have.api.setActive(); return; }
+  const claude = api.panels.find((p) => p.id.startsWith('claude-'));
+  api.addPanel({ id: `chat-${uid()}`, component: 'chat', title, params: { chatId, projectId }, position: claude ? { referenceGroup: claude.group.id } : undefined });
+}
+
 function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = []) {
+  // A tool is one calm chat, nothing else.
+  if (view.projectId && TOOL_INFO[view.projectId]) {
+    api.addPanel({ id: `chat-${uid()}`, component: 'chat', title: TOOL_INFO[view.projectId].title, params: { chatId: `tool:${view.projectId}`, projectId: view.projectId } });
+    return;
+  }
   // A project with sessions opens on them, one above the other; anything else starts with Launch.
   if (sessions.length) {
     api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
@@ -151,6 +166,7 @@ export function projectSessions(templates: TemplateInfo[], projectId: string | u
  * has ended starts again. Nothing asks first.
  */
 export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[]): void {
+  if (TOOL_INFO[projectId]) { openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title); return; }
   for (const t of projectSessions(templates, projectId)) {
     const pane = api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
     if (!pane) addPanel(api, { kind: 'terminal', templateId: t.id, title: t.title });
