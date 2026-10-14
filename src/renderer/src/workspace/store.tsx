@@ -36,6 +36,8 @@ export interface Settings {
   autoCompact: { enabled: boolean; percent: number };
   /** A notice when Claude replies in a session you are not looking at. */
   notifyReplies: boolean;
+  /** Live flow: a short Sonnet summary per session, at most every five minutes. */
+  flowSummaries: boolean;
 }
 
 export interface AccountPrefs { label: string }
@@ -125,6 +127,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoEnd: { enabled: false, thresholdPercent: 90, programs: [] },
   autoCompact: { enabled: true, percent: 80 },
   notifyReplies: true,
+  flowSummaries: true,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);

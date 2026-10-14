@@ -114,6 +114,9 @@ export const Channels = {
   projectsChanged: 'projects:changed',
   costsGet: 'costs:get',
   webGo: 'web:go',
+  flowGet: 'flow:get',
+  flowUpdate: 'flow:update',
+  flowSummary: 'flow:summary',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
@@ -230,7 +233,16 @@ export interface ElysiumApi {
   onProjectsChanged(cb: () => void): () => void;
   /** Costs across Vercel, Neon and AWS; cached for an hour unless forced. */
   costs(force?: boolean): Promise<CostReport>;
+  /** What a session has been doing: tool steps with short labels, memory only. */
+  flow(sessionId: string): Promise<FlowState>;
+  onFlow(cb: (sessionId: string, e: FlowEvent) => void): () => void;
+  /** A one or two line summary from Sonnet, at most every few minutes per session. */
+  flowSummary(sessionId: string): Promise<{ text: string | null; at: string | null; reason: string | null }>;
 }
+
+export type FlowKind = 'edit' | 'read' | 'run' | 'search' | 'web' | 'agent' | 'message' | 'ask' | 'other';
+export interface FlowEvent { at: string; kind: FlowKind; tool: string; label: string; to?: string }
+export interface FlowState { events: FlowEvent[]; summary: { text: string; at: string } | null }
 
 export interface CostLine { name: string; cost: number; value: number }
 export interface CostItem {

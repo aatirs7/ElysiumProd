@@ -10,7 +10,7 @@ import {
   type IWatermarkPanelProps,
 } from 'dockview-react';
 import {
-  Activity, BookOpen, Check, Eye, FoldVertical, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
+  Activity, BookOpen, Check, Eye, FoldVertical, Workflow, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
 import type { TemplateInfo } from '@shared/ipc';
@@ -23,10 +23,12 @@ import { DocumentPanel } from './DocumentPanel';
 import { ClaudePanel, overlayClosed, overlayOpened } from './ClaudePanel';
 import { SitePanel } from './SitePanel';
 import { Dashboard } from './Dashboard';
+import { FlowPanel } from './FlowPanel';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
   { kind: 'claude', title: 'Claude', blurb: 'Your planning chat, beside the terminals', icon: MessageCircle },
   { kind: 'dashboard', title: 'Dashboard', blurb: 'Tasks, numbers, links and requests for this project', icon: LayoutGrid },
+  { kind: 'flow', title: 'Live flow', blurb: 'What each session is doing, as it happens', icon: Workflow },
   { kind: 'relay', title: 'Relay', blurb: 'What waits on you, and what agents are doing', icon: Radio },
   { kind: 'tasks', title: 'Tasks', blurb: 'Open board issues', icon: ListTodo },
   { kind: 'launcher', title: 'Launch', blurb: 'Start a session', icon: Rocket },
@@ -58,6 +60,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   claude: ClaudePanel as FunctionComponent<IDockviewPanelProps>,
   web: SitePanel as FunctionComponent<IDockviewPanelProps>,
   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
+  flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);

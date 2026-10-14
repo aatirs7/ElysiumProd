@@ -55,6 +55,14 @@ const ARTICLES: Article[] = [
       <p>When a project has sessions running, its top bar shows <strong>Wrap up</strong>. Every Claude session in the project is asked to bring its current step to a clean stopping point, commit or note what is unfinished, and update its resume note and relay line. Each one then closes by itself. If one stops to ask you something, you get a notification first.</p>
       <h3>Compact</h3>
       <p>Beside Wrap up, <strong>Compact</strong> frees up context without losing work. Each session first finishes its current step and saves its resume note and relay line, then compacts and carries on. It also happens by itself when a session passes the percent set in Settings, under Sessions. To compact one session only, right-click its tab.</p>
+      <h3>Dashboard</h3>
+      <p>Every project has a <strong>Dashboard</strong> tab beside Claude, and a Dashboard button in the top bar. It shows what waits on you, open tasks, this week's commits and agent time, and this month's cost. Its links, such as your admin page or team board, open beside your terminals and stay signed in. Every link in a project shares one saved sign in, kept for 30 days. Use <strong>Ask for something here</strong> to describe a change; it goes to the ElysiumProd Builder session, which builds it, tests it and pushes it. Restart Elysium to load what it built.</p>
+      <h3>Live flow</h3>
+      <p>Click <strong>Flow</strong> in a project's top bar to see each session's steps drawn as they happen: editing, running, searching, messaging the other session. The steps cost nothing. The short summary on top comes from Sonnet 5.5, at most every five minutes per session and only while the pane shows; it counts toward the main account's limits, and you can turn it off in the pane.</p>
+      <h3>iOS</h3>
+      <p>The <strong>iOS</strong> project is one Claude session that works across all your iOS apps. Pin it from the plus beside Projects. Its dashboard opens App Store Connect, TestFlight, Apple Developer and Expo, and sign ins there are kept.</p>
+      <h3>Costs</h3>
+      <p><strong>Costs</strong> in the sidebar adds up this month across Vercel, Neon and AWS, plus fixed subscriptions you enter, per project. Vercel is what is billed after your plan's credit. Neon is estimated from usage, since its Launch plan has no billing figures. AWS comes from the SecurITPosture plugin's daily check.</p>
       <h3>Pane colours</h3>
       <p>Right-click any tab to give its pane a colour. The tab bar takes a soft tint and the pane a coloured edge, so Prime, Meridian and the rest are easy to tell apart. The colour is saved with the view.</p>
       <h3>Chat watcher and usage</h3>

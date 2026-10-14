@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FoldVertical, LayoutGrid, Moon, ShieldAlert, X } from 'lucide-react';
+import { FoldVertical, LayoutGrid, Moon, ShieldAlert, Workflow, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -267,6 +267,15 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const p = api?.panels.find((x) => x.id.startsWith('dashboard-'));
     if (p) p.api.setActive(); else open({ kind: 'dashboard', params: { projectId } });
   };
+  const openFlow = () => {
+    const api = activeView ? apiFor(activeView.id) : undefined;
+    const p = api?.panels.find((x) => x.id.startsWith('flow-'));
+    if (p) { p.api.setActive(); return; }
+    // Beside the terminals: in the group to the right of the first terminal.
+    const term = api?.panels.find((x) => x.id.startsWith('terminal-'));
+    if (api && term) api.addPanel({ id: `flow-${Math.random().toString(36).slice(2, 10)}`, component: 'flow', title: 'Live flow', params: { projectId }, position: { referenceGroup: term.group.id, direction: 'right' } });
+    else open({ kind: 'flow', params: { projectId } });
+  };
   const openRelay = () => {
     const api = activeView ? apiFor(activeView.id) : undefined;
     const p = api?.panels.find((x) => x.id.startsWith('relay-'));
@@ -308,6 +317,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
             );
           })}
           {projectId && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
+          {projectId && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
           {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
           <AccountUsage />

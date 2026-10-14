@@ -24,6 +24,7 @@ import { Tasks } from './tasks';
 import { Limits } from './limits';
 import { createProject, loadCustomProjects, removeProject } from './newproject';
 import { costReport } from './costs';
+import { lastSummary, summarize } from './flow';
 import { dialog } from 'electron';
 import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
@@ -63,7 +64,7 @@ const ingest = new Ingest((t) => {
   tasks?.onTelemetry(t);
   const acc = sessions.list().find((x) => x.id === t.sessionId)?.accountId;
   if (acc) limits.update(acc, t);
-}, (id, e) => send(Channels.readerUpdate, id, e));
+}, (id, e) => send(Channels.readerUpdate, id, e), (id, e) => send(Channels.flowUpdate, id, e));
 const sessions = new SessionManager(
   scrollbackDir(),
   {
@@ -235,6 +236,12 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.flowGet, (_e, id: unknown) => (typeof id === 'string' ? { events: ingest.flow(id), summary: lastSummary(id) } : { events: [], summary: null }));
+  ipcMain.handle(Channels.flowSummary, (_e, id: unknown) => {
+    if (typeof id !== 'string') return { text: null, at: null, reason: null };
+    const s = sessions.list().find((x) => x.id === id);
+    return summarize(id, s?.title ?? 'A session', ingest.reader(id), ingest.flow(id));
+  });
   ipcMain.handle(Channels.costsGet, (_e, force: unknown) => costReport(Boolean(force)));
   ipcMain.handle(Channels.projectCreate, async (_e, req: unknown) => {
     const r = await createProject((req ?? {}) as Parameters<typeof createProject>[0]);

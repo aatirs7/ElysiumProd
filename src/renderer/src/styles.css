@@ -789,3 +789,36 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .dash-ask textarea { width: 100%; resize: vertical; min-height: 4.5rem; font-family: inherit; line-height: 1.45; padding: .6rem .75rem; }
 .dash-requests { margin-top: .8rem; display: flex; flex-direction: column; gap: .35rem; }
 .dash-request { display: flex; align-items: center; gap: .55rem; font-size: .86rem; color: var(--text-2); }
+
+/* ---- Live flow ---- */
+.flow { height: 100%; overflow: auto; padding: .8rem .9rem 1.2rem; background: var(--surface); display: flex; flex-direction: column; gap: .8rem; }
+.flow.empty { display: grid; place-items: center; }
+.flow-bar { display: flex; align-items: center; gap: .5rem; }
+.flow-title { font-weight: 600; font-size: .92rem; }
+.flow-bar .pill.on { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--text); }
+.flow-lane { border-radius: 16px; background: var(--bg); border: 1px solid var(--line); padding: .85rem .95rem .75rem; display: flex; flex-direction: column; gap: .55rem; animation: rise .35s var(--ease) both; position: relative; overflow: hidden; }
+.flow-lane::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; }
+.flow-lane.busy::before { background: linear-gradient(90deg, transparent, var(--accent), transparent); background-size: 200% 100%; animation: shimmer 1.8s linear infinite; }
+.flow-lane.waiting { border-color: color-mix(in srgb, var(--warn) 50%, var(--line)); }
+.flow-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.flow-state { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; color: var(--text-2); margin-left: auto; }
+.flow-state.waiting { color: var(--warn); }
+.flow-ask { color: var(--text-3); font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-summary { display: flex; gap: .5rem; align-items: flex-start; font-size: .9rem; line-height: 1.45; color: var(--text); background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 10px; padding: .5rem .65rem; white-space: pre-line; }
+.flow-summary svg { color: var(--accent); flex: none; margin-top: .2rem; }
+.flow-summary em { margin-left: auto; color: var(--text-3); font-style: normal; font-size: .74rem; white-space: nowrap; }
+.flow-trail { display: flex; flex-wrap: wrap; align-items: center; row-gap: .5rem; }
+.flow-node { display: inline-flex; align-items: center; gap: .35rem; max-width: 100%; animation: pop .25s var(--ease) both; }
+.flow-link { width: 1.1rem; height: 2px; background: color-mix(in srgb, var(--k) 45%, var(--line-strong)); margin: 0 .2rem; border-radius: 2px; }
+.flow-dot { width: 1.6rem; height: 1.6rem; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--k); background: color-mix(in srgb, var(--k) 16%, transparent); border: 1px solid color-mix(in srgb, var(--k) 40%, transparent); }
+.flow-label { font-size: .8rem; color: var(--text-2); max-width: 11rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.flow-label b { color: var(--text-3); font-weight: 600; }
+.flow-node.now .flow-dot { background: var(--k); color: var(--bg); box-shadow: 0 0 0 4px color-mix(in srgb, var(--k) 22%, transparent); animation: breathe 1.4s ease-in-out infinite; }
+.flow-node.now .flow-label { color: var(--text); font-weight: 600; max-width: 16rem; }
+.flow-quiet { color: var(--text-3); font-size: .84rem; }
+.flow-foot { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: var(--text-3); font-size: .78rem; }
+.flow-foot strong { font-weight: 600; }
+.flow-msg { display: inline-flex; align-items: center; gap: .3rem; color: #4FA97A; }
+.flow-legend { display: flex; flex-wrap: wrap; gap: .4rem .9rem; justify-content: center; color: var(--text-3); font-size: .74rem; padding-top: .2rem; }
+.flow-legend span { display: inline-flex; align-items: center; gap: .3rem; }
+.flow-legend i { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; }

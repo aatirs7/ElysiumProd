@@ -3,14 +3,19 @@
 // that POSTs the CLI's own JSON here. Bound to 127.0.0.1 on a random port; every
 // post must carry its session's secret, so nothing else on the machine can feed it.
 // Prompt and response text is never stored: only the fields listed in Telemetry.
+// The live flow keeps, in memory only, each tool call's name and a short label
+// (a file's name, a command's own one line description, an agent's title),
+// never a tool's input or output.
 import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import http from 'node:http';
 import { join } from 'node:path';
-import type { ReaderEntry, Telemetry } from '@shared/ipc';
+import type { FlowEvent, ReaderEntry, Telemetry } from '@shared/ipc';
 import { dataDir } from './paths';
 
-const HOOK_EVENTS = ['SessionStart', 'SessionEnd', 'Stop', 'Notification', 'UserPromptSubmit', 'PreCompact', 'PostCompact'];
+const HOOK_EVENTS = ['SessionStart', 'SessionEnd', 'Stop', 'Notification', 'UserPromptSubmit', 'PreCompact', 'PostCompact', 'PreToolUse'];
+/** These run in the background where the CLI supports it, so a tool call never waits on the shim. */
+const ASYNC_EVENTS = new Set(['PreToolUse']);
 
 const POST_SCRIPT = `// ElysiumProd telemetry shim. Reads the CLI's JSON on stdin and posts it to the
 // local ingest. Never blocks the CLI: two second timeout, always exits 0.
@@ -29,7 +34,38 @@ process.stdin.on('data', (c) => (d += c)).on('end', () => {
 });
 `;
 
-interface Registered { secret: string; t: Telemetry; reader: ReaderEntry[] }
+interface Registered { secret: string; t: Telemetry; reader: ReaderEntry[]; flow: FlowEvent[] }
+
+const FLOW_KEEP = 200;
+const base = (p: unknown) => (typeof p === 'string' ? p.split(/[\\/]/).pop() ?? p : '');
+const clip = (s: unknown, n = 70) => { const t = typeof s === 'string' ? s.replace(/\s+/g, ' ').trim() : ''; return t.length > n ? `${t.slice(0, n - 1)}…` : t; };
+
+/** A tool call as a step in the flow: what kind of work, and a short label. Never the input itself. */
+export function flowStep(tool: string, input: Record<string, unknown>): Omit<FlowEvent, 'at'> {
+  switch (tool) {
+    case 'Bash': case 'PowerShell': {
+      const cmd = String(input.command ?? '').trim();
+      // A quoted path to a program reads as the program's name: "C:\\...\\git.exe" status is Run git.
+      const exe = (cmd.match(/^"([^"]+)"/)?.[1] ?? cmd.split(/\s+/)[0] ?? '').replace(/^.*[\\/]/, '').replace(/\.(exe|cmd|ps1)$/i, '');
+      const first = clip(exe.replace(/["']/g, ''), 24);
+      return { kind: 'run', tool, label: clip(input.description) || (first ? `Run ${first}` : 'Run a command') };
+    }
+    case 'Edit': case 'Write': case 'MultiEdit': case 'NotebookEdit': return { kind: 'edit', tool, label: base(input.file_path ?? input.notebook_path) || 'Edit a file' };
+    case 'Read': return { kind: 'read', tool, label: base(input.file_path) || 'Read a file' };
+    case 'Grep': case 'Glob': return { kind: 'search', tool, label: `Search ${clip(input.pattern, 40)}` };
+    case 'WebFetch': { let h = ''; try { h = new URL(String(input.url)).hostname; } catch { /* no host */ } return { kind: 'web', tool, label: h ? `Read ${h}` : 'Read a web page' }; }
+    case 'WebSearch': return { kind: 'web', tool, label: `Search the web: ${clip(input.query, 40)}` };
+    case 'Agent': case 'Task': return { kind: 'agent', tool, label: clip(input.description) || 'Start a helper agent' };
+    case 'SendMessage': { const to = clip(input.to ?? input.recipient ?? input.target, 30); return { kind: 'message', tool, label: to ? `Message ${to}` : 'Send a message', ...(to ? { to } : {}) }; }
+    case 'AskUserQuestion': return { kind: 'ask', tool, label: 'Ask you a question' };
+    default: {
+      // mcp__<server>__<tool> reads as "Attestia: get tasks".
+      const parts = tool.split('__');
+      if (parts[0] === 'mcp' && parts.length >= 3) return { kind: 'other', tool, label: `${parts[1].replace(/^claude_ai_/, '').replace(/_/g, ' ')}: ${parts.slice(2).join(' ').replace(/_/g, ' ')}` };
+      return { kind: 'other', tool, label: tool };
+    }
+  }
+}
 
 /** The Reader view keeps the last turns in memory only; nothing here is written to disk. */
 const READER_KEEP = 60;
@@ -41,7 +77,7 @@ export class Ingest {
   readonly settingsPath: string;
   private scriptPath: string;
 
-  constructor(private emit: (t: Telemetry) => void, private emitReader: (sessionId: string, e: ReaderEntry) => void = () => {}) {
+  constructor(private emit: (t: Telemetry) => void, private emitReader: (sessionId: string, e: ReaderEntry) => void = () => {}, private emitFlow: (sessionId: string, e: FlowEvent) => void = () => {}) {
     const dir = join(dataDir(), 'claude-hooks');
     mkdirSync(dir, { recursive: true });
     this.scriptPath = join(dir, 'post.js');
@@ -52,7 +88,7 @@ export class Ingest {
     writeFileSync(this.scriptPath, POST_SCRIPT);
     const node = `node "${this.scriptPath.split('\\').join('/')}"`;
     const hooks: Record<string, unknown> = {};
-    for (const e of HOOK_EVENTS) hooks[e] = [{ hooks: [{ type: 'command', command: `${node} hook ${e}`, timeout: 5 }] }];
+    for (const e of HOOK_EVENTS) hooks[e] = [{ hooks: [{ type: 'command', command: `${node} hook ${e}`, timeout: 5, ...(ASYNC_EVENTS.has(e) ? { async: true } : {}) }] }];
     writeFileSync(this.settingsPath, JSON.stringify({ statusLine: { type: 'command', command: `${node} status`, padding: 0 }, hooks }, null, 2));
 
     this.server = http.createServer((req, res) => {
@@ -78,7 +114,7 @@ export class Ingest {
       sessionName: null, fiveHourPercent: null, sevenDayPercent: null, fiveHourResetsAt: null, sevenDayResetsAt: null, costUsd: null,
       compactions: 0, lastEventAt: null, waitingMessage: null,
     };
-    this.sessions.set(sessionId, { secret, t, reader: [] });
+    this.sessions.set(sessionId, { secret, t, reader: [], flow: [] });
     return {
       env: { ELYSIUM_INGEST: `http://127.0.0.1:${this.port}/`, ELYSIUM_SID: sessionId, ELYSIUM_SECRET: secret },
       args: ['--settings', this.settingsPath],
@@ -88,6 +124,12 @@ export class Ingest {
   forget(sessionId: string): void { this.sessions.delete(sessionId); }
 
   reader(sessionId: string): ReaderEntry[] { return this.sessions.get(sessionId)?.reader ?? []; }
+  flow(sessionId: string): FlowEvent[] { return this.sessions.get(sessionId)?.flow ?? []; }
+
+  private addFlow(r: Registered, sessionId: string, e: FlowEvent): void {
+    r.flow = [...r.flow.slice(-(FLOW_KEEP - 1)), e];
+    this.emitFlow(sessionId, e);
+  }
 
   private addReader(r: Registered, sessionId: string, e: ReaderEntry): void {
     r.reader = [...r.reader.slice(-(READER_KEEP - 1)), e];
@@ -119,6 +161,10 @@ export class Ingest {
     } else {
       switch (m.event) {
         case 'SessionStart': if (t.state === 'starting') t.state = 'idle'; t.sessionName = p.session_title ?? t.sessionName; break;
+        case 'PreToolUse':
+          if (typeof p.tool_name === 'string') this.addFlow(r, m.sid!, { at: new Date().toISOString(), ...flowStep(p.tool_name, (p.tool_input ?? {}) as Record<string, unknown>) });
+          if (t.state !== 'waiting') t.state = 'busy';
+          break;
         case 'UserPromptSubmit':
           t.state = 'busy'; t.waitingMessage = null; t.sessionName = p.session_title ?? t.sessionName;
           if (typeof p.prompt === 'string' && p.prompt.trim()) this.addReader(r, m.sid!, { at: new Date().toISOString(), role: 'you', text: p.prompt.slice(0, 20000) });

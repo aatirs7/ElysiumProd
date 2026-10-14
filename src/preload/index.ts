@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
+import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -71,6 +71,9 @@ const api: ElysiumApi = {
   pickFolder: () => ipcRenderer.invoke(Channels.folderPick),
   onProjectsChanged: (cb) => subscribe<[]>(Channels.projectsChanged, cb),
   costs: (force) => ipcRenderer.invoke(Channels.costsGet, Boolean(force)),
+  flow: (id) => ipcRenderer.invoke(Channels.flowGet, id),
+  onFlow: (cb) => subscribe<[string, FlowEvent]>(Channels.flowUpdate, cb),
+  flowSummary: (id) => ipcRenderer.invoke(Channels.flowSummary, id),
   loadWorkspace: () => ipcRenderer.invoke(Channels.workspaceGet),
   saveWorkspace: (json) => ipcRenderer.send(Channels.workspaceSet, json),
   onData: (cb) => subscribe<[string, string, number]>(Channels.sessionData, cb),
