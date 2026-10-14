@@ -14,6 +14,7 @@ import { PROJECT_FOLDERS } from './templates';
 
 const APPDATA = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
 const VERCEL_JS = join(APPDATA, 'npm', 'node_modules', 'vercel', 'dist', 'vc.js');
+const VERCEL_AUTH = [join(APPDATA, 'com.vercel.cli', 'Data', 'auth.json'), join(APPDATA, 'xdg.data', 'com.vercel.cli', 'auth.json'), join(homedir(), '.local', 'share', 'com.vercel.cli', 'auth.json')];
 const NEON_CRED = join(homedir(), '.config', 'neonctl', 'credentials.json');
 const GH_PATHS = ['C:\\Program Files\\GitHub CLI\\gh.exe', join(process.env.LOCALAPPDATA ?? '', 'Programs', 'GitHub CLI', 'gh.exe')];
 
@@ -32,22 +33,22 @@ async function ghPath(): Promise<string | null> {
   return GH_PATHS.find((p) => existsSync(p)) ?? (await which('gh'));
 }
 
-/** Everything the Connect step shows, checked in parallel. */
+/** Everything the Connect step shows. All checks are files or quick lookups, run at once, so it answers in about a second. */
 export async function connections(): Promise<ConnectStatus[]> {
   if (DEMO) return demoConnections();
   const [git, gh, node, vercelBin] = await Promise.all([which('git'), ghPath(), which('node'), existsSync(VERCEL_JS) ? Promise.resolve(VERCEL_JS) : which('vercel')]);
-  const ghAuth = gh ? await run(gh, ['auth', 'status', '--hostname', 'github.com'], 10000) : null;
+  const ghAuth = gh ? await run(gh, ['auth', 'status', '--hostname', 'github.com'], 8000) : null;
   const ghUser = ghAuth?.out.match(/account\s+(\S+)/i)?.[1] ?? ghAuth?.out.match(/as\s+(\S+)/i)?.[1] ?? null;
-  const vercelWho = vercelBin && node ? await run(node, [existsSync(VERCEL_JS) ? VERCEL_JS : vercelBin, 'whoami'], 20000) : null;
-  const vercelUser = vercelWho?.ok ? vercelWho.out.split(/\r?\n/).map((x) => x.trim()).filter((x) => x && !/^vercel cli/i.test(x) && !/^[>?<!]/.test(x) && !/\s/.test(x)).pop() ?? null : null;
-  const claude = resolveClaude();
+  // A file check, not `vercel whoami`, which takes many seconds.
+  const vercelSignedIn = VERCEL_AUTH.some((f) => existsSync(f));
+  const claude = resolveClaude(true);
   const accounts = listAccounts();
   return [
     { id: 'claude', name: 'Claude Code', what: 'Runs every session. Add more accounts to run more at once.', installed: Boolean(claude), signedIn: accounts.some((a) => a.loggedIn), who: null, required: true,
       accounts: accounts.map((a) => ({ id: a.id, configDir: a.configDir, signedIn: a.loggedIn })) },
     { id: 'git', name: 'Git', what: 'Tracks changes in your projects.', installed: Boolean(git), signedIn: Boolean(git), who: null, required: true },
     { id: 'github', name: 'GitHub', what: 'Clone repositories, see issues and pull requests.', installed: Boolean(gh), signedIn: Boolean(ghAuth?.ok), who: ghAuth?.ok ? ghUser : null, required: false },
-    { id: 'vercel', name: 'Vercel', what: 'Deploys and what each project costs to host.', installed: Boolean(vercelBin && node), signedIn: Boolean(vercelUser), who: vercelUser, required: false },
+    { id: 'vercel', name: 'Vercel', what: 'Deploys and what each project costs to host.', installed: Boolean(vercelBin && node), signedIn: vercelSignedIn, who: null, required: false },
     { id: 'neon', name: 'Neon', what: 'Database usage and cost per project.', installed: Boolean(node), signedIn: existsSync(NEON_CRED), who: null, required: false },
   ];
 }

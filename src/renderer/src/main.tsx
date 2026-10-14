@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import '@xterm/xterm/css/xterm.css';
+import '@fontsource-variable/instrument-sans';
 import './styles.css';
 import { App } from './App';
 import { QuickBar } from './QuickBar';

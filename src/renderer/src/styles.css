@@ -1403,3 +1403,66 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .theme-mini b { position: absolute; right: 22%; top: 50%; width: .4rem; height: .4rem; margin-top: -.2rem; border-radius: 50%; }
 .theme-item.on .theme-mini { box-shadow: 0 0 0 2px var(--accent); }
 .theme-item { width: 100%; }
+
+/* ---------- Quieter, less template-like surfaces ---------- */
+/* The logo stands on its own: no box, no ring, just a soft arrival. */
+.hero-mark, .ob-mark { width: auto; height: auto; padding: 0; background: none; border: 0; box-shadow: none; border-radius: 0; animation: logo-in .9s cubic-bezier(.2, .8, .2, 1) both; }
+.hero-mark::before, .ob-mark::before { content: none; }
+.hero-mark .hero-logo { width: 3.4rem; height: 3.4rem; }
+.ob-mark .logo { width: 3.8rem; height: 3.8rem; }
+.hero-mark { margin-bottom: 1.2rem; filter: drop-shadow(0 10px 30px color-mix(in srgb, var(--accent) 35%, transparent)); }
+.ob-mark { margin-bottom: 1.8rem; filter: drop-shadow(0 12px 36px color-mix(in srgb, var(--accent) 40%, transparent)); }
+@keyframes logo-in { from { opacity: 0; transform: translateY(8px) scale(.94); filter: blur(6px); } to { opacity: 1; transform: none; } }
+
+/* Benefits read like a page, not a row of tiles. */
+.ob-benefits { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 3rem; max-width: 50rem; margin: 1.2rem auto 0; }
+.ob-benefit { padding: 1.2rem 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; backdrop-filter: none; }
+.ob-benefit:hover { transform: none; }
+.ob-benefit-num { font: 600 .78rem var(--mono); color: var(--accent); letter-spacing: .04em; }
+.ob-benefit strong { margin: .45rem 0 .35rem; font-size: 1.02rem; }
+@media (max-width: 860px) { .ob-benefits { grid-template-columns: 1fr; } }
+
+/* Help topics are a list. */
+.help-grid { display: flex; flex-direction: column; grid-template-columns: none; gap: 0; border-top: 1px solid var(--line); }
+.help-card { flex-direction: row; align-items: baseline; gap: 1rem; padding: 1rem .2rem; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; }
+.help-card:hover { transform: none; background: var(--hover); }
+.help-card strong { margin: 0; min-width: 14rem; font-size: .98rem; }
+.help-card span:not(.help-card-icon) { flex: 1; }
+.help-card em { margin: 0; white-space: nowrap; }
+
+/* Icons sit inline, without tinted chips. */
+.tool-check-icon, .ob-service-icon, .ob-toggle-icon, .usage-tile .saver-icon, .saver-icon { background: none !important; width: auto; height: auto; border-radius: 0; }
+.ob-toggle.on .ob-toggle-icon, .saver-card.on .saver-icon { background: none; }
+.chat-empty-icon, .tool-hero-icon { background: none; box-shadow: none; width: auto; height: auto; }
+.tool-icon { background: none; width: auto; height: auto; color: var(--text-2); }
+.tool-checks { display: flex; flex-direction: column; gap: 0; border-top: 1px solid var(--line); }
+.tool-check { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: none; padding: .75rem .2rem; }
+.tool-check:hover { transform: none; background: var(--hover); }
+.tool-check-text { flex-direction: row; align-items: baseline; gap: .8rem; }
+.tool-check-text strong { min-width: 9rem; }
+
+/* ---------- Type: a display face with character, set lighter ---------- */
+:root { --font-display: "Instrument Sans Variable", "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif; }
+.ob-hero, .ob-section h1, .greeting, .page-title, .help-hero h1, .help-topic-head h1, .chat-empty h2, .tool-hero h2, .week-num, .cost-total, .usage-big, .hero-num {
+  font-family: var(--font-display); font-stretch: 92%; letter-spacing: -0.03em;
+}
+.ob-hero { font-weight: 560; font-size: clamp(2.3rem, 4.4vw, 3.5rem); line-height: 1.04; }
+.ob-section h1, .help-hero h1 { font-weight: 560; }
+.greeting { font-weight: 520; background: none; -webkit-background-clip: border-box; background-clip: border-box; color: var(--text); animation: rise .5s var(--ease) 60ms both; }
+.page-title { font-weight: 540; }
+.ob-lede, .greeting-sub { letter-spacing: -0.005em; }
+
+/* ---- Connect: one list, a row per tool ---- */
+.ob-services { display: flex; flex-direction: column; grid-template-columns: none; gap: 0; max-width: 44rem; margin: 0 auto; border-radius: 16px; border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 82%, transparent); overflow: hidden; }
+.ob-service { padding: .95rem 1.1rem; border: 0; border-radius: 0; background: none; border-bottom: 1px solid var(--line); }
+.ob-service:last-child { border-bottom: 0; }
+.ob-service.ok { border-color: var(--line); }
+.ob-service.skeleton { min-height: 0; height: 3.6rem; background: none; animation: none; }
+.ob-service.skeleton span { display: block; height: 100%; border-radius: 8px; background: linear-gradient(90deg, var(--surface-2), var(--hover), var(--surface-2)); background-size: 200% 100%; animation: shimmer 1.4s linear infinite; }
+.ob-service-head { gap: .9rem; }
+.ob-service-icon { color: var(--text-3); }
+.ob-service.ok .ob-service-icon { color: var(--ok); background: none; }
+.ob-service-name { flex-direction: column; align-items: flex-start; gap: .15rem; }
+.ob-service-title { display: flex; align-items: center; gap: .45rem; }
+.ob-service-what { color: var(--text-3); font-size: .82rem; }
+.ob-accounts { margin: .7rem 0 0 2.1rem; border-top: 0; padding-top: 0; }

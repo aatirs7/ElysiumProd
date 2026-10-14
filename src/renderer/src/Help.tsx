@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, ChevronDown, CircleDollarSign, Keyboard, Layers, Lightbulb, LifeBuoy, Palette, Rocket, Search, ShieldCheck, Sparkles, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ChevronDown, CircleDollarSign, Keyboard, Lightbulb, LifeBuoy, Palette, Rocket, Search, ShieldCheck, Sparkles, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react';
 
 interface QA { q: string; a: React.ReactNode; words?: string }
 interface Topic { id: string; title: string; blurb: string; icon: LucideIcon; items: QA[] }
@@ -110,7 +110,6 @@ export function Help() {
       <div className="page-inner help">
         {!current && (
           <header className="help-hero">
-            <span className="help-hero-icon"><Layers size={22} /></span>
             <h1>How can we help?</h1>
             <label className="help-search">
               <Search size={17} />
@@ -130,7 +129,6 @@ export function Help() {
           <div className="help-grid">
             {TOPICS.map((t, n) => (
               <button key={t.id} className="help-card" style={{ animationDelay: `${n * 35}ms` }} onClick={() => { setTopic(t.id); setOpen(t.items[0]?.q ?? null); }}>
-                <span className="help-card-icon"><t.icon size={18} /></span>
                 <strong>{t.title}</strong>
                 <span>{t.blurb}</span>
                 <em>{t.items.length} answer{t.items.length > 1 ? 's' : ''}</em>
@@ -142,7 +140,7 @@ export function Help() {
         {current && (
           <div className="help-topic">
             <button className="link-btn help-back" onClick={() => setTopic(null)}><ArrowLeft size={14} />All topics</button>
-            <div className="help-topic-head"><span className="help-card-icon"><current.icon size={18} /></span><h1>{current.title}</h1></div>
+            <div className="help-topic-head"><h1>{current.title}</h1></div>
             {current.items.map((i) => <Item key={i.q} item={i} open={open === i.q} toggle={() => setOpen(open === i.q ? null : i.q)} />)}
           </div>
         )}

@@ -44,12 +44,12 @@ export function Onboarding({ name }: { name: string }) {
         {step === 0 && (
           <section className="ob-welcome">
             <div className="ob-mark"><Logo /></div>
-            <h1 className="ob-hero">Hi {shown}. Meet <span className="ob-grad">Elysium</span>.</h1>
+            <h1 className="ob-hero">Hi {shown}. Meet Elysium.</h1>
             <p className="ob-lede">One calm place to run all your projects with Claude. Built for people who keep several agents busy at once.</p>
             <div className="ob-benefits">
               {BENEFITS.map((b, i) => (
                 <div key={b.title} className="ob-benefit" style={{ animationDelay: `${180 + i * 90}ms` }}>
-                  <span className="ob-benefit-icon"><b.icon size={18} /></span>
+                  <span className="ob-benefit-num">{String(i + 1).padStart(2, '0')}</span>
                   <strong>{b.title}</strong>
                   <p>{b.text}</p>
                 </div>
@@ -177,7 +177,7 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
       <h1>Connect your tools</h1>
       <p className="ob-lede">Elysium uses the tools you already have. Each sign in happens in that tool's own login; Elysium never sees a password.</p>
       <div className="ob-services">
-        {!list && Array.from({ length: 5 }, (_, i) => <div key={i} className="ob-service skeleton" />)}
+        {!list && Array.from({ length: 5 }, (_, i) => <div key={i} className="ob-service skeleton"><span /></div>)}
         {list?.map((c, i) => {
           const Icon = SERVICE_ICON[c.id] ?? Sparkles;
           const ok = c.installed && c.signedIn;
@@ -185,12 +185,11 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
             <div key={c.id} className={`ob-service ${ok ? 'ok' : ''}`} style={{ animationDelay: `${i * 60}ms` }}>
               <div className="ob-service-head">
                 <span className="ob-service-icon"><Icon size={18} /></span>
-                <span className="ob-service-name"><strong>{c.name}</strong>{c.required && <em>Required</em>}</span>
+                <span className="ob-service-name"><span className="ob-service-title"><strong>{c.name}</strong>{c.required && <em>Required</em>}</span><span className="ob-service-what">{c.what}</span></span>
                 {ok ? <span className="ob-state ok"><Check size={13} />{c.who ? c.who : 'Connected'}</span>
                   : !c.installed ? <button className="btn small" disabled={busy === `${c.id}:`} onClick={() => void act(c.id, 'install')}>{busy === `${c.id}:` ? <Loader2 size={13} className="spin" /> : null}Install</button>
                     : <button className="btn small primary" disabled={busy === `${c.id}:`} onClick={() => void act(c.id, 'signin')}>{busy === `${c.id}:` ? <Loader2 size={13} className="spin" /> : null}Sign in</button>}
               </div>
-              <p>{c.what}</p>
               {c.id === 'claude' && c.installed && (
                 <div className="ob-accounts">
                   {c.accounts?.map((a) => (

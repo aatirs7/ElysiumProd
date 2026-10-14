@@ -14,8 +14,10 @@ export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void 
   const { projects } = useLive();
   const [pick] = useState(() => Math.random());
   const names = projects.filter((p) => !p.builtin).map((p) => p.name);
-  const a = names[0] ?? 'Laptop';
-  const examples = [`Tell ${a} to check the failing build`, `Start ${a}`, `Wrap up ${names[1] ?? a}`, 'Tell Laptop to find what is filling my disk', 'Tell Elysium to add a dark blue theme'];
+  const a = names[0];
+  const examples = a
+    ? [`Tell ${a} to check the failing build`, `Start ${a}`, `Wrap up ${names[1] ?? a}`, 'Tell PC Helper to find what is filling my disk']
+    : ['Tell PC Helper to find what is filling my disk', 'Tell PC Helper why my Wi-Fi is slow', 'Tell Elysium to add a dark blue theme'];
   const hint = examples[Math.floor(pick * examples.length)];
   const input = useRef<HTMLTextAreaElement>(null);
 
