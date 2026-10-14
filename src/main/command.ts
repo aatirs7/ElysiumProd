@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import type { CommandResult, CommandStep } from '@shared/ipc';
 import { resolveClaude } from './claude';
 import { childEnv } from './env';
+import { saverOn } from './settings';
 import { dataDir } from './paths';
 import type { SessionManager } from './sessions';
 import type { Tasks } from './tasks';
@@ -131,6 +132,7 @@ export async function runCommand(text: string, tasks: Tasks, sessions: SessionMa
   let say: string | null = null;
   let actions = byRules(t);
   if (!actions) {
+    if (saverOn()) return { ok: false, via: 'rules', say: 'Saver mode is on, so only plain phrasings work. Try "tell <project> to …", "start <project>" or "wrap up <project>".', steps: [], open: null };
     via = 'sonnet';
     const s = await bySonnet(t, sessions);
     if (!s) return { ok: false, via, say: 'That could not be read. Try "tell Elysium Intern to …" or "start Gulf".', steps: [], open: null };

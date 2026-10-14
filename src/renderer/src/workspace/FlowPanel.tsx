@@ -45,7 +45,7 @@ export function FlowPanel(props: IDockviewPanelProps<{ projectId?: string }>) {
   const [events, setEvents] = useState<Record<string, FlowEvent[]>>({});
   const [asks, setAsks] = useState<Record<string, ReaderEntry>>({});
   const [summaries, setSummaries] = useState<Record<string, { text: string; at: string }>>({});
-  const summariesOn = doc.settings.flowSummaries !== false;
+  const summariesOn = doc.settings.flowSummaries !== false && !doc.settings.saver;
   const visible = useRef(props.api.isVisible);
   useEffect(() => { const d = props.api.onDidVisibilityChange((e) => { visible.current = e.isVisible; }); return () => d.dispose(); }, [props.api]);
 

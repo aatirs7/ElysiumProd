@@ -121,6 +121,8 @@ export const Channels = {
   commandRun: 'command:run',
   projectAction: 'project:action',
   homeDir: 'app:home-dir',
+  readerAsk: 'reader:ask',
+  tokenStats: 'usage:tokens',
   chatGet: 'chat:get',
   chatSend: 'chat:send',
   chatStop: 'chat:stop',
@@ -269,6 +271,8 @@ export interface ElysiumApi {
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
+  readerAsk(sessionId: string, text: string): void;
+  tokens(): Promise<TokenStats>;
   chatGet(chatId: string): Promise<ChatState>;
   chatSend(chatId: string, text: string): Promise<{ ok: boolean; reason: string | null }>;
   chatStop(chatId: string): void;
@@ -375,6 +379,15 @@ export interface ProjectStats {
   lastSessionAt: string | null;
 }
 
+export interface TokenSplit { input: number; output: number; cacheRead: number; cacheWrite: number }
+export interface TokenStats {
+  computedAt: string;
+  totals: { week: TokenSplit; month: TokenSplit };
+  perDay: ({ day: string } & TokenSplit)[];
+  projects: { id: string; name: string; week: number; month: number }[];
+  models: { id: string; name: string; week: number; month: number }[];
+  accounts: { id: string; name: string; week: number; month: number }[];
+}
 export interface UsageStats {
   computedAt: string;
   /** Minutes with agent activity, counted in ten minute windows across all sessions. */

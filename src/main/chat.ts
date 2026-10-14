@@ -17,6 +17,7 @@ import { resolveClaude } from './claude';
 import { childEnv } from './env';
 import { flowStep } from './ingest';
 import { dataDir } from './paths';
+import { saverOn } from './settings';
 import { readGit, readTasks } from './projects';
 import { PROJECT_FOLDERS } from './templates';
 
@@ -123,6 +124,7 @@ export class Chats {
     const pack = id.startsWith('plan:') ? await this.contextPack(s.projectId) : '';
     const args = ['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--append-system-prompt', s.system];
     if (c.state.conversationId) args.push('--resume', c.state.conversationId);
+    if (saverOn()) args.push('--model', 'sonnet');
     if (s.readOnly) args.push('--permission-mode', 'default', '--allowedTools', 'Read Grep Glob WebSearch WebFetch', '--disallowedTools', 'Edit Write NotebookEdit Bash PowerShell');
     else args.push('--dangerously-skip-permissions');
 

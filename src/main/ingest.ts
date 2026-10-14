@@ -126,6 +126,14 @@ export class Ingest {
   /** Called when a session's Claude conversation id is first seen or changes (a /clear starts a new one). */
   onConversation: ((sessionId: string, conversationId: string) => void) | null = null;
 
+  /** A question sent from the Reader box. The prompt hook may log it again; that copy is skipped. */
+  noteAsked(sessionId: string, text: string): void {
+    const r = this.sessions.get(sessionId);
+    const t = text.trim();
+    if (!r || !t) return;
+    this.addReader(r, sessionId, { at: new Date().toISOString(), role: 'you', text: t.slice(0, 20000) });
+  }
+
   reader(sessionId: string): ReaderEntry[] { return this.sessions.get(sessionId)?.reader ?? []; }
   flow(sessionId: string): FlowEvent[] { return this.sessions.get(sessionId)?.flow ?? []; }
 
@@ -174,7 +182,11 @@ export class Ingest {
           break;
         case 'UserPromptSubmit':
           t.state = 'busy'; t.waitingMessage = null; t.sessionName = p.session_title ?? t.sessionName;
-          if (typeof p.prompt === 'string' && p.prompt.trim()) this.addReader(r, m.sid!, { at: new Date().toISOString(), role: 'you', text: p.prompt.slice(0, 20000) });
+          if (typeof p.prompt === 'string' && p.prompt.trim()) {
+            const prev = [...r.reader].reverse().find((x) => x.role === 'you');
+            const dup = prev && prev.text === p.prompt.trim().slice(0, 20000) && Date.now() - Date.parse(prev.at) < 10 * 60 * 1000;
+            if (!dup) this.addReader(r, m.sid!, { at: new Date().toISOString(), role: 'you', text: p.prompt.slice(0, 20000) });
+          }
           break;
         case 'Stop':
           t.state = 'idle'; t.waitingMessage = null;

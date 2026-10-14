@@ -183,7 +183,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
             <button className="btn" onClick={onRestart}>Restart</button>
           </Row>
           <Row label="Run the welcome again" hint="Accounts, projects and a quick tour">
-            <button className="btn" onClick={onOnboarding}>Open welcome</button>
+            <button className="btn" onClick={onOnboarding}>Show setup again</button>
           </Row>
         </section>
       </div>

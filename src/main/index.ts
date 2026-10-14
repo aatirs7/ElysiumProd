@@ -19,6 +19,7 @@ import { hasHistory, listAccounts } from './accounts';
 import { Ingest } from './ingest';
 import { projectStats } from './stats';
 import { usageStats } from './usage';
+import { tokenStats } from './tokens';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
@@ -255,6 +256,8 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.on(Channels.readerAsk, (_e, id: unknown, text: unknown) => { if (typeof id === 'string' && typeof text === 'string') ingest.noteAsked(id, text); });
+  ipcMain.handle(Channels.tokenStats, () => tokenStats());
   ipcMain.handle(Channels.chatGet, (_e, id: unknown) => chats.get(String(id)));
   ipcMain.handle(Channels.chatSend, (_e, id: unknown, text: unknown) => chats.send(String(id), String(text ?? '')));
   ipcMain.on(Channels.chatStop, (_e, id: unknown) => chats.stop(String(id)));

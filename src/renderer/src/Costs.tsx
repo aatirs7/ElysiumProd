@@ -97,6 +97,7 @@ export function Costs() {
   const errors = report ? Object.entries(report.errors).filter(([, e]) => e) as [string, string][] : [];
 
   const setFixed = (list: FixedCost[]) => patchDoc({ fixedCosts: list });
+  const [quick, setQuick] = useState(false);
   const link = (key: string, pid: string) => patchDoc({ costLinks: { ...doc.costLinks, [key]: pid } });
 
   return (
@@ -182,34 +183,52 @@ export function Costs() {
         )}
 
         <section className="settings-card">
-          <h2>Your other costs</h2>
-          <p className="setting-hint" style={{ marginTop: '-.2rem' }}>Anything no provider reports: subscriptions, seats, domains, one off purchases. Yearly costs are spread across the months; a one off counts in its month.</p>
-          <div className="cost-presets">
-            {COST_PRESETS.filter((p) => !doc.fixedCosts.some((f) => f.name === p.name)).map((p) => (
-              <button key={p.name} className="cost-preset" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: p.name, monthly: p.amount, cycle: p.cycle, category: p.category, projectId: null }])}><Plus size={12} />{p.name}</button>
-            ))}
-          </div>
-          {doc.fixedCosts.map((f) => (
-            <div key={f.id} className="setting-row fixed-row">
-              <input className="text-input" value={f.name} placeholder="What is it?" aria-label="Name" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, name: e.target.value } : x)))} />
-              <div className="setting-control">
-                <span className="usd-input">$<input className="text-input" type="number" min={0} step={0.01} value={f.monthly} aria-label="Amount" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, monthly: Math.max(0, Number(e.target.value) || 0) } : x)))} /></span>
-                <select className="picker" value={f.cycle ?? 'monthly'} aria-label="How often" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, cycle: e.target.value as FixedCost['cycle'], date: e.target.value === 'once' ? (x.date ?? new Date().toISOString().slice(0, 10)) : x.date } : x)))}>
-                  <option value="monthly">a month</option><option value="yearly">a year</option><option value="once">once</option>
-                </select>
-                {f.cycle === 'once' && <input className="text-input" type="date" value={f.date ?? ''} aria-label="Date" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, date: e.target.value } : x)))} />}
-                <select className="picker" value={f.category ?? 'Other'} aria-label="Category" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, category: e.target.value } : x)))}>
-                  {COST_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <select className="picker" value={f.projectId ?? ''} onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, projectId: e.target.value || null } : x)))} aria-label="Project">
-                  <option value="">Everything</option>
-                  {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-                <button className="ghost-icon" onClick={() => setFixed(doc.fixedCosts.filter((x) => x.id !== f.id))} aria-label={`Remove ${f.name}`}><Trash2 size={15} /></button>
-              </div>
+          <div className="other-costs-head">
+            <div>
+              <h2>Your other costs</h2>
+              <p>Subscriptions, seats, domains, one off purchases: anything no provider reports.</p>
             </div>
-          ))}
-          <button className="btn" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: '', monthly: 0, cycle: 'monthly', category: 'Other', projectId: null }])}><Plus size={14} />Add a cost</button>
+            {doc.fixedCosts.length > 0 && <div className="other-total"><strong>${doc.fixedCosts.reduce((n, f) => n + monthlyOf(f), 0).toFixed(2)}</strong><span>this month</span></div>}
+          </div>
+          {!doc.fixedCosts.length && <div className="cost-empty">Nothing added yet. Add your Claude plan, a domain or anything else you pay for, and it counts in the totals above.</div>}
+          {doc.fixedCosts.length > 0 && (
+            <div className="cost-list">
+              {doc.fixedCosts.map((f) => {
+                const set = (patch: Partial<FixedCost>) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, ...patch } : x)));
+                return (
+                  <div key={f.id} className="cost-item">
+                    <input className="text-input" value={f.name} placeholder="What is it?" aria-label="Name" onChange={(e) => set({ name: e.target.value })} />
+                    <span className="usd-input">$<input className="text-input" type="number" min={0} step={0.01} value={f.monthly} aria-label="Amount" onChange={(e) => set({ monthly: Math.max(0, Number(e.target.value) || 0) })} /></span>
+                    <select className="picker" value={f.cycle ?? 'monthly'} aria-label="How often" onChange={(e) => set({ cycle: e.target.value as FixedCost['cycle'], date: e.target.value === 'once' ? (f.date ?? new Date().toISOString().slice(0, 10)) : f.date })}>
+                      <option value="monthly">a month</option><option value="yearly">a year</option><option value="once">once</option>
+                    </select>
+                    <select className="picker" value={f.category ?? 'Other'} aria-label="Category" onChange={(e) => set({ category: e.target.value })}>
+                      {COST_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select className="picker" value={f.projectId ?? ''} onChange={(e) => set({ projectId: e.target.value || null })} aria-label="Project">
+                      <option value="">All projects</option>
+                      {projects.filter((x) => !x.builtin).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+                    </select>
+                    <button className="ghost-icon" onClick={() => setFixed(doc.fixedCosts.filter((x) => x.id !== f.id))} aria-label={`Remove ${f.name || 'cost'}`}><Trash2 size={15} /></button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="cost-add-row">
+            <button className="btn primary" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: '', monthly: 0, cycle: 'monthly', category: 'Other', projectId: null }])}><Plus size={14} />Add a cost</button>
+            <button className="btn" onClick={() => setQuick((q) => !q)} aria-expanded={quick}>Quick add</button>
+            {quick && (
+              <div className="cost-quick" role="menu" onMouseLeave={() => setQuick(false)}>
+                <div className="cost-quick-label">Common ones, at list price</div>
+                {COST_PRESETS.filter((x) => !doc.fixedCosts.some((f) => f.name === x.name)).map((x) => (
+                  <button key={x.name} role="menuitem" onClick={() => { setFixed([...doc.fixedCosts, { id: uid(), name: x.name, monthly: x.amount, cycle: x.cycle, category: x.category, projectId: null }]); setQuick(false); }}>
+                    {x.name}<span>${x.amount} / {x.cycle === 'yearly' ? 'yr' : 'mo'}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         <p className="cost-foot">

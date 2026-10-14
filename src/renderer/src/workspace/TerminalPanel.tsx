@@ -289,6 +289,37 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
  * quotes, Claude's replies as formatted text, and a reply box. Built from what
  * Claude Code reports at the end of each turn; kept in memory only.
  */
+/** Questions and the replies that came after each one, in order. */
+function turns(entries: ReaderEntry[]): { q: ReaderEntry | null; replies: ReaderEntry[] }[] {
+  const out: { q: ReaderEntry | null; replies: ReaderEntry[] }[] = [];
+  for (const e of entries) {
+    if (e.role === 'you') out.push({ q: e, replies: [] });
+    else if (out.length) out[out.length - 1].replies.push(e);
+    else out.push({ q: null, replies: [e] });
+  }
+  return out;
+}
+
+function Turn({ t, last, busy }: { t: { q: ReaderEntry | null; replies: ReaderEntry[] }; last: boolean; busy: boolean }) {
+  const [more, setMore] = useState(false);
+  const answer = t.replies[t.replies.length - 1];
+  const earlier = t.replies.slice(0, -1);
+  return (
+    <section className="reader-turn">
+      {t.q && <div className="reader-q"><span className="reader-q-label">You asked</span><p>{t.q.text}</p></div>}
+      {answer
+        ? <article className="reader-a" dangerouslySetInnerHTML={{ __html: md(answer.text) }} />
+        : last && busy ? <div className="reader-pending"><span className="dot busy" />Working on it. The answer shows here when it is ready.</div> : null}
+      {earlier.length > 0 && (
+        <div className="reader-earlier">
+          <button className="link-btn" onClick={() => setMore((m) => !m)}>{more ? 'Hide' : 'Show'} {earlier.length} earlier update{earlier.length > 1 ? 's' : ''}</button>
+          {more && earlier.map((e, i) => <article key={i} className="reader-claude dim" dangerouslySetInnerHTML={{ __html: md(e.text) }} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function ReaderView({ sessionId, title }: { sessionId: string; title: string }) {
   const { telemetry } = useLive();
   const [entries, setEntries] = useState<ReaderEntry[]>([]);
@@ -308,6 +339,7 @@ function ReaderView({ sessionId, title }: { sessionId: string; title: string }) 
   const send = () => {
     const text = draft.trim();
     if (!text) return;
+    window.elysium.readerAsk(sessionId, text);
     window.elysium.write(sessionId, `\x1b[200~${text}\x1b[201~`);
     setTimeout(() => window.elysium.write(sessionId, '\r'), 120);
     setDraft('');
@@ -319,10 +351,8 @@ function ReaderView({ sessionId, title }: { sessionId: string; title: string }) 
         <div className="reader-page">
           <h1 className="reader-title">{title}</h1>
           {!entries.length && <p className="reader-empty">Replies appear here as the session works. Anything from before ElysiumProd opened it is in the Terminal view.</p>}
-          {entries.map((e, i) => e.role === 'you'
-            ? <blockquote key={i} className="reader-you">{e.text}</blockquote>
-            : <article key={i} className="reader-claude" dangerouslySetInnerHTML={{ __html: md(e.text) }} />)}
-          {state === 'busy' && <div className="reader-working"><span className="dot busy" /> Working</div>}
+          {turns(entries).map((t, i, all) => <Turn key={i} t={t} last={i === all.length - 1} busy={state === 'busy'} />)}
+          {state === 'busy' && !(entries.length && entries[entries.length - 1].role === 'you') && <div className="reader-working"><span className="dot busy" /> Working</div>}
           {state === 'waiting' && <div className="reader-working warn"><span className="dot waiting" /> Waiting for you in the Terminal view</div>}
         </div>
       </div>

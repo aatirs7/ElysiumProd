@@ -50,6 +50,8 @@ export interface Settings {
   flowSummaries: boolean;
   /** What the app calls you; empty means your Windows name. */
   displayName: string;
+  /** Saver mode: fewer extra tokens (no Flow summaries or Sonnet fallback, chats on Sonnet). */
+  saver: boolean;
 }
 
 export interface AccountPrefs { label: string }
@@ -152,6 +154,7 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyReplies: true,
   flowSummaries: true,
   displayName: '',
+  saver: false,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);

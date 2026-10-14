@@ -23,6 +23,7 @@ const when = (ms: number) => {
 
 const tone = (pct: number | null) => (pct == null ? '' : pct >= 95 ? 'bad' : pct >= 80 ? 'warn' : '');
 
+export const effectiveLimits = (l: AccountLimits) => effective(l);
 function effective(l: AccountLimits): { five: number | null; week: number | null; fiveReset: number | null; weekReset: number | null } {
   const fiveReset = toMs(l.fiveHourResetsAt as unknown as number | string | null);
   const weekReset = toMs(l.sevenDayResetsAt as unknown as number | string | null);
@@ -38,7 +39,7 @@ function effective(l: AccountLimits): { five: number | null; week: number | null
 
 /** Each account's five hour and weekly use, as the CLI last reported it. */
 export function AccountUsage() {
-  const { accounts, limits } = useLive();
+  const { accounts, limits, sessions, telemetry } = useLive();
   const { doc } = useWorkspace();
   const [, tick] = useState(0);
   useEffect(() => { const t = setInterval(() => tick((x) => x + 1), 60000); return () => clearInterval(t); }, []);
@@ -52,26 +53,76 @@ export function AccountUsage() {
       && r.l.fiveHourPercent === l.fiveHourPercent && r.l.sevenDayPercent === l.sevenDayPercent);
     if (same) same.ids.push(a.id); else rows.push({ id: a.id, ids: [a.id], l });
   }
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    window.addEventListener('mousedown', off); window.addEventListener('keydown', esc);
+    return () => { window.removeEventListener('mousedown', off); window.removeEventListener('keydown', esc); };
+  }, [open]);
   if (!rows.length) return null;
+  const running = sessions.filter((x) => x.status === 'running');
   return (
-    <div className="usage-strip" aria-label="Claude plan usage">
-      {rows.map(({ id, ids, l }) => {
-        const e = effective(l!);
-        const names = ids.map(label).join(' and ');
-        const tip = [
-          `${names}: ${e.five ?? '?'}% of the five hour limit${e.fiveReset ? `, resets ${when(e.fiveReset)}` : ''}.`,
-          `${e.week ?? '?'}% of the weekly limit${e.weekReset ? `, resets ${when(e.weekReset)}` : ''}.`,
-          `Last reported ${ago(l!.at)} by one of its sessions.`,
-          ids.length > 1 ? 'These are signed in to the same Claude account, so they share one limit.' : '',
-        ].join(' ');
-        return (
-          <span key={id} className="usage-acc" title={tip}>
-            <span className="usage-name">{ids.length > 1 ? ids.map(label).join() : label(id)}</span>
-            <span className={`usage-num ${tone(e.five)}`}>{e.five == null ? '–' : `${Math.round(e.five)}%`}<small>5h</small></span>
-            <span className={`usage-num ${tone(e.week)}`}>{e.week == null ? '–' : `${Math.round(e.week)}%`}<small>wk</small></span>
-          </span>
-        );
-      })}
+    <div className="usage-wrap" ref={ref}>
+      <button className={`usage-strip ${open ? 'open' : ''}`} aria-label="Claude plan usage, click for details" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        {rows.map(({ id, ids, l }) => {
+          const e = effective(l!);
+          return (
+            <span key={id} className="usage-acc">
+              <span className="usage-name">{ids.length > 1 ? ids.map(label).join(' + ') : label(id)}</span>
+              <span className={`usage-num ${tone(e.five)}`}>{e.five == null ? '–' : `${Math.round(e.five)}%`}<small>5h</small></span>
+              <span className={`usage-num ${tone(e.week)}`}>{e.week == null ? '–' : `${Math.round(e.week)}%`}<small>wk</small></span>
+            </span>
+          );
+        })}
+      </button>
+      {open && (
+        <div className="usage-pop" role="dialog" aria-label="Usage details">
+          {rows.map(({ id, ids, l }) => {
+            const e = effective(l!);
+            const mine = running.filter((x) => ids.includes(x.accountId) && telemetry[x.id]);
+            const spent = mine.reduce((n, x) => n + (telemetry[x.id]?.costUsd ?? 0), 0);
+            return (
+              <section key={id} className="usage-card">
+                <div className="usage-card-head"><strong>{ids.map(label).join(' and ')}</strong><span className="muted small">updated {ago(l!.at)}</span></div>
+                <Meter label="Five hour limit" pct={e.five} reset={e.fiveReset} />
+                <Meter label="Weekly limit" pct={e.week} reset={e.weekReset} />
+                {mine.length > 0 && (
+                  <div className="usage-sessions">
+                    <div className="usage-sub">Running on it now</div>
+                    {mine.map((x) => {
+                      const t = telemetry[x.id]!;
+                      return (
+                        <div key={x.id} className="usage-session">
+                          <span className={`dot ${t.state === 'busy' ? 'busy' : t.state === 'waiting' ? 'waiting' : 'idle'}`} />
+                          <span className="grow">{x.title}</span>
+                          {t.contextPercent != null && <span className="muted small">{Math.round(t.contextPercent)}% context</span>}
+                          {t.costUsd != null && <span className="muted small">${t.costUsd.toFixed(2)}</span>}
+                        </div>
+                      );
+                    })}
+                    {spent > 0 && <div className="usage-foot">About ${spent.toFixed(2)} of usage in these sessions so far, at API prices. Your plan covers it up to the limits above.</div>}
+                  </div>
+                )}
+                {ids.length > 1 && <div className="usage-foot">These sign ins are the same Claude account, so they share one limit.</div>}
+              </section>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function Meter({ label, pct, reset }: { label: string; pct: number | null; reset: number | null }) {
+  const v = pct == null ? null : Math.max(0, Math.min(100, pct));
+  return (
+    <div className="usage-meter">
+      <div className="usage-meter-top"><span>{label}</span><span className={tone(pct)}>{v == null ? 'not reported yet' : `${Math.round(v)}%`}</span></div>
+      <div className="usage-bar"><i className={tone(pct)} style={{ width: `${v ?? 0}%` }} /></div>
+      {reset && <div className="usage-reset">Resets {when(reset)}</div>}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { Settings } from './Settings';
 import { Help } from './Help';
 import { Stats } from './Stats';
 import { Costs } from './Costs';
+import { Usage } from './Usage';
 import { Palette } from './Palette';
 import { Onboarding } from './Onboarding';
 import { ProjectLogo } from './ProjectLogo';
@@ -70,7 +71,7 @@ function WithWorkspace() {
   );
 }
 
-const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs' };
+const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs', usage: 'Usage' };
 
 function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c: Confirm | null): void }) {
   const [name, setName] = useState('');
@@ -162,6 +163,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     setTimeout(() => open({ kind: 'terminal', templateId, title: t?.title, params: { sessionId } }), 50);
   }, [doc.views, apiFor, setActiveView, templates, openProject, open]);
   useEffect(() => window.elysium.onFocusSession(focusSession), [focusSession]);
+  // Help and others can open a tool by id.
+  useEffect(() => { const on = (e: Event) => { const id = (e as CustomEvent<string>).detail; goProject(id, TOOL_INFO[id]?.title ?? id); }; window.addEventListener('ep:open-tool', on); return () => window.removeEventListener('ep:open-tool', on); }, [goProject]);
 
   // Whether you can see a session right now: its pane is showing in the open view of a focused window.
   const pageRef = useRef(page);
@@ -376,6 +379,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
+        {page === 'usage' && <Usage />}
         {page === 'costs' && <Costs />}
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
