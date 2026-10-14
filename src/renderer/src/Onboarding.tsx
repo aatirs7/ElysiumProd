@@ -15,6 +15,64 @@ const BENEFITS = [
   { icon: Wand2, title: 'It changes itself', text: 'Ask for a theme, a button or a fix, and it builds it.' },
 ];
 
+/** Types the text in, one letter at a time, after a short wait. */
+function Typed({ text, delay = 0 }: { text: string; delay?: number }) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    setN(0);
+    let t: ReturnType<typeof setTimeout>;
+    const step = (i: number) => { setN(i); if (i < text.length) t = setTimeout(() => step(i + 1), 70 + Math.random() * 60); };
+    t = setTimeout(() => step(1), delay);
+    return () => clearTimeout(t);
+  }, [text, delay]);
+  return <span className={n >= text.length ? 'ob-typed done' : 'ob-typed'}>{text.slice(0, n)}<i className="ob-caret" /></span>;
+}
+
+const AGENTS = [
+  { name: 'web-app', steps: ['Reading the checkout page', 'Fixing the price rounding', 'Running 32 tests', 'Opening a pull request'], done: 'Pull request ready', every: 1900 },
+  { name: 'api', steps: ['Planning the new endpoint', 'Writing the handler', 'Adding a migration', 'Running tests'], done: '14 tests pass', every: 2500 },
+  { name: 'mobile', steps: ['Reproducing the crash', 'Tracing the stack', 'Patching the null check', 'Building the app'], done: 'Crash fixed', every: 2900 },
+  { name: 'docs', steps: ['Reading the changelog', 'Drafting release notes', 'Checking every link'], done: 'Notes drafted', every: 2200 },
+];
+
+/** A small make-believe Elysium: four agents working side by side, each tapping you when it finishes. */
+function WelcomeLive() {
+  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [tokens, setTokens] = useState(18240);
+  useEffect(() => { const t = setInterval(() => setTokens((v) => v + 40 + Math.floor(Math.random() * 180)), 420); return () => clearInterval(t); }, []);
+  useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 2600); return () => clearTimeout(t); }, [toast]);
+  const onDone = useCallback((text: string) => setToast({ id: Date.now(), text }), []);
+  return (
+    <div className="wl" aria-hidden="true">
+      <div className="wl-head">
+        <span className="wl-live"><i />{AGENTS.length} agents working</span>
+        <span className="wl-tokens">{tokens.toLocaleString()} tokens</span>
+        {toast && <span className="wl-toast" key={toast.id}><Check size={12} />{toast.text}</span>}
+      </div>
+      {AGENTS.map((a, i) => <AgentRow key={a.name} agent={a} start={i} onDone={onDone} />)}
+    </div>
+  );
+}
+
+function AgentRow({ agent, start, onDone }: { agent: (typeof AGENTS)[number]; start: number; onDone(text: string): void }) {
+  // Each agent walks its steps, rests on "done" for two beats, then takes the next task.
+  const total = agent.steps.length + 2;
+  const [i, setI] = useState(start % agent.steps.length);
+  useEffect(() => { const t = setInterval(() => setI((n) => (n + 1) % total), agent.every); return () => clearInterval(t); }, [agent.every, total]);
+  const done = i >= agent.steps.length;
+  useEffect(() => { if (i === agent.steps.length) onDone(`${agent.name} is done · ${agent.done}`); }, [i, agent, onDone]);
+  const pct = done ? 100 : Math.round(((i + 0.5) / agent.steps.length) * 100);
+  return (
+    <div className={done ? 'wl-row done' : 'wl-row'}>
+      <span className="wl-dot" />
+      <span className="wl-name">{agent.name}</span>
+      <span className="wl-what" key={done ? 'done' : i}>{done ? agent.done : agent.steps[i]}</span>
+      <span className="wl-bar"><i style={{ width: `${pct}%` }} /></span>
+      <span className="wl-state">{done ? 'Done' : 'Working'}</span>
+    </div>
+  );
+}
+
 /** First run: what Elysium is for, a look of your own, your tools, your projects, and how you like to work. */
 export function Onboarding({ name }: { name: string }) {
   const { projects, accounts } = useLive();
@@ -27,10 +85,13 @@ export function Onboarding({ name }: { name: string }) {
   const [shortcut, setShortcut] = useState<string | null>(null);
   useEffect(() => { void window.elysium.shortcut().then(setShortcut); }, []);
   const keys = (shortcut ?? 'Control+Alt+Space').replace('Control', 'Ctrl').split('+');
+  // Welcome lights up one benefit at a time.
+  const [lit, setLit] = useState(0);
+  useEffect(() => { if (step !== 0) return; const t = setInterval(() => setLit((n) => (n + 1) % BENEFITS.length), 3200); return () => clearInterval(t); }, [step]);
 
   return (
     <div className="ob" role="dialog" aria-modal="true" aria-label="Welcome to Elysium">
-      <div className={`ob-bg step-${step}`} aria-hidden="true"><i className="ob-horizon" /><i className="ob-arc" /><i className="ob-grid" /></div>
+      <div className={`ob-bg step-${step}`} aria-hidden="true"><i className="ob-horizon" /><i className="ob-arc" /><i className="ob-grid" />{step === 0 && <span className="ob-sparks">{Array.from({ length: 22 }, (_, i) => <span key={i} style={{ left: `${(i * 37 + 11) % 100}%`, animationDelay: `${(i * 0.73) % 9}s`, animationDuration: `${8 + (i % 5) * 1.6}s` }} />)}</span>}</div>
       <header className="ob-top">
         <div className="ob-brand"><Logo />Elysium Development</div>
         <ol className="ob-rail" aria-label="Setup steps">
@@ -47,17 +108,12 @@ export function Onboarding({ name }: { name: string }) {
         {step === 0 && (
           <section className="ob-welcome">
             <div className="ob-mark"><Logo /></div>
-            <h1 className="ob-hero">Welcome to Elysium Development, {shown}.</h1>
+            <h1 className="ob-hero">Welcome to Elysium Development, <Typed text={`${shown}.`} delay={650} /></h1>
             <p className="ob-lede">One calm place to run all your projects with Claude. Built for people who keep several agents busy at once.</p>
-            <div className="ob-colors" role="radiogroup" aria-label="Colour">
-              {ACCENTS.filter((x) => x.value).map((x) => (
-                <button key={x.name} role="radio" aria-checked={s.accent === x.value} aria-label={x.name} title={x.name}
-                  className={s.accent === x.value ? 'ob-color on' : 'ob-color'} style={{ background: x.value }} onClick={() => setSettings({ accent: x.value })} />
-              ))}
-            </div>
+            <WelcomeLive />
             <div className="ob-benefits">
               {BENEFITS.map((b, i) => (
-                <div key={b.title} className="ob-benefit" style={{ animationDelay: `${180 + i * 90}ms` }}>
+                <div key={b.title} className={i === lit ? 'ob-benefit lit' : 'ob-benefit'} style={{ animationDelay: `${180 + i * 90}ms` }} onMouseEnter={() => setLit(i)}>
                   <span className="ob-benefit-num">{String(i + 1).padStart(2, '0')}</span>
                   <strong>{b.title}</strong>
                   <p>{b.text}</p>
