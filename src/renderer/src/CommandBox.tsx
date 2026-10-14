@@ -35,7 +35,7 @@ export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void 
 
   return (
     <div className="cmd">
-      <div className={`cmd-box ${busy ? 'busy' : ''}`}>
+      <div data-tour="command" className={`cmd-box ${busy ? 'busy' : ''}`}>
         <textarea ref={input} className="cmd-input" rows={1} value={text} placeholder="Tell any project what to do"
           onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(160, e.target.scrollHeight)}px`; }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run(); } }} aria-label="Tell a project what to do" />

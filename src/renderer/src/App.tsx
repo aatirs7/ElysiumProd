@@ -16,6 +16,7 @@ import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
 import { Workspace, addPanel, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
+import { Tour } from './Tour';
 import { CHECKS, TOOL_INFO } from './tools';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
@@ -71,7 +72,7 @@ function WithWorkspace() {
   );
 }
 
-const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs', usage: 'Usage' };
+const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs', usage: 'Usage', memory: 'Memory' };
 
 function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c: Confirm | null): void }) {
   const [name, setName] = useState('');
@@ -80,6 +81,9 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [newProject, setNewProject] = useState(false);
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [tour, setTour] = useState(false);
+  const tourHome = useCallback(() => setPage('home'), []);
+  useEffect(() => { const on = () => setTour(true); window.addEventListener('ep:tour', on); return () => window.removeEventListener('ep:tour', on); }, []);
   const { templates, sessions, telemetry, compacting } = useLive();
   const { res } = useMachine();
   const [wrapping, setWrapping] = useState<string[]>([]);
@@ -402,6 +406,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
         {page === 'usage' && <Usage />}
+        {page === 'memory' && <div className="page page-enter"><div className="page-inner mem-page"><h1 className="page-title">Memory and disk</h1><p className="page-sub">What this PC is busy with, and what would help.</p><MachineWidget full /></div></div>}
         {page === 'costs' && <Costs />}
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
@@ -415,7 +420,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         <div className="backdrop" onClick={() => setMemory(false)}>
           <div className="dialog" style={{ maxWidth: '36rem', textAlign: 'left', padding: 0, maxHeight: '86vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Memory">
             <div className="bar" style={{ justifyContent: 'space-between' }}><strong>Memory</strong><button className="ghost-icon" onClick={() => setMemory(false)} aria-label="Close"><X size={16} /></button></div>
-            <MachineWidget />
+            <MachineWidget onFull={() => { setMemory(false); setPage('memory'); }} />
           </div>
         </div>
       )}
@@ -435,6 +440,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
       )}
 
       {ready && !doc.onboarded && <Onboarding name={name} />}
+      {tour && <Tour onClose={() => setTour(false)} goHome={tourHome} />}
     </div>
   );
 }

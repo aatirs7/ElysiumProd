@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowLeft, ArrowUpRight, ChevronDown, CircleDollarSign, Keyboard, Lightbulb, LifeBuoy, Palette, Rocket, Search, ShieldCheck, Sparkles, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, Compass, ChevronDown, CircleDollarSign, Keyboard, Lightbulb, LifeBuoy, Palette, Rocket, Search, ShieldCheck, Sparkles, SquareTerminal, Wrench, type LucideIcon } from 'lucide-react';
 
 interface QA { q: string; a: React.ReactNode; words?: string }
 interface Topic { id: string; title: string; blurb: string; icon: LucideIcon; items: QA[] }
@@ -98,6 +98,7 @@ export function Help() {
   const [q, setQ] = useState('');
   const [topic, setTopic] = useState<string | null>(null);
   const [open, setOpen] = useState<string | null>(null);
+  const [topicQ, setTopicQ] = useState('');
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase();
     if (!s) return null;
@@ -141,6 +142,10 @@ export function Help() {
           <div className="help-topic">
             <button className="link-btn help-back" onClick={() => setTopic(null)}><ArrowLeft size={14} />All topics</button>
             <div className="help-topic-head"><h1>{current.title}</h1><p>{current.blurb}</p></div>
+            <div className="help-topic-bar">
+              <label className="help-search small"><Search size={15} /><input value={topicQ} onChange={(e) => setTopicQ(e.target.value)} placeholder={`Search ${current.title.toLowerCase()}`} aria-label="Search this topic" /></label>
+              {current.id === 'start' && <button className="btn primary" onClick={() => window.dispatchEvent(new Event('ep:tour'))}><Compass size={15} />Take the tour</button>}
+            </div>
             {current.id === 'start' && (
               <ol className="help-steps">
                 <li><span className="help-step-n">1</span><div><strong>Add a project</strong><p>A folder you work in, a GitHub repository, or a new one.</p></div><button className="btn" onClick={() => window.dispatchEvent(new Event('ep:new-project'))}>Add a project</button></li>
@@ -149,8 +154,13 @@ export function Help() {
                 <li><span className="help-step-n">4</span><div><strong>Try a tool</strong><p>PC Helper checks this computer. Customize Elysium changes the app.</p></div><button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('ep:open-tool', { detail: 'laptop' }))}>Open PC Helper</button></li>
               </ol>
             )}
-            <div className="help-read">
-              {current.items.map((i) => <section key={i.q} className="help-read-item"><h3>{i.q}</h3><div className="help-a">{i.a}</div></section>)}
+            <div className="help-cards">
+              {current.items.filter((i) => !topicQ.trim() || `${i.q} ${i.words ?? ''}`.toLowerCase().includes(topicQ.trim().toLowerCase())).map((i, n) => (
+                <button key={i.q} className={`help-qa ${open === i.q ? 'open' : ''}`} style={{ animationDelay: `${n * 40}ms` }} onClick={() => setOpen(open === i.q ? null : i.q)} aria-expanded={open === i.q}>
+                  <strong>{i.q}</strong>
+                  <div className="help-qa-a">{i.a}</div>
+                </button>
+              ))}
             </div>
           </div>
         )}

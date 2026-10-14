@@ -1672,3 +1672,67 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .hero-mark { filter: none; }
 .code-bar { flex-wrap: nowrap; white-space: nowrap; }
 .code-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---- Memory: what would help ---- */
+.mem-recs { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.mem-rec { padding: .75rem .1rem; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: .25rem; align-items: flex-start; }
+.mem-rec strong { font-size: .92rem; }
+.mem-rec p { margin: 0; color: var(--text-2); font-size: .85rem; line-height: 1.5; }
+.mem-rec .btn { margin-top: .3rem; }
+.mem-ask { align-self: center; margin-top: .4rem; }
+.mem-page { max-width: 52rem; }
+
+/* ---- Help topic: search, tour, cards ---- */
+.help-topic-bar { display: flex; align-items: center; gap: .7rem; margin: .4rem 0 1.4rem; }
+.help-search.small { margin: 0; flex: 1; max-width: none; padding: .55rem .85rem; box-shadow: none; }
+.help-search.small input { font-size: .92rem; }
+.help-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin-top: 1.2rem; }
+@media (max-width: 900px) { .help-cards { grid-template-columns: 1fr; } }
+.help-qa { display: flex; flex-direction: column; gap: .4rem; padding: .95rem 1.05rem; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; text-align: left; cursor: pointer; animation: rise .4s var(--ease) both; transition: border-color .2s var(--ease); }
+.help-qa:hover { border-color: var(--line-strong); }
+.help-qa strong { font-size: .95rem; }
+.help-qa-a { color: var(--text-2); font-size: .87rem; line-height: 1.55; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.help-qa.open { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.help-qa.open .help-qa-a { -webkit-line-clamp: unset; display: block; }
+.help-qa-a p, .help-qa-a ul { margin: 0; }
+
+/* ---- Tour ---- */
+.tour { position: fixed; inset: 0; z-index: 120; }
+.tour-hole { position: fixed; border-radius: 12px; box-shadow: 0 0 0 9999px rgba(8, 8, 10, .62), 0 0 0 2px var(--accent), 0 0 30px 4px color-mix(in srgb, var(--accent) 40%, transparent); transition: all .45s cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
+.tour-card { position: fixed; width: 340px; padding: 1rem 1.1rem 1rem; border-radius: 16px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: hero-in .45s cubic-bezier(.2, .8, .2, 1) both; transition: left .45s var(--ease), top .45s var(--ease); }
+.tour-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: .35rem; }
+.tour-n { font: 600 .72rem var(--mono); color: var(--accent); }
+.tour-card strong { display: block; font-size: 1.02rem; margin-bottom: .3rem; }
+.tour-card p { margin: 0 0 .9rem; color: var(--text-2); font-size: .88rem; line-height: 1.55; }
+.tour-actions { display: flex; align-items: center; gap: .4rem; }
+.tour-dots { display: flex; gap: .3rem; flex: 1; }
+.tour-dots i { width: .4rem; height: .4rem; border-radius: 50%; background: var(--line-strong); transition: all .3s var(--ease); }
+.tour-dots i.on { width: 1.1rem; border-radius: 99px; background: var(--accent); }
+.tour-dots i.done { background: color-mix(in srgb, var(--accent) 50%, transparent); }
+
+/* ---- Empty view scene ---- */
+.watermark { position: relative; overflow: hidden; }
+.watermark > :not(.wm-scene) { position: relative; z-index: 1; }
+.wm-scene { position: absolute; inset: 0; pointer-events: none; }
+.wm-floor { position: absolute; left: -50%; right: -50%; bottom: 0; height: 46%; perspective: 260px; overflow: hidden;
+  -webkit-mask: linear-gradient(transparent, #000 45%); mask: linear-gradient(transparent, #000 45%); }
+.wm-floor-grid { position: absolute; inset: -100% 0 0; transform: rotateX(62deg); transform-origin: 50% 100%;
+  background-image: linear-gradient(color-mix(in srgb, var(--accent) 35%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent) 1px, transparent 1px);
+  background-size: 64px 64px; animation: floor-run 2.8s linear infinite; opacity: .55; }
+@keyframes floor-run { to { background-position: 0 64px, 0 0; } }
+.wm-horizon { position: absolute; left: 0; right: 0; bottom: 46%; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 70%, transparent), transparent); box-shadow: 0 0 18px 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.wm-walker { position: absolute; bottom: calc(46% - 2px); left: -40px; animation: walk-across 26s linear infinite; }
+@keyframes walk-across { to { left: calc(100% + 40px); } }
+.wm-walker svg { display: block; overflow: visible; animation: bob .5s ease-in-out infinite alternate; }
+@keyframes bob { to { transform: translateY(-2px); } }
+.wm-walker line, .wm-walker circle { stroke: var(--text-2); stroke-width: 3.2; stroke-linecap: round; fill: none; }
+.wm-walker .wm-head { fill: var(--text-2); stroke: none; }
+.wm-arm, .wm-leg { transform-box: view-box; }
+.wm-arm { transform-origin: 20px 19px; }
+.wm-leg { transform-origin: 20px 36px; }
+.wm-arm.a, .wm-leg.b { animation: swing 1s ease-in-out infinite alternate; }
+.wm-arm.b, .wm-leg.a { animation: swing 1s ease-in-out infinite alternate-reverse; }
+@keyframes swing { from { transform: rotate(28deg); } to { transform: rotate(-28deg); } }
+.wm-shadow { position: absolute; left: 50%; bottom: -3px; width: 26px; height: 5px; margin-left: -13px; border-radius: 50%; background: rgba(0, 0, 0, .35); filter: blur(2px); }
+.wm-stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: var(--text-3); animation: twinkle 4.2s ease-in-out infinite; }
+@keyframes twinkle { 0%, 100% { opacity: .1; } 50% { opacity: .7; } }

@@ -36,7 +36,13 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       await click('Continue'); await sleep(2500); await shot('ob-4-projects');
       await click('Continue'); await sleep(1200); await shot('ob-5-work');
       await click('Continue'); await sleep(1500); await shot('ob-6-ready');
-      await click('Open Elysium'); await sleep(800);
+      await click('Open Elysium Development'); await sleep(1800);
+      r.tourShown = await js(`Boolean(document.querySelector('.tour'))`);
+      await shot('ob-7-tour');
+      await js(`[...document.querySelectorAll('.tour button')].find((x) => x.textContent.includes('Next'))?.click()`);
+      await sleep(900); await shot('ob-8-tour-2');
+      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+      await sleep(400);
     }
     await sleep(2500);
     await shot('3-home');
@@ -112,6 +118,8 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(1200); await shot('15-help');
     await js(`document.querySelector('.help-card')?.click()`);
     await sleep(800); await shot('15b-help-topic');
+    await js(`document.querySelector('[title="New view"]')?.click()`);
+    await sleep(1500); await shot('22-empty-view');
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);

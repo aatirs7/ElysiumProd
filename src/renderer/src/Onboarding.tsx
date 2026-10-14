@@ -144,7 +144,7 @@ export function Onboarding({ name }: { name: string }) {
         {step > 0 ? <button className="btn" onClick={() => go(step - 1)}><ArrowLeft size={15} />Back</button> : <span />}
         {step < STEPS.length - 1
           ? <button className="btn primary ob-next" onClick={() => go(step + 1)}>{step === 0 ? 'Get started' : 'Continue'}<ArrowRight size={15} /></button>
-          : <button className="btn primary ob-next" onClick={finishOnboarding}>Open Elysium<ArrowRight size={15} /></button>}
+          : <button className="btn primary ob-next" onClick={() => { finishOnboarding(); setTimeout(() => window.dispatchEvent(new Event('ep:tour')), 700); }}>Open Elysium Development<ArrowRight size={15} /></button>}
       </footer>
     </div>
   );
@@ -163,7 +163,8 @@ function Toggle({ icon: Icon, title, text, on, set }: { icon: typeof Bell; title
 const SERVICE_ICON: Record<string, typeof Bell> = { claude: Sparkles, git: GitBranch, github: GitPullRequest, vercel: Triangle, neon: Zap, aws: Cloud, supabase: Database, stripe: CreditCard, cloudflare: Cloud, netlify: Globe, azure: Cloud, firebase: Flame };
 
 function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: { id: string; isDefault: boolean }[]; setAccountLabel(id: string, label: string): void; accountLabels: Record<string, { label: string }> }) {
-  const [list, setList] = useState<ConnectStatus[] | null>(null);
+  // The last answer shows at once; a fresh one replaces it a moment later.
+  const [list, setList] = useState<ConnectStatus[] | null>(() => { try { const v = localStorage.getItem('ep-connect'); return v ? JSON.parse(v) as ConnectStatus[] : null; } catch { return null; } });
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState('');
   const [note, setNote] = useState<string | null>(null);
@@ -172,7 +173,11 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
   const [tool, setTool] = useState({ name: '', check: '', signin: '' });
   const { doc: wdoc, setSettings } = useWorkspace();
   const customs = wdoc.settings.customTools ?? [];
-  const check = useCallback(async () => { setList(await window.elysium.connections()); }, []);
+  const check = useCallback(async () => {
+    const v = await window.elysium.connections();
+    setList(v);
+    try { localStorage.setItem('ep-connect', JSON.stringify(v)); } catch { /* only a head start */ }
+  }, []);
   // Sign ins happen in their own window; keep checking so a finished one turns green here.
   useEffect(() => { void check(); const t = setInterval(() => void check(), 5000); return () => clearInterval(t); }, [check]);
   const act = async (id: ConnectStatus['id'], action: 'install' | 'signin', accountId?: string) => {

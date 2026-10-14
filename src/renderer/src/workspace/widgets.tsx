@@ -33,7 +33,30 @@ export function SkeletonRows({ n = 4 }: { n?: number }) {
 }
 
 /** Memory: one clear answer at the top, then the programs, then the opt-in auto list. */
-export function MachineWidget() {
+/** Plain advice from what is running right now, most useful first. */
+function recommendations(res: import('@shared/ipc').ResourceSample | null, procs: ProcGroup[]): { title: string; text: string; action?: { label: string; check: string } }[] {
+  const out: { title: string; text: string; action?: { label: string; check: string } }[] = [];
+  if (!res) return out;
+  const gb = (b: number) => `${(b / 1024 ** 3).toFixed(1)} GB`;
+  const pct = res.ramUsedPercent;
+  const by = (re: RegExp) => procs.filter((p) => re.test(p.name));
+  const sum = (list: ProcGroup[]) => list.reduce((n, p) => n + p.bytes, 0);
+  const count = (list: ProcGroup[]) => list.reduce((n, p) => n + p.pids.length, 0);
+  if (pct >= 85) out.push({ title: 'Memory is tight', text: `${Math.round(pct)}% is in use. Windows starts moving things to disk around here, which makes everything feel slow. Closing the top programs below frees the most.` });
+  const browsers = by(/^(chrome|msedge|firefox|opera|brave|arc)$/i);
+  if (sum(browsers) > 1.2 * 1024 ** 3) out.push({ title: `Your browser is using ${gb(sum(browsers))}`, text: `That is ${count(browsers)} processes; roughly one per tab and extension. Close tabs you are not using, or turn on the browser's memory saver.` });
+  const node = by(/^node$/i);
+  if (count(node) >= 4) out.push({ title: `${count(node)} Node processes are running`, text: 'Old dev servers, watchers and builds often keep running after their terminal is gone. Stop the ones you do not need.' });
+  const shells = by(/^(powershell|pwsh|bash|cmd|conhost)$/i);
+  if (count(shells) >= 8) out.push({ title: `${count(shells)} shells are open`, text: 'Each terminal and tool run leaves one. Closing finished terminals tidies most of them.' });
+  const vscode = by(/^code$/i);
+  if (sum(vscode) > 1024 ** 3) out.push({ title: `VS Code is using ${gb(sum(vscode))}`, text: 'Each window and extension host adds up. Close windows you are not working in.' });
+  if (res.diskFreeBytes !== null && res.diskLevel !== 'ok') out.push({ title: `The ${res.diskPath} drive has ${gb(res.diskFreeBytes)} free`, text: 'Below about 10 GB, updates, builds and Windows itself start to struggle.', action: { label: 'Find what to clear', check: 'disk' } });
+  if (!out.length) out.push({ title: 'Nothing needs you', text: `${gb(res.ramFreeBytes)} of memory is free and nothing is unusually large.` });
+  return out;
+}
+
+export function MachineWidget({ full = false, onFull }: { full?: boolean; onFull?(): void } = {}) {
   const { res } = useMachine();
   const { doc, setSettings } = useWorkspace();
   const [procs, setProcs] = useState<ProcGroup[] | null>(null);
@@ -50,7 +73,8 @@ export function MachineWidget() {
     setSettings({ autoEnd: { ...auto, programs: has ? auto.programs.filter((p) => p.toLowerCase() !== name.toLowerCase()) : [...auto.programs, name] } });
   };
 
-  const visible = (procs ?? []).filter((p) => !p.protected).slice(0, 8);
+  const visible = (procs ?? []).filter((p) => !p.protected).slice(0, full ? 40 : 8);
+  const recs = recommendations(res, procs ?? []);
   const top = visible[0]?.bytes ?? 1;
   const pct = res ? Math.round(res.ramUsedPercent) : null;
   return (
@@ -60,6 +84,20 @@ export function MachineWidget() {
         <div className="hero-label">memory free{res ? `, of ${gb(res.ramTotalBytes)} (${pct}% in use)` : ''}</div>
         {res && res.diskFreeBytes !== null && <div className={`hero-note ${res.diskLevel}`}>Disk {res.diskPath}: {gb(res.diskFreeBytes)} free{res.diskLevel !== 'ok' ? '. Low; the Laptop session can find what to clear.' : '.'}</div>}
         {res && <div className="hero-note">{pct! >= 85 ? 'High. Closing the programs below frees the most.' : pct! >= 70 ? 'Fine. Windows keeps spare memory busy as cache.' : 'Plenty free.'}</div>}
+      </div>
+
+      <div className="stack-sm">
+        <div className="row-between"><div className="section-title">What would help</div>{onFull && <button className="link-btn" onClick={onFull}>Open full view</button>}</div>
+        <div className="mem-recs">
+          {recs.map((r) => (
+            <div key={r.title} className="mem-rec">
+              <strong>{r.title}</strong>
+              <p>{r.text}</p>
+              {r.action && <button className="btn small" onClick={() => window.dispatchEvent(new CustomEvent('ep:run-check', { detail: r.action!.check }))}>{r.action.label}</button>}
+            </div>
+          ))}
+        </div>
+        <button className="btn small mem-ask" onClick={() => window.dispatchEvent(new CustomEvent('ep:run-check', { detail: 'speed' }))}>Ask PC Helper for a full speed check</button>
       </div>
 
       <div className="stack-sm">

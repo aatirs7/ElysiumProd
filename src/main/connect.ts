@@ -27,6 +27,8 @@ function run(cmd: string, args: string[], timeout = 10000): Promise<{ ok: boolea
 }
 
 async function which(name: string): Promise<string | null> {
+  if (found[name]) return found[name];
+  if (Object.keys(found).length && ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az'].includes(name)) return null;
   const r = await run('where.exe', [name], 5000);
   return r.ok ? r.out.split(/\r?\n/).map((x) => x.trim()).find(Boolean) ?? null : null;
 }
@@ -36,8 +38,31 @@ async function ghPath(): Promise<string | null> {
 }
 
 /** Everything the Connect step shows. All checks are files or quick lookups, run at once, so it answers in about a second. */
+let lastConnections: { at: number; value: ConnectStatus[] } | null = null;
+
 export async function connections(): Promise<ConnectStatus[]> {
   if (DEMO) return demoConnections();
+  if (lastConnections && Date.now() - lastConnections.at < 4000) return lastConnections.value;
+  await findAll();
+  const value = await check();
+  lastConnections = { at: Date.now(), value };
+  return value;
+}
+
+/** Every program the page asks about, found with one where.exe instead of one each. */
+let found: Record<string, string> = {};
+async function findAll(): Promise<void> {
+  const names = ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az'];
+  const r = await run('where.exe', names, 6000);
+  const map: Record<string, string> = {};
+  for (const line of r.out.split(/\r?\n/).map((x) => x.trim()).filter((x) => /^[a-z]:\\/i.test(x))) {
+    const base = line.split('\\').pop()!.replace(/\.(exe|cmd|bat|ps1)$/i, '').toLowerCase();
+    if (names.includes(base) && !map[base]) map[base] = line;
+  }
+  found = map;
+}
+
+async function check(): Promise<ConnectStatus[]> {
   const [git, gh, node, vercelBin] = await Promise.all([which('git'), ghPath(), which('node'), existsSync(VERCEL_JS) ? Promise.resolve(VERCEL_JS) : which('vercel')]);
   const ghAuth = gh ? await run(gh, ['auth', 'status', '--hostname', 'github.com'], 8000) : null;
   const ghUser = ghAuth?.out.match(/account\s+(\S+)/i)?.[1] ?? ghAuth?.out.match(/as\s+(\S+)/i)?.[1] ?? null;

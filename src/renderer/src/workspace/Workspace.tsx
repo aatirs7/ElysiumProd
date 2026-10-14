@@ -53,7 +53,7 @@ export const iconFor = (kind: string, templateKind?: string) => {
 
 const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   terminal: TerminalPanel as FunctionComponent<IDockviewPanelProps>,
-  machine: MachineWidget,
+  machine: (() => <MachineWidget />) as FunctionComponent<IDockviewPanelProps>,
   sessions: SessionsWidget,
   notes: NotesWidget,
   launcher: LauncherWidget,
@@ -360,6 +360,22 @@ function Watermark(_p: IWatermarkPanelProps) {
   const { open } = useWorkspace();
   return (
     <div className="watermark">
+      <div className="wm-scene" aria-hidden="true">
+        <div className="wm-floor"><div className="wm-floor-grid" /></div>
+        <div className="wm-horizon" />
+        <div className="wm-walker">
+          <svg viewBox="0 0 40 64" width="30" height="48">
+            <circle cx="20" cy="9" r="6" className="wm-head" />
+            <line x1="20" y1="15" x2="20" y2="36" className="wm-body" />
+            <g className="wm-arm a"><line x1="20" y1="19" x2="20" y2="33" /></g>
+            <g className="wm-arm b"><line x1="20" y1="19" x2="20" y2="33" /></g>
+            <g className="wm-leg a"><line x1="20" y1="36" x2="20" y2="58" /></g>
+            <g className="wm-leg b"><line x1="20" y1="36" x2="20" y2="58" /></g>
+          </svg>
+          <span className="wm-shadow" />
+        </div>
+        <div className="wm-stars">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, top: `${(i * 29) % 45}%`, animationDelay: `${(i % 7) * 0.6}s` }} />)}</div>
+      </div>
       <div className="watermark-title">An empty view</div>
       <div className="watermark-sub">Add anything. Drag tabs to split, float or stack them.</div>
       <div className="watermark-grid">

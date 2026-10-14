@@ -7,7 +7,7 @@ import { CHECKS, TOOL_INFO } from './tools';
 import { TINTS } from './workspace/Workspace';
 import { useWorkspace } from './workspace/store';
 
-export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs' | 'usage';
+export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs' | 'usage' | 'memory';
 
 interface Props {
   page: Page;
@@ -82,7 +82,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
       <button className={`nav ${page === 'stats' ? 'active' : ''}`} onClick={() => go('stats')}>
         <BarChart3 size={17} strokeWidth={1.75} /><span className="grow">Your stats</span>
       </button>
-      <button className={`nav ${page === 'usage' ? 'active' : ''}`} onClick={() => go('usage')}>
+      <button data-tour="usage" className={`nav ${page === 'usage' ? 'active' : ''}`} onClick={() => go('usage')}>
         <Gauge size={17} strokeWidth={1.75} /><span className="grow">Usage</span>{doc.settings.saver && <Leaf size={13} className="saver-dot" aria-label="Saver mode on" />}
       </button>
       <button className={`nav ${page === 'costs' ? 'active' : ''}`} onClick={() => go('costs')}>
@@ -90,7 +90,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
       </button>
 
       <div className="side-scroll">
-        <div className="side-label">
+        <div className="side-label" data-tour="projects">
           <span>Projects</span>
           <button className="ghost-icon tiny" onClick={() => setAdding((a) => !a)} title="New or pin a project" aria-label="New or pin a project" aria-expanded={adding}><Plus size={14} /></button>
         </div>
@@ -217,7 +217,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           );
         })()}
 
-        <div className="side-label"><span>Tools</span></div>
+        <div className="side-label" data-tour="tools"><span>Tools</span></div>
         {tools.map((p) => {
           const info = TOOL_INFO[p.id];
           const Icon = info?.icon ?? Wrench;
@@ -293,14 +293,14 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
         </>}
       </div>
 
-      <button className={`nav ${page === 'help' ? 'active' : ''}`} onClick={() => go('help')}>
+      <button data-tour="help" className={`nav ${page === 'help' ? 'active' : ''}`} onClick={() => go('help')}>
         <CircleHelp size={17} strokeWidth={1.75} /><span className="grow">Help</span>
       </button>
       <button className={`nav ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}>
         <SettingsIcon size={17} strokeWidth={1.75} /><span className="grow">Settings</span><span className="hint">Ctrl Shift S</span>
       </button>
       <div className="foot">
-        <button className={`pill ${ramTone}`} onClick={onMemory} title={res ? `Memory: ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free of ${(res.ramTotalBytes / 1024 ** 3).toFixed(1)} GB. Disk ${res.diskPath}: ${res.diskFreeBytes === null ? 'unknown' : `${(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB free`}.` : 'Memory and disk'}>
+        <button data-tour="memory" className={`pill ${ramTone}`} onClick={onMemory} title={res ? `Memory: ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free of ${(res.ramTotalBytes / 1024 ** 3).toFixed(1)} GB. Disk ${res.diskPath}: ${res.diskFreeBytes === null ? 'unknown' : `${(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB free`}.` : 'Memory and disk'}>
           <MemoryStick size={14} />{!res ? 'Memory' : `Memory ${(res.ramFreeBytes / 1024 ** 3).toFixed(1)} GB free`}
           {res && res.diskFreeBytes !== null && res.diskLevel !== 'ok' && <span className="muted">· disk {(res.diskFreeBytes / 1024 ** 3).toFixed(1)} GB</span>}
         </button>
