@@ -9,10 +9,10 @@ import { ACCENTS, THEMES, useWorkspace } from './workspace/store';
 const STEPS = ['Welcome', 'Make it yours', 'Connect', 'Projects', 'How you work', 'Ready'];
 
 const BENEFITS = [
-  { icon: Layers, title: 'Every project, side by side', text: 'Each project opens with its Claude sessions, terminals, dashboard and browser in one window. No more juggling VS Code, a browser and a dozen terminals.' },
-  { icon: Zap, title: 'Hand off work, get told when it is done', text: 'Tell any project what to do from Home, or with the quick key from anywhere in Windows. It runs in the background and taps you on the shoulder when it finishes or needs you.' },
-  { icon: Workflow, title: 'See what your agents are doing', text: 'Live status, context use and a step by step flow for every session, plus costs and usage across your accounts, at a glance.' },
-  { icon: Wand2, title: 'It changes itself for you', text: 'Elysium has its own built in session. Ask it for a new theme, a button, a page or a fix, and it edits the app, tests it and loads it on restart.' },
+  { icon: Layers, title: 'One window', text: 'Every project with its sessions, terminals, dashboard and browser.' },
+  { icon: Zap, title: 'Hand off, hear back', text: 'Give any project a task and get a tap when it is done.' },
+  { icon: Workflow, title: 'See every agent', text: 'Status, context, steps, usage and costs at a glance.' },
+  { icon: Wand2, title: 'It changes itself', text: 'Ask for a theme, a button or a fix, and it builds it.' },
 ];
 
 /** First run: what Elysium is for, a look of your own, your tools, your projects, and how you like to work. */
@@ -49,6 +49,12 @@ export function Onboarding({ name }: { name: string }) {
             <div className="ob-mark"><Logo /></div>
             <h1 className="ob-hero">Hi {shown}. Meet Elysium.</h1>
             <p className="ob-lede">One calm place to run all your projects with Claude. Built for people who keep several agents busy at once.</p>
+            <div className="ob-colors" role="radiogroup" aria-label="Colour">
+              {ACCENTS.filter((x) => x.value).map((x) => (
+                <button key={x.name} role="radio" aria-checked={s.accent === x.value} aria-label={x.name} title={x.name}
+                  className={s.accent === x.value ? 'ob-color on' : 'ob-color'} style={{ background: x.value }} onClick={() => setSettings({ accent: x.value })} />
+              ))}
+            </div>
             <div className="ob-benefits">
               {BENEFITS.map((b, i) => (
                 <div key={b.title} className="ob-benefit" style={{ animationDelay: `${180 + i * 90}ms` }}>

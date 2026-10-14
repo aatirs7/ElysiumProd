@@ -1528,3 +1528,25 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .help-read { display: flex; flex-direction: column; gap: 1.4rem; }
 .help-read-item h3 { margin: 0 0 .35rem; font-size: 1rem; }
 .help-read-item .help-a { padding: 0; animation: none; }
+
+/* Welcome: four short columns, hairline dividers, nothing crossing the text. */
+.ob-benefits { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; max-width: 62rem; margin: 2.2rem auto 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ob-benefit { padding: 1.3rem 1.3rem 1.4rem; border-top: 0; text-align: left; }
+.ob-benefit + .ob-benefit { border-left: 1px solid var(--line); }
+.ob-benefit strong { font-size: .98rem; margin: .55rem 0 .3rem; }
+.ob-benefit p { font-size: .86rem; color: var(--text-2); }
+@media (max-width: 980px) { .ob-benefits { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ob-benefit:nth-child(3) { border-left: 0; } .ob-benefit:nth-child(n+3) { border-top: 1px solid var(--line); } }
+.ob-bg.step-0 .ob-arc { bottom: -70vh; opacity: .55; }
+.ob-bg.step-0 .ob-horizon { bottom: -52vh; }
+
+/* Welcome: a colour switch under the line, and four short columns. */
+.ob-colors { display: flex; justify-content: center; gap: .55rem; margin: -.6rem 0 1.6rem; animation: rise .6s var(--ease) 200ms both; }
+.ob-color { width: 1.15rem; height: 1.15rem; border-radius: 50%; border: 2px solid var(--bg); box-shadow: 0 0 0 1px var(--line-strong); cursor: pointer; transition: transform .2s var(--ease), box-shadow .2s var(--ease); }
+.ob-color:hover { transform: scale(1.15); }
+.ob-color.on { box-shadow: 0 0 0 2px var(--text); transform: scale(1.1); }
+.ob-benefits { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; max-width: 62rem; margin: 1.4rem auto 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ob-benefit { padding: 1.3rem 1.3rem 1.4rem; border-top: 0; text-align: left; }
+.ob-benefit + .ob-benefit { border-left: 1px solid var(--line); }
+.ob-benefit strong { font-size: .98rem; margin: .55rem 0 .3rem; }
+.ob-benefit p { font-size: .86rem; color: var(--text-2); }
+@media (max-width: 980px) { .ob-benefits { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ob-benefit:nth-child(3) { border-left: 0; } .ob-benefit:nth-child(n+3) { border-top: 1px solid var(--line); } }
