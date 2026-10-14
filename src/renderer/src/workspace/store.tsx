@@ -83,7 +83,7 @@ export interface WorkspaceDoc {
   /** Costs: subscriptions and other fixed monthly amounts. */
   fixedCosts: FixedCost[];
   /** Each project's dashboard: its links, in order. */
-  dashboards: Record<string, { links: DashLink[] }>;
+  dashboards: Record<string, { links?: DashLink[]; people?: string[] }>;
   /** What was asked for from a dashboard, newest first. */
   featureRequests: FeatureRequest[];
 }

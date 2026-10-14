@@ -117,6 +117,9 @@ export const Channels = {
   flowGet: 'flow:get',
   flowUpdate: 'flow:update',
   flowSummary: 'flow:summary',
+  commandRun: 'command:run',
+  dictate: 'dictate:start',
+  clipboardHasImage: 'clipboard:has-image',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
@@ -238,7 +241,15 @@ export interface ElysiumApi {
   onFlow(cb: (sessionId: string, e: FlowEvent) => void): () => void;
   /** A one or two line summary from Sonnet, at most every few minutes per session. */
   flowSummary(sessionId: string): Promise<{ text: string | null; at: string | null; reason: string | null }>;
+  /** The Home command box: tell, start, stop, compact or open any project or session. */
+  runCommand(text: string): Promise<CommandResult>;
+  /** Opens Windows voice typing (Win+H) for the focused text box. */
+  dictate(): void;
+  clipboardHasImage(): Promise<boolean>;
 }
+
+export interface CommandStep { label: string; ok: boolean; reason: string | null }
+export interface CommandResult { ok: boolean; via: 'rules' | 'sonnet'; say: string | null; steps: CommandStep[]; open: string | null }
 
 export type FlowKind = 'edit' | 'read' | 'run' | 'search' | 'web' | 'agent' | 'message' | 'ask' | 'other';
 export interface FlowEvent { at: string; kind: FlowKind; tool: string; label: string; to?: string }

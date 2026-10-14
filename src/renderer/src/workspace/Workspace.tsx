@@ -22,7 +22,7 @@ import { GitWidget, RelayWidget, TasksWidget } from './project-widgets';
 import { DocumentPanel } from './DocumentPanel';
 import { ClaudePanel, overlayClosed, overlayOpened } from './ClaudePanel';
 import { SitePanel } from './SitePanel';
-import { Dashboard } from './Dashboard';
+import { Dashboard, PROJECT_EXTRAS } from './Dashboard';
 import { FlowPanel } from './FlowPanel';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
@@ -119,6 +119,8 @@ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, acco
   const right = api.groups[api.groups.length - 1];
   if (view.projectId) {
     api.addPanel({ id: `dashboard-${uid()}`, component: 'dashboard', title: 'Dashboard', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
+    const start = PROJECT_EXTRAS[view.projectId]?.open;
+    if (start) api.addPanel({ id: `web-${uid()}`, component: 'web', title: 'Admin', params: { url: start, projectId: view.projectId, title: 'Admin' }, position: { referenceGroup: right.id } });
     if (projectHasRelay) {
       api.addPanel({ id: `relay-${uid()}`, component: 'relay', title: 'Relay', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
       api.addPanel({ id: `tasks-${uid()}`, component: 'tasks', title: 'Tasks', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
@@ -148,6 +150,12 @@ export function ensureProjectSessions(api: DockviewApi, projectId: string, templ
     const pane = api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
     if (!pane) addPanel(api, { kind: 'terminal', templateId: t.id, title: t.title });
     else window.dispatchEvent(new CustomEvent('ep:ensure-session', { detail: t.id }));
+  }
+  // A project with its own admin page shows it too.
+  const start = PROJECT_EXTRAS[projectId]?.open;
+  if (start && !api.panels.some((p) => p.id.startsWith('web-'))) {
+    const claude = api.panels.find((p) => p.id.startsWith('claude-'));
+    api.addPanel({ id: `web-${uid()}`, component: 'web', title: 'Admin', params: { url: start, projectId, title: 'Admin' }, position: claude ? { referenceGroup: claude.group.id } : undefined });
   }
 }
 

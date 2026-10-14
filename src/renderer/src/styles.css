@@ -822,3 +822,41 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .flow-legend { display: flex; flex-wrap: wrap; gap: .4rem .9rem; justify-content: center; color: var(--text-3); font-size: .74rem; padding-top: .2rem; }
 .flow-legend span { display: inline-flex; align-items: center; gap: .3rem; }
 .flow-legend i { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; }
+
+/* ---- Home command box ---- */
+.cmd { max-width: 44rem; margin: 0 auto; animation: rise .45s var(--ease) both; animation-delay: 160ms; }
+.cmd-box { display: flex; align-items: flex-end; gap: .4rem; padding: .55rem .55rem .55rem 1.1rem; border-radius: 22px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); transition: border-color .2s var(--ease), box-shadow .2s var(--ease); }
+.cmd-box:focus-within { border-color: color-mix(in srgb, var(--accent) 50%, var(--line-strong)); box-shadow: var(--shadow), 0 0 0 4px color-mix(in srgb, var(--accent) 12%, transparent); }
+.cmd-box.busy { border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
+.cmd-input { flex: 1; resize: none; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 1rem; line-height: 1.5; padding: .4rem 0; max-height: 10rem; }
+.cmd-input::placeholder { color: var(--text-3); }
+.cmd-icon { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 0; background: transparent; color: var(--text-3); display: grid; place-items: center; cursor: pointer; flex: none; transition: background-color .15s var(--ease), color .15s var(--ease); }
+.cmd-icon:hover { background: var(--hover); color: var(--text); }
+.cmd-send { width: 2.3rem; height: 2.3rem; border-radius: 50%; border: 0; background: var(--accent); color: var(--on-accent); display: grid; place-items: center; cursor: pointer; flex: none; transition: opacity .15s var(--ease), transform .15s var(--ease); }
+.cmd-send:disabled { opacity: .35; cursor: default; }
+.cmd-send:not(:disabled):hover { transform: scale(1.05); }
+.cmd-result { margin: .7rem .4rem 0; padding: .7rem .9rem; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: .35rem; font-size: .9rem; animation: drop .2s var(--ease) both; }
+.cmd-result.bad { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+.cmd-say { color: var(--text); }
+.cmd-step { display: flex; gap: .5rem; align-items: flex-start; color: var(--text-2); }
+.cmd-step svg { flex: none; margin-top: .2rem; color: var(--ok); }
+.cmd-result.bad .cmd-step svg { color: var(--warn); }
+.cmd-via { color: var(--text-3); font-size: .75rem; }
+
+/* ---- Dashboard: check on someone ---- */
+.dash-people { display: flex; flex-wrap: wrap; gap: .45rem; }
+.dash-person { display: inline-flex; align-items: center; border-radius: 99px; background: var(--bg); border: 1px solid var(--line); padding-right: .2rem; transition: border-color .15s var(--ease); }
+.dash-person:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
+.dash-person .hover-only { opacity: 0; transition: opacity .15s var(--ease); }
+.dash-person:hover .hover-only { opacity: 1; }
+.dash-person-main { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .5rem .45rem .85rem; border: 0; background: transparent; color: var(--text); cursor: pointer; font-size: .9rem; font-weight: 600; }
+.dash-person-main svg { color: var(--text-3); }
+.dash-person.add { padding: .45rem .7rem; border-style: dashed; background: transparent; color: var(--text-2); cursor: pointer; }
+.dash-person.adding { padding: .15rem; }
+.dash-person.adding .text-input { width: 9rem; border: 0; background: transparent; }
+.dash-check { display: flex; gap: .45rem; margin-top: .6rem; }
+.dash-check .text-input { flex: 1; }
+
+.cmd-input { overflow-y: hidden; }
+.cmd-input:focus { overflow-y: auto; }
+.cmd-hint { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: .55rem; }

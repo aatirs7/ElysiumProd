@@ -84,6 +84,8 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const sessionId = props.params.sessionId;
   const session = sessions.find((s) => s.id === sessionId);
   const isClaude = template?.kind === 'claude';
+  const isClaudeRef = useRef(isClaude);
+  isClaudeRef.current = isClaude;
   const reader = Boolean(props.params.reader) && isClaude;
   const theme = termTheme(doc.settings.termStyle ?? 'soft');
 
@@ -131,6 +133,20 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       seen = end;
     }));
     const input = term.onData((d) => { if (sid) { focusedSession = sid; window.elysium.write(sid, d); } });
+    // Ctrl+V: a picture on the clipboard goes to Claude Code as its own image paste (Alt+V);
+    // text pastes as usual, through xterm so bracketed paste is kept.
+    term.attachCustomKeyEventHandler((ev) => {
+      if (ev.type !== 'keydown' || !ev.ctrlKey || ev.altKey || ev.shiftKey || ev.metaKey || ev.key.toLowerCase() !== 'v') return true;
+      if (!isClaudeRef.current) return true;
+      ev.preventDefault();
+      void (async () => {
+        if (!sid) return;
+        if (await window.elysium.clipboardHasImage()) { focusedSession = sid; window.elysium.write(sid, '\x1bv'); return; }
+        const text = await window.elysium.readClipboard();
+        if (text) term.paste(text);
+      })();
+      return false;
+    });
     const onFocus = () => { if (sid) focusedSession = sid; };
     term.textarea?.addEventListener('focus', onFocus);
     cleanups.push(() => term.textarea?.removeEventListener('focus', onFocus));

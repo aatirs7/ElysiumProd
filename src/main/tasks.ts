@@ -222,15 +222,29 @@ export class Tasks {
    * Returns the sessions being wrapped so the app can close their panes.
    */
   wrapUp(projectId: string): string[] {
+    return this.wrapSessions(this.sessions.list().filter((s) => findTemplate(s.templateId)?.project === projectId).map((s) => s.id));
+  }
+
+  /** Wraps up these sessions only: each reaches a stopping point, saves its notes, then exits. */
+  wrapSessions(sessionIds: string[]): string[] {
     const ids: string[] = [];
     for (const s of this.sessions.list()) {
       const t = findTemplate(s.templateId);
-      if (!t || t.kind !== 'claude' || t.project !== projectId || s.status !== 'running') continue;
+      if (!sessionIds.includes(s.id) || !t || t.kind !== 'claude' || s.status !== 'running' || this.wraps.has(s.id)) continue;
       this.wraps.set(s.id, { projectName: t.projectName ?? t.title, stage: 'asked', startedAt: Date.now() });
       ids.push(s.id);
       this.stepWrap(s.id);
     }
     return ids;
+  }
+
+  /** Starts a session in the background on its project's account, unless it already runs. */
+  startTemplate(templateId: string): { ok: boolean; reason: string | null; already: boolean } {
+    const t = findTemplate(templateId);
+    if (!t || t.kind !== 'claude') return { ok: false, reason: 'No Claude session by that name.', already: false };
+    if (this.sessions.runningFor(t.id)) return { ok: true, reason: null, already: true };
+    const r = this.sessions.create(t.id, 120, 40, { accountId: accountForProject(t.project ?? '') });
+    return r.ok ? { ok: true, reason: null, already: false } : { ok: false, reason: r.reason, already: false };
   }
 
   private stepWrap(sessionId: string): void {

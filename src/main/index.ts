@@ -25,6 +25,9 @@ import { Limits } from './limits';
 import { createProject, loadCustomProjects, removeProject } from './newproject';
 import { costReport } from './costs';
 import { lastSummary, summarize } from './flow';
+import { runCommand } from './command';
+import { clipboard } from 'electron';
+import { execFile } from 'node:child_process';
 import { dialog } from 'electron';
 import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
@@ -236,6 +239,15 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.commandRun, (_e, text: unknown) => (tasks && typeof text === 'string' ? runCommand(text, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
+  ipcMain.handle(Channels.clipboardHasImage, async () => {
+    try { return (await clipboard.read()).some((item) => item.types.some((t) => t.startsWith('image/'))); } catch { return false; }
+  });
+  // Windows voice typing types into whatever has focus; this presses Win+H for you. Fixed script, no input.
+  ipcMain.on(Channels.dictate, () => {
+    const ps = 'Add-Type -Namespace E -Name K -MemberDefinition \'[DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, System.UIntPtr e);\'; [E.K]::keybd_event(0x5B,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,2,[UIntPtr]::Zero); [E.K]::keybd_event(0x5B,0,2,[UIntPtr]::Zero)';
+    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 15000 }, () => { /* best effort */ });
+  });
   ipcMain.handle(Channels.flowGet, (_e, id: unknown) => (typeof id === 'string' ? { events: ingest.flow(id), summary: lastSummary(id) } : { events: [], summary: null }));
   ipcMain.handle(Channels.flowSummary, (_e, id: unknown) => {
     if (typeof id !== 'string') return { text: null, at: null, reason: null };

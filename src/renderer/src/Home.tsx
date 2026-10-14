@@ -4,6 +4,7 @@ import type { ReaderEntry, UsageStats } from '@shared/ipc';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { plainLine } from './TopBarExtras';
+import { CommandBox } from './CommandBox';
 import { ago, useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 
@@ -94,6 +95,8 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
           <h1 className="greeting">{partOfDay()}, {name}</h1>
           <p className={`greeting-sub ${waiting ? 'attn' : ''}`}>{headline}</p>
         </header>
+
+        <CommandBox onOpenProject={(id) => onOpen(id, projects.find((p) => p.id === id)?.name ?? id)} />
 
         {live.length > 0 && (
           <section className="home-block">

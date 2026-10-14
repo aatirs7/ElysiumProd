@@ -3,7 +3,7 @@
 // open as signed in panes, and a box to ask ElysiumProd for something new here.
 import { useEffect, useMemo, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { ArrowUpRight, Globe, Plus, SendHorizontal, X } from 'lucide-react';
+import { ArrowUpRight, Globe, Plus, SendHorizontal, UserRound, X } from 'lucide-react';
 import type { CostReport, TaskInfo, UsageStats } from '@shared/ipc';
 import { ProjectLogo } from '../ProjectLogo';
 import { hours } from '../Home';
@@ -13,9 +13,25 @@ import { useWorkspace, type DashLink } from './store';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const usd = (n: number) => (n >= 100 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`);
 
+/** What some projects start with beyond the usual links: their own admin pages, and the people you check on. */
+export const PROJECT_EXTRAS: Record<string, { links: DashLink[]; people?: string[]; open?: string; checkWhat?: string }> = {
+  builds: {
+    links: [
+      { id: 'eb-admin', label: 'Admin', url: 'https://elysiumbuilds.dev/admin' },
+      { id: 'eb-sites', label: 'Sites', url: 'https://elysiumbuilds.dev/admin/sites' },
+      { id: 'eb-requests', label: 'Requests', url: 'https://elysiumbuilds.dev/admin/requests' },
+      { id: 'eb-inbox', label: 'Inbox', url: 'https://elysiumbuilds.dev/admin/inbox' },
+      { id: 'eb-clients', label: 'Clients', url: 'https://elysiumbuilds.dev/admin/clients' },
+    ],
+    people: ['Shahmir', 'Asher'],
+    open: 'https://elysiumbuilds.dev/admin',
+    checkWhat: 'their sites\' live status, open requests and unanswered messages, recent deploys, and billing',
+  },
+};
+
 /** Links a project starts with; you add the rest (admin page, team board). */
 function defaultLinks(projectId: string, repo: string | null, vercel: { team: string | null; names: string[] }): DashLink[] {
-  const out: DashLink[] = [];
+  const out: DashLink[] = [...(PROJECT_EXTRAS[projectId]?.links ?? [])];
   if (projectId === 'ios') {
     out.push(
       { id: 'asc', label: 'App Store Connect', url: 'https://appstoreconnect.apple.com/apps' },
@@ -64,7 +80,20 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
 
   const saved = doc.dashboards[projectId]?.links;
   const links = saved ?? defaultLinks(projectId, project?.repo ?? null, { team: costs?.vercelTeam ?? null, names: cost?.vercel ?? [] });
-  const setLinks = (l: DashLink[]) => patchDoc({ dashboards: { ...doc.dashboards, [projectId]: { links: l } } });
+  const setLinks = (l: DashLink[]) => patchDoc({ dashboards: { ...doc.dashboards, [projectId]: { ...doc.dashboards[projectId], links: l } } });
+  const extras = PROJECT_EXTRAS[projectId];
+  const people = doc.dashboards[projectId]?.people ?? extras?.people ?? [];
+  const setPeople = (p: string[]) => patchDoc({ dashboards: { ...doc.dashboards, [projectId]: { ...doc.dashboards[projectId], people: p } } });
+  const [who, setWho] = useState('');
+  const [addingPerson, setAddingPerson] = useState(false);
+  const checkOn = async (name: string) => {
+    const n = name.trim();
+    if (!n) return;
+    const what = extras?.checkWhat ?? 'what they are waiting on, anything open for them, and anything that looks wrong';
+    const r = await window.elysium.quickRun(projectId, `Check on ${n}: ${what}. Tell me in a few short lines where things stand and what, if anything, needs me. Do not change anything; just look and report.`);
+    setNote(r.ok ? `Asked ${project?.name ?? 'the project'} to check on ${n}. You get a notification with the answer.` : r.reason ?? 'Could not send it.');
+    if (r.ok) setWho('');
+  };
   const openLink = (l: DashLink) => open({ kind: 'web', title: l.label, params: { url: l.url, projectId, title: l.label } });
 
   const stat = stats.find((s) => s.id === projectId);
@@ -117,6 +146,30 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
             </div>
           ))}
         </div>
+
+        {(people.length > 0 || extras?.people) && (
+          <section className="dash-block">
+            <div className="section-title">Check on someone</div>
+            <div className="dash-people">
+              {people.map((p) => (
+                <div key={p} className="dash-person">
+                  <button className="dash-person-main" onClick={() => void checkOn(p)} title={`Ask ${project?.name ?? 'the project'} how things stand with ${p}`}><UserRound size={15} />{p}</button>
+                  <button className="ghost-icon tiny hover-only" onClick={() => setPeople(people.filter((x) => x !== p))} aria-label={`Remove ${p}`}><X size={12} /></button>
+                </div>
+              ))}
+              {addingPerson ? (
+                <form className="dash-person adding" onSubmit={(e) => { e.preventDefault(); const n = who.trim(); if (n && !people.includes(n)) setPeople([...people, n]); setWho(''); setAddingPerson(false); }}>
+                  <input className="text-input" autoFocus placeholder="Name" value={who} onChange={(e) => setWho(e.target.value)} onBlur={() => { if (!who.trim()) setAddingPerson(false); }} />
+                </form>
+              ) : <button className="dash-person add" onClick={() => setAddingPerson(true)} aria-label="Add a person"><Plus size={14} /></button>}
+            </div>
+            <form className="dash-check" onSubmit={(e) => { e.preventDefault(); void checkOn(who); }}>
+              <input className="text-input" placeholder="Or type anyone: check on…" value={addingPerson ? '' : who} onChange={(e) => setWho(e.target.value)} />
+              <button className="btn" type="submit" disabled={!who.trim() || addingPerson}>Check</button>
+            </form>
+            <p className="dash-hint">It only looks and reports back; nothing is changed.</p>
+          </section>
+        )}
 
         <section className="dash-block">
           <div className="section-title">Open here</div>

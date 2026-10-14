@@ -75,6 +75,15 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await js(`window.__smoke.open({ kind: 'web', title: 'Example', params: { url: 'https://example.com/', projectId: 'smoke' } })`);
     await sleep(5000);
     r.sitePane = webStates().filter((w) => /example\.com/.test(w.url)).map((w) => ({ url: w.url, title: w.title }));
+    // The Home command box, with commands that change nothing here.
+    r.commands = {
+      compact: await js(`window.elysium.runCommand('compact Gulf')`),
+      stop: await js(`window.elysium.runCommand('wrap up Attestia and Gulf')`),
+      vague: await js(`window.elysium.runCommand('how is the weather')`),
+    };
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+    await sleep(1500);
+    await shot('12-home-command');
     // New project: the dialog, then a from scratch project made and removed through the same calls.
     await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
     await sleep(400);
