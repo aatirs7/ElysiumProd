@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, CircleDollarSign, CircleHelp, Home, Layers, MemoryStick, PinOff, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
+import { BarChart3, CircleDollarSign, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -16,12 +16,19 @@ interface Props {
   onNewProject(): void;
   /** Opens a project with its Claude pane and sessions. */
   onProject(id: string, name: string): void;
+  /** Puts a project's sessions into another view. */
+  onAddToView(projectId: string, viewId: string): void;
+  onDashboard(projectId: string, name: string): void;
+  onNote(text: string): void;
+  /** Shows a running session's pane. */
+  onFocus(sessionId: string, templateId: string): void;
 }
 
-export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject }: Props) {
+export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus }: Props) {
+  const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const { doc, activeView, setActiveView, renameView, addView, togglePin } = useWorkspace();
   const [adding, setAdding] = useState(false);
-  const { projects, sessions, telemetry } = useLive();
+  const { projects, sessions, telemetry, templates } = useLive();
   const { res } = useMachine();
   const [editing, setEditing] = useState<string | null>(null);
   const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects;
@@ -77,19 +84,77 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           const st = status(p.id);
           const active = page === 'workspace' && activeView?.projectId === p.id;
           return (
-            <div key={p.id} className={`nav view-item ${active ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, p.name)}
+            <div key={p.id} className="side-project">
+            <div className={`nav view-item ${active ? 'active' : ''} ${menu?.id === p.id ? 'menu-open' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, p.name)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ id: p.id, name: p.name, x: e.clientX, y: e.clientY }); }}
               onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, p.name); }} title={p.folder}>
               <ProjectLogo projectId={p.id} />
               <span className="grow">{p.name}</span>
               {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
-              <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); togglePin(p.id); }} title="Unpin" aria-label={`Unpin ${p.name}`}><PinOff size={13} /></button>
+              <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu({ id: p.id, name: p.name, x: r.left, y: r.bottom }); }} title="More" aria-label={`More for ${p.name}`} aria-haspopup="menu"><MoreHorizontal size={14} /></button>
+            </div>
+            {/* Its sessions, right under it, while any run or the project is open. */}
+            {(() => {
+              const mine = templates.filter((t) => t.kind === 'claude' && t.project === p.id);
+              const live = mine.map((t) => ({ t, s: sessions.find((x) => x.templateId === t.id && x.status === 'running') }));
+              if (!live.some((x) => x.s) && !active) return null;
+              return (
+                <div className="side-sessions">
+                  {live.map(({ t, s }) => {
+                    const tel = s ? telemetry[s.id] : undefined;
+                    const label = t.role === 'prime' ? 'Prime' : t.role === 'meridian' ? 'Meridian' : t.title;
+                    const state = !s ? 'off' : tel?.state === 'waiting' ? 'waiting' : tel?.state === 'busy' ? 'busy' : 'idle';
+                    const word = state === 'off' ? 'off' : state === 'waiting' ? 'needs you' : state === 'busy' ? 'working' : 'idle';
+                    return (
+                      <button key={t.id} className="side-session" onClick={() => (s ? onFocus(s.id, t.id) : onProject(p.id, p.name))} title={s ? `Show ${t.title}` : `Open ${p.name} to start ${t.title}`}>
+                        <span className={`dot ${state === 'off' ? '' : state}`} />
+                        <span className="grow">{label}</span>
+                        <span className="side-session-state">{tel?.contextPercent != null && s ? `${Math.round(tel.contextPercent)}% · ` : ''}{word}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             </div>
           );
         })}
         {!pinned.length && !adding && <div className="nav muted">Use the plus to pin projects</div>}
+        {menu && (() => {
+          const st = status(menu.id);
+          const running = Boolean(st);
+          const act = async (type: 'start' | 'stop' | 'kill' | 'compact') => {
+            setMenu(null);
+            const r = await window.elysium.projectAction(menu.id, type);
+            onNote(r.steps.map((s) => (s.ok ? s.label : `${s.label}: ${s.reason ?? 'failed'}`)).join('. ') || r.say || 'Nothing to do.');
+          };
+          const others = doc.views.filter((v) => v.projectId !== menu.id);
+          return (
+            <div className="menu-backdrop" onMouseDown={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
+              <div className="tab-menu over-native" style={{ left: Math.min(menu.x, window.innerWidth - 250), top: Math.min(menu.y + 4, window.innerHeight - 360) }} onMouseDown={(e) => e.stopPropagation()} role="menu" aria-label={menu.name}>
+                <div className="tab-menu-label">{menu.name}</div>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onProject(menu.id, menu.name); }}><Layers size={14} />Open</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => void act('start')}><Play size={14} />{running ? 'Start any that are off' : 'Start sessions'}</button>
+                {running && <button className="tab-menu-item" role="menuitem" onClick={() => void act('compact')}><FoldVertical size={14} />Compact</button>}
+                {running && <button className="tab-menu-item" role="menuitem" onClick={() => void act('stop')}><Moon size={14} />Wrap up and end</button>}
+                {running && <button className="tab-menu-item danger" role="menuitem" onClick={() => void act('kill')}><Square size={14} />End now</button>}
+                <div className="tab-menu-sep" />
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onDashboard(menu.id, menu.name); }}><LayoutGrid size={14} />Dashboard</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); window.elysium.openFolder(menu.id); }}><FolderOpen size={14} />Open folder</button>
+                {others.length > 0 && <div className="tab-menu-label">Add its sessions to</div>}
+                {others.map((v) => (
+                  <button key={v.id} className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onAddToView(menu.id, v.id); }}><Plus size={14} />{v.name}</button>
+                ))}
+                <div className="tab-menu-sep" />
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); togglePin(menu.id); }}><PinOff size={14} />Unpin</button>
+              </div>
+            </div>
+          );
+        })()}
 
+        {freeViews.length > 0 && <>
         <div className="side-label">
-          <span>Views</span>
+          <span>Layouts</span>
           <button className="ghost-icon tiny" onClick={() => { addView(); go('workspace'); }} title="New view" aria-label="New view"><Plus size={14} /></button>
         </div>
         {freeViews.map((v) => (
@@ -106,7 +171,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
             )}
           </div>
         ))}
-        {!freeViews.length && <div className="nav muted small" style={{ cursor: 'default' }}>Your own layouts appear here</div>}
+        </>}
       </div>
 
       <button className={`nav ${page === 'help' ? 'active' : ''}`} onClick={() => go('help')}>

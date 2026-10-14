@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FoldVertical, LayoutGrid, Moon, ShieldAlert, Workflow, X } from 'lucide-react';
+import { FoldVertical, LayoutGrid, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -107,6 +107,22 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   }, [openProject, apiFor]);
   const templatesRef2 = useRef(templates);
   templatesRef2.current = templates;
+  // A project's sessions go into another view, beside whatever is there.
+  const addToView = useCallback((projectId: string, viewId: string) => {
+    setActiveView(viewId);
+    setPage('workspace');
+    setTimeout(() => { const api = apiFor(viewId); if (api) ensureProjectSessions(api, projectId, templatesRef2.current); }, 80);
+  }, [apiFor, setActiveView]);
+  const dashboardFor = useCallback((projectId: string, projectName: string) => {
+    goProject(projectId, projectName);
+    setTimeout(() => {
+      const v = docRef.current.views.find((x) => x.projectId === projectId);
+      const api = v ? apiFor(v.id) : undefined;
+      const dash = api?.panels.find((p) => p.id.startsWith('dashboard-'));
+      if (dash) dash.api.setActive();
+      else if (api) api.addPanel({ id: `dashboard-${Date.now().toString(36)}`, component: 'dashboard', title: 'Dashboard', params: { projectId } });
+    }, 160);
+  }, [goProject, apiFor]);
 
   // New project: once main has added it, open it as soon as its sessions are listed here.
   const [toOpen, setToOpen] = useState<{ id: string; name: string } | null>(null);
@@ -267,6 +283,12 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const p = api?.panels.find((x) => x.id.startsWith('dashboard-'));
     if (p) p.api.setActive(); else open({ kind: 'dashboard', params: { projectId } });
   };
+  // One click: the project's lead session writes up what it is working on as a Claude artifact and replies with the link.
+  const makeArtifact = async () => {
+    if (!projectId) return;
+    const r = await window.elysium.quickRun(projectId, 'Make a Claude artifact page about what we are working on in this project right now: the goal, what is done, what is in progress, what is next, and anything blocked or waiting on me. Make it glanceable, with real numbers and links where you have them, and no filler. Publish it with your Artifact tool, then reply with the link and one line on what it shows.');
+    setToast(r.ok ? 'Asked for an artifact. The link comes back as a notification when it is published.' : r.reason ?? 'Could not ask for it.');
+  };
   const openFlow = () => {
     const api = activeView ? apiFor(activeView.id) : undefined;
     const p = api?.panels.find((x) => x.id.startsWith('flow-'));
@@ -301,7 +323,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
 
   return (
     <div className="shell">
-      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} />
+      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} onAddToView={addToView} onDashboard={dashboardFor} onNote={setToast} onFocus={focusSession} />
       <div className="stage">
         <div className="topbar">
           {crumb}
@@ -318,6 +340,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           })}
           {projectId && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
           {projectId && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
+          {projectId && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}
           {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
           <AccountUsage />

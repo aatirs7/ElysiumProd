@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, Plus } from 'lucide-react';
 import type { ReaderEntry, UsageStats } from '@shared/ipc';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { plainLine } from './TopBarExtras';
 import { CommandBox } from './CommandBox';
 import { ago, useLive } from './workspace/live';
-import { useWorkspace } from './workspace/store';
 
 function partOfDay(d = new Date()): string {
   const h = d.getHours();
@@ -29,10 +27,8 @@ interface Props {
 
 export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
-  const { doc, togglePin } = useWorkspace();
   const [usage, setUsage] = useState<UsageStats | null>(null);
   const [lastSaid, setLastSaid] = useState<Record<string, ReaderEntry>>({});
-  const [picking, setPicking] = useState(false);
   useEffect(() => { void window.elysium.usage().then(setUsage); }, []);
 
   const live = useMemo(() => sessions.filter((s) => s.status === 'running' && templates.find((t) => t.id === s.templateId)?.kind === 'claude'), [sessions, templates]);
@@ -48,33 +44,9 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveKey]);
 
-  const statFor = (id: string) => stats.find((s) => s.id === id);
-  const usageFor = (id: string) => usage?.projects.find((p) => p.id === id);
-  const lastTouched = (id: string) => {
-    const s = statFor(id);
-    const t = [s?.lastSessionAt, s?.lastCommitAt, usageFor(id)?.lastAt].filter(Boolean).map((x) => Date.parse(x!));
-    return t.length ? Math.max(...t) : 0;
-  };
-  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects;
-  const ordered = [...pinned].sort((a, b) => lastTouched(b.id) - lastTouched(a.id));
-  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id));
   const commits = stats.reduce((n, s) => n + s.commitsThisWeek, 0);
   const waiting = live.filter((s) => telemetry[s.id]?.state === 'waiting').length;
   const working = live.filter((s) => telemetry[s.id]?.state === 'busy').length;
-
-  const subline = (id: string) => {
-    const s = statFor(id);
-    const u = usageFor(id);
-    const n = sessions.filter((x) => x.status === 'running' && x.templateId.startsWith(`${id}.`)).length;
-    if (n) return `${n} session${n > 1 ? 's' : ''} running`;
-    const parts = [u?.minutesWeek ? `${hours(u.minutesWeek)} this week` : null, s?.commitsThisWeek ? `${s.commitsThisWeek} commits` : null].filter(Boolean);
-    const t = lastTouched(id);
-    return parts.length ? parts.join(' · ') : t ? `Last worked ${ago(new Date(t).toISOString())}` : 'No recent work';
-  };
-  const projectState = (id: string) => {
-    const st = live.filter((s) => s.templateId.startsWith(`${id}.`)).map((s) => telemetry[s.id]?.state);
-    return st.includes('waiting') ? 'waiting' : st.includes('busy') ? 'busy' : st.length ? 'idle' : null;
-  };
 
   const headline = waiting
     ? `${waiting} agent${waiting > 1 ? 's need' : ' needs'} you.`
@@ -87,7 +59,13 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const peak = Math.max(60, ...days.map((d) => d.minutes));
 
   return (
-    <div className="home page-enter">
+    <div className="home page-enter" onMouseMove={(e) => {
+      const card = (e.target as HTMLElement).closest('.project-card, .live-card, .week-card') as HTMLElement | null;
+      if (!card) return;
+      const r = card.getBoundingClientRect();
+      card.style.setProperty('--mx', `${e.clientX - r.left}px`);
+      card.style.setProperty('--my', `${e.clientY - r.top}px`);
+    }}>
       <div className="home-aura" aria-hidden="true" />
       <div className="home-inner">
         <header className="hero">
@@ -162,43 +140,6 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
           </div>
         </section>
 
-        <section className="home-block">
-          <div className="section-title">Your projects</div>
-          <div className="projects-grid">
-            {ordered.map((p, i) => {
-              const st = projectState(p.id);
-              return (
-                <button key={p.id} className={`project-card ${st ?? ''}`} style={{ animationDelay: `${60 + i * 40}ms` }} onClick={() => onOpen(p.id, p.name)}>
-                  <span className="project-logo-wrap"><ProjectLogo projectId={p.id} size="lg" /></span>
-                  <span className="project-text">
-                    <span className="title">{p.name}</span>
-                    <span className="sub">{st && <span className={`dot ${st}`} />}{subline(p.id)}</span>
-                  </span>
-                  <ArrowRight size={17} className="go" />
-                </button>
-              );
-            })}
-            <div className="pin-card-wrap">
-              <button className="project-card add" onClick={() => setPicking((x) => !x)} aria-expanded={picking}>
-                <span className="project-logo-wrap add"><Plus size={18} /></span>
-                <span className="project-text"><span className="title">Add a project</span><span className="sub">Clone, start new, or pin one you have</span></span>
-              </button>
-                {picking && (
-                  <div className="pin-list" role="menu">
-                    <button className="nav new-project" role="menuitem" onClick={() => { setPicking(false); onNewProject(); }}>
-                      <span className="plogo new"><Plus size={13} /></span><span className="grow">New project</span>
-                    </button>
-                    {unpinned.length > 0 && <div className="pin-picker-label">Pin one you have</div>}
-                    {unpinned.map((p) => (
-                      <button key={p.id} className="nav" role="menuitem" onClick={() => { togglePin(p.id); if (unpinned.length === 1) setPicking(false); }}>
-                        <ProjectLogo projectId={p.id} /><span className="grow">{p.name}</span><Plus size={14} className="muted" />
-                      </button>
-                    ))}
-                  </div>
-                )}
-            </div>
-          </div>
-        </section>
       </div>
     </div>
   );

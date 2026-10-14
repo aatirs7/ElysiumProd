@@ -6,7 +6,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { DockviewApi, SerializedDockview } from 'dockview-react';
 import type { WatcherConfig } from '@shared/ipc';
 
-export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest';
+/** Projects added after the first run that should show up pinned once. */
+const LATER_PINS = ['laptop'];
+
+export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora';
 export type Density = 'comfortable' | 'compact';
 
 export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string, string, string] }[] = [
@@ -17,6 +20,13 @@ export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string
   { id: 'graphite', name: 'Graphite', blurb: 'Neutral grey, like ChatGPT', swatch: ['#212121', '#2F2F2F', '#ECECEC'] },
   { id: 'paper', name: 'Paper', blurb: 'Bright and crisp', swatch: ['#F7F8FA', '#FFFFFE', '#2F6FDB'] },
   { id: 'forest', name: 'Forest', blurb: 'Muted green dark', swatch: ['#16201B', '#1F2B25', '#6CC59A'] },
+  { id: 'ocean', name: 'Ocean', blurb: 'Deep teal, calm', swatch: ['#0E1A1F', '#15252C', '#3CC6C0'] },
+  { id: 'ember', name: 'Ember', blurb: 'Near black with a warm glow', swatch: ['#16120F', '#211A15', '#FF8A3D'] },
+  { id: 'nord', name: 'Nord', blurb: 'Cool slate, arctic blue', swatch: ['#242933', '#2E3440', '#88C0D0'] },
+  { id: 'rose', name: 'Rose', blurb: 'Dark plum with rose', swatch: ['#1C1519', '#271D23', '#F07AA6'] },
+  { id: 'aurora', name: 'Aurora', blurb: 'Ink blue with northern greens', swatch: ['#0D1117', '#151B24', '#7EE0B5'] },
+  { id: 'sand', name: 'Sand', blurb: 'Warm beige, soft light', swatch: ['#F4EFE6', '#FBF8F2', '#B4652F'] },
+  { id: 'mint', name: 'Mint', blurb: 'Fresh light green', swatch: ['#F2F7F4', '#FBFDFC', '#1F9D6B'] },
 ];
 
 export interface Settings {
@@ -76,6 +86,8 @@ export interface WorkspaceDoc {
   lastProjectId: string | null;
   /** Projects shown in the sidebar and on Home; the rest stay one search away. */
   pinned: string[];
+  /** New default pins already offered once, so unpinning them sticks. */
+  pinsOffered: string[];
   /** The claude.ai chat (or Claude Project) each project's Claude pane opens to. */
   projectChats: Record<string, { url: string; title: string }>;
   /** Costs: a provider item linked to a project by hand (key to project id, or 'none'). */
@@ -136,7 +148,8 @@ function fresh(): WorkspaceDoc {
   return {
     version: 1, settings: DEFAULT_SETTINGS, views: [], activeViewId: null, notes: {}, presets: [],
     accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
-    pinned: ['posture', 'intern', 'attestia', 'gulf', 'builds'],
+    pinned: ['posture', 'intern', 'attestia', 'gulf', 'builds', 'laptop'],
+    pinsOffered: [...LATER_PINS],
     projectChats: {},
     costLinks: {},
     fixedCosts: [],
@@ -164,7 +177,8 @@ function parse(json: string | null): WorkspaceDoc {
       watchers: d.watchers ?? {},
       onboarded: Boolean(d.onboarded),
       lastProjectId: d.lastProjectId ?? null,
-      pinned: Array.isArray(d.pinned) ? d.pinned : f.pinned,
+      pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
+      pinsOffered: [...new Set([...(Array.isArray(d.pinsOffered) ? d.pinsOffered : []), ...LATER_PINS])],
       projectChats: d.projectChats ?? {},
       costLinks: d.costLinks ?? {},
       fixedCosts: Array.isArray(d.fixedCosts) ? d.fixedCosts : [],

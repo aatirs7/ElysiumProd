@@ -119,6 +119,13 @@ async function bySonnet(text: string, sessions: SessionManager): Promise<{ actio
 const nameOf = (id: string) => templates.find((t) => t.id === id)?.title ?? PROJECT_FOLDERS[id]?.name ?? id;
 const sessionsOf = (id: string) => (PROJECT_FOLDERS[id] ? templates.filter((t) => t.kind === 'claude' && t.project === id).map((t) => t.id) : [id]);
 
+/** A project's menu: start, wrap up, force stop or compact all of its Claude sessions. */
+export function projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact', tasks: Tasks, sessions: SessionManager): CommandResult {
+  if (!PROJECT_FOLDERS[projectId]) return { ok: false, via: 'rules', say: 'No such project.', steps: [], open: null };
+  const steps = execute([{ type, target: projectId }], tasks, sessions).steps;
+  return { ok: steps.every((s) => s.ok), via: 'rules', say: null, steps, open: null };
+}
+
 export async function runCommand(text: string, tasks: Tasks, sessions: SessionManager): Promise<CommandResult> {
   const t = text.trim().slice(0, 4000);
   if (!t) return { ok: false, via: 'rules', say: 'Type what you want done.', steps: [], open: null };
@@ -131,6 +138,12 @@ export async function runCommand(text: string, tasks: Tasks, sessions: SessionMa
     if (!s) return { ok: false, via, say: 'That could not be read. Try "tell Elysium Intern to …" or "start Gulf".', steps: [], open: null };
     actions = s.actions; say = s.say;
   }
+  const { steps, open } = execute(actions, tasks, sessions);
+  if (!steps.length) return { ok: false, via, say: say ?? 'Nothing to do for that.', steps, open };
+  return { ok: steps.every((s) => s.ok), via, say, steps, open };
+}
+
+function execute(actions: Action[], tasks: Tasks, sessions: SessionManager): { steps: CommandStep[]; open: string | null } {
   const steps: CommandStep[] = [];
   let open: string | null = null;
   const running = () => sessions.list().filter((s) => s.status === 'running');
@@ -158,8 +171,7 @@ export async function runCommand(text: string, tasks: Tasks, sessions: SessionMa
       steps.push({ label: `Opening ${nameOf(a.target)}`, ok: Boolean(open), reason: open ? null : 'Not a project' });
     }
   }
-  if (!steps.length) return { ok: false, via, say: say ?? 'Nothing to do for that.', steps, open };
-  return { ok: steps.every((s) => s.ok), via, say, steps, open };
+  return { steps, open };
 }
 
 /** For tests: the rule reader alone. */

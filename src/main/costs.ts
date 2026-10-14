@@ -151,13 +151,28 @@ function aws(): { items: CostItem[]; error: string | null } {
 
 const ymd = (d: Date) => d.toISOString().slice(0, 10);
 
+let inflight: Promise<CostReport> | null = null;
+
+/**
+ * The cost report. A fresh cache comes back at once; an old one also comes back
+ * at once, marked refreshing, while the providers are asked again in the
+ * background. Calls during a refresh share it.
+ */
 export async function costReport(force = false): Promise<CostReport> {
-  if (!force) {
-    try {
-      const c = JSON.parse(readFileSync(CACHE(), 'utf8')) as CostReport;
-      if (Date.now() - Date.parse(c.computedAt) < TTL) return c;
-    } catch { /* first run */ }
-  }
+  let cached: CostReport | null = null;
+  try { cached = JSON.parse(readFileSync(CACHE(), 'utf8')) as CostReport; } catch { /* first run */ }
+  if (!force && cached && Date.now() - Date.parse(cached.computedAt) < TTL) return cached;
+  if (!inflight) inflight = computeCosts().finally(() => { inflight = null; });
+  if (!force && cached) return { ...cached, refreshing: true };
+  return inflight;
+}
+
+/** Asked once at start up, so the Costs page is ready when you open it. */
+export function warmCosts(): void {
+  void costReport(false).catch(() => { /* the page asks again */ });
+}
+
+async function computeCosts(): Promise<CostReport> {
   const now = new Date();
   const lastStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const lastEnd = new Date(now.getFullYear(), now.getMonth(), 0);

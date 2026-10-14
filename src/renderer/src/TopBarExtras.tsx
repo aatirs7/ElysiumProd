@@ -214,7 +214,7 @@ export function ThemeToggle() {
     window.addEventListener('mousedown', off); window.addEventListener('keydown', esc);
     return () => { window.removeEventListener('mousedown', off); window.removeEventListener('keydown', esc); };
   }, [open]);
-  const light = ['claude-light', 'paper'].includes(document.documentElement.dataset.theme ?? '');
+  const light = ['claude-light', 'paper', 'sand', 'mint'].includes(document.documentElement.dataset.theme ?? '');
   return (
     <div className="theme-pick" ref={ref}>
       <button className="glance-btn icon-only" onClick={() => setOpen((o) => !o)} title="Theme" aria-label="Choose a theme" aria-expanded={open}>

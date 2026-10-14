@@ -93,6 +93,12 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(800);
     r.themeAfter = await js(`document.documentElement.dataset.theme`);
     await shot('13-theme-toggle');
+    r.sidebarProjects = await js(`[...document.querySelectorAll('.sidebar .view-item .grow')].map((x) => x.textContent)`);
+    await js(`(() => { const el = [...document.querySelectorAll('.sidebar .view-item')].find((x) => x.textContent.includes('Intern')); const b = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 40, clientY: b.top + 10 })); })()`);
+    await sleep(500);
+    r.projectMenu = await js(`[...document.querySelectorAll('.tab-menu-item')].map((x) => x.textContent)`);
+    await shot('14-project-menu');
+    await js(`document.querySelector('.menu-backdrop')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
     // New project: the dialog, then a from scratch project made and removed through the same calls.
     await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
     await sleep(400);

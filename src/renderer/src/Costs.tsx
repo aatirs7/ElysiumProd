@@ -31,7 +31,12 @@ export function Costs() {
 
   const load = (force = false) => {
     setLoading(true);
-    void window.elysium.costs(force).then((r) => { setReport(r); setLoading(false); }).catch(() => setLoading(false));
+    void window.elysium.costs(force).then((r) => {
+      setReport(r);
+      // An older report shows at once; the fresh one replaces it when the providers answer.
+      if (r.refreshing) void window.elysium.costs(true).then((f) => { setReport(f); setLoading(false); }).catch(() => setLoading(false));
+      else setLoading(false);
+    }).catch(() => setLoading(false));
   };
   useEffect(() => load(false), []);
 
@@ -84,7 +89,7 @@ export function Costs() {
       <div className="page-inner costs">
         <h1 className="page-title">Costs</h1>
         <p className="page-sub">
-          {report ? `${month} so far · updated ${ago(report.computedAt)}` : loading ? 'Asking Vercel and Neon…' : 'Could not load costs.'}
+          {report ? `${month} so far · ${report.refreshing ? 'updating…' : `updated ${ago(report.computedAt)}`}` : loading ? 'Asking Vercel and Neon…' : 'Could not load costs.'}
           <button className="link-btn costs-refresh" onClick={() => load(true)} disabled={loading} title="Ask every provider again">
             <RefreshCw size={13} className={loading ? 'spin' : ''} />{loading ? 'Refreshing' : 'Refresh'}
           </button>

@@ -23,9 +23,10 @@ import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
 import { createProject, loadCustomProjects, removeProject } from './newproject';
-import { costReport } from './costs';
+import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
-import { runCommand } from './command';
+import { projectAction, runCommand } from './command';
+import { PROJECT_FOLDERS } from './templates';
 import { clipboard } from 'electron';
 import { execFile } from 'node:child_process';
 import { dialog } from 'electron';
@@ -241,6 +242,9 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
+    (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
+  ipcMain.on(Channels.openFolder, (_e, id: unknown) => { const p = typeof id === 'string' ? PROJECT_FOLDERS[id] : undefined; if (p && existsSync(p.folder)) void shell.openPath(p.folder); });
   ipcMain.handle(Channels.commandRun, (_e, text: unknown) => (tasks && typeof text === 'string' ? runCommand(text, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.clipboardHasImage, async () => {
     try { return (await clipboard.read()).some((item) => item.types.some((t) => t.startsWith('image/'))); } catch { return false; }
@@ -378,5 +382,6 @@ app.whenReady().then(async () => {
     createTray(showMain, () => app.quit(), restartApp);
   }
   if (!SMOKE) resumeRunning(sessions);
+  if (!SMOKE) setTimeout(warmCosts, 4000);
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });

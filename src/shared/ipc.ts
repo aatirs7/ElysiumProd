@@ -119,6 +119,8 @@ export const Channels = {
   flowUpdate: 'flow:update',
   flowSummary: 'flow:summary',
   commandRun: 'command:run',
+  projectAction: 'project:action',
+  openFolder: 'project:open-folder',
   dictate: 'dictate:start',
   clipboardHasImage: 'clipboard:has-image',
 } as const;
@@ -244,6 +246,8 @@ export interface ElysiumApi {
   flowSummary(sessionId: string): Promise<{ text: string | null; at: string | null; reason: string | null }>;
   /** The Home command box: tell, start, stop, compact or open any project or session. */
   runCommand(text: string): Promise<CommandResult>;
+  projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
+  openFolder(projectId: string): void;
   /** Opens Windows voice typing (Win+H) for the focused text box. */
   dictate(): void;
   clipboardHasImage(): Promise<boolean>;
@@ -274,6 +278,8 @@ export interface CostItem {
 }
 export interface CostReport {
   computedAt: string;
+  /** An older report, shown while a new one is fetched. */
+  refreshing?: boolean;
   period: { from: string; to: string };
   items: CostItem[];
   lastMonth: { vercel: number | null; vercelValue: number | null };
