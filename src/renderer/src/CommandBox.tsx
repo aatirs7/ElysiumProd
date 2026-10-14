@@ -4,14 +4,19 @@
 import { useRef, useState } from 'react';
 import { ArrowUp, Check, Loader2, Mic, TriangleAlert } from 'lucide-react';
 import type { CommandResult } from '@shared/ipc';
+import { useLive } from './workspace/live';
 
-const EXAMPLES = ['Tell Elysium Intern to check the failing deploy', 'Start Gulf', 'Wrap up Attestia', 'Compact Prime Posture'];
 
 export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<CommandResult | null>(null);
-  const [hint] = useState(() => EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
+  const { projects } = useLive();
+  const [pick] = useState(() => Math.random());
+  const names = projects.filter((p) => !p.builtin).map((p) => p.name);
+  const a = names[0] ?? 'Laptop';
+  const examples = [`Tell ${a} to check the failing build`, `Start ${a}`, `Wrap up ${names[1] ?? a}`, 'Tell Laptop to find what is filling my disk', 'Tell Elysium to add a dark blue theme'];
+  const hint = examples[Math.floor(pick * examples.length)];
   const input = useRef<HTMLTextAreaElement>(null);
 
   const run = async () => {

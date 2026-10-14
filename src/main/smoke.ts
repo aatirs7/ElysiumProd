@@ -27,11 +27,16 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await new Promise<void>((res) => (ctx.win.webContents.isLoading() ? ctx.win.webContents.once('did-finish-load', () => res()) : res()));
     await sleep(2500);
     r.resources = ctx.resources.latest();
-    r.onboardingShown = await js(`Boolean(document.querySelector('.onboard'))`);
+    r.onboardingShown = await js(`Boolean(document.querySelector('.ob'))`);
     if (r.onboardingShown) {
-      await shot('1-welcome');
-      await click('Continue'); await sleep(500); await click('Continue'); await sleep(700); await shot('2-welcome-projects');
-      await click('Continue'); await sleep(500); await click('Start working'); await sleep(800);
+      await sleep(1200); await shot('ob-1-welcome');
+      await click('Get started'); await sleep(1200); await shot('ob-2-yours');
+      await click('Continue'); await sleep(6000); await shot('ob-3-connect');
+      r.connections = await js(`window.elysium.connections()`);
+      await click('Continue'); await sleep(2500); await shot('ob-4-projects');
+      await click('Continue'); await sleep(1200); await shot('ob-5-work');
+      await click('Continue'); await sleep(1500); await shot('ob-6-ready');
+      await click('Open Elysium'); await sleep(800);
     }
     await sleep(2500);
     await shot('3-home');
@@ -68,7 +73,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(600);
     await shot('10-costs-open');
     // A project dashboard and a site pane, opened in this plain view so no Claude session starts.
-    await js(`window.__smoke.open({ kind: 'dashboard', params: { projectId: 'posture' } })`);
+    await js(`window.__smoke.open({ kind: 'dashboard', params: { projectId: 'elysiumprod' } })`);
     await sleep(6000);
     r.dashboard = await js(`({ tiles: document.querySelectorAll('.dash-tile').length, links: document.querySelectorAll('.dash-link-main').length, tasks: document.querySelectorAll('.dash-task').length })`);
     await shot('11-dashboard');
@@ -94,7 +99,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     r.themeAfter = await js(`document.documentElement.dataset.theme`);
     await shot('13-theme-toggle');
     r.sidebarProjects = await js(`[...document.querySelectorAll('.sidebar .view-item .grow')].map((x) => x.textContent)`);
-    await js(`(() => { const el = [...document.querySelectorAll('.sidebar .view-item')].find((x) => x.textContent.includes('Intern')); const b = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 40, clientY: b.top + 10 })); })()`);
+    await js(`(() => { const el = [...document.querySelectorAll('.sidebar .view-item')].find(() => true); const b = el.getBoundingClientRect(); el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 40, clientY: b.top + 10 })); })()`);
     await sleep(500);
     r.projectMenu = await js(`[...document.querySelectorAll('.tab-menu-item')].map((x) => x.textContent)`);
     await shot('14-project-menu');

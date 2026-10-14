@@ -12,7 +12,7 @@ import { childEnv } from './env';
 import { dataDir } from './paths';
 import type { SessionManager } from './sessions';
 import type { Tasks } from './tasks';
-import { PROJECT_FOLDERS, templates } from './templates';
+import { PROJECT_FOLDERS, PROJECTS, templates } from './templates';
 
 type Action =
   | { type: 'send'; target: string; text: string }
@@ -33,9 +33,7 @@ function aliases(): { alias: string; t: Target }[] {
     const words = norm(p.name).split(' ');
     if (words.length > 1) add(words[words.length - 1], t);
   }
-  add('security posture', { kind: 'project', id: 'posture', name: 'SecurITPosture' });
-  add('elysium prod', { kind: 'project', id: 'elysiumprod', name: 'ElysiumProd' });
-  add('builder', { kind: 'session', id: 'elysiumprod.claude', name: 'ElysiumProd Builder' });
+  for (const p of PROJECTS) for (const a of p.aliases ?? []) add(a, { kind: 'project', id: p.id, name: p.name });
   for (const t of templates) {
     if (t.kind !== 'claude') continue;
     const target: Target = { kind: 'session', id: t.id, name: t.title };

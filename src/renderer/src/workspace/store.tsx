@@ -48,6 +48,8 @@ export interface Settings {
   notifyReplies: boolean;
   /** Live flow: a short Sonnet summary per session, at most every five minutes. */
   flowSummaries: boolean;
+  /** What the app calls you; empty means your Windows name. */
+  displayName: string;
 }
 
 export interface AccountPrefs { label: string }
@@ -83,6 +85,7 @@ export interface WorkspaceDoc {
   projectAccounts: Record<string, string>;
   watchers: Record<string, WatcherConfig>;
   onboarded: boolean;
+  onboardVersion?: number;
   lastProjectId: string | null;
   /** Projects shown in the sidebar and on Home; the rest stay one search away. */
   pinned: string[];
@@ -103,7 +106,15 @@ export interface WorkspaceDoc {
 export interface DashLink { id: string; label: string; url: string }
 export interface FeatureRequest { id: string; projectId: string; text: string; at: string; sent: boolean; note: string | null }
 
-export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null }
+/** A cost no provider reports: a subscription, a domain, a one off purchase. `monthly` is the amount per cycle. */
+export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null; cycle?: 'monthly' | 'yearly' | 'once'; category?: string; date?: string }
+export const COST_CATEGORIES = ['AI', 'Hosting', 'Software', 'Domain', 'Design', 'Hardware', 'Other'];
+/** What a cost adds to this month: monthly as is, yearly spread over twelve, a one off only in its month. */
+export function monthlyOf(f: FixedCost, now = new Date()): number {
+  if (f.cycle === 'yearly') return f.monthly / 12;
+  if (f.cycle === 'once') { const d = f.date ? new Date(f.date) : null; return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() ? f.monthly : 0; }
+  return f.monthly;
+}
 
 /**
  * A preset never carries live session ids. Terminal panes are saved as
@@ -140,6 +151,7 @@ export const DEFAULT_SETTINGS: Settings = {
   autoCompact: { enabled: true, percent: 80 },
   notifyReplies: true,
   flowSummaries: true,
+  displayName: '',
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -148,7 +160,7 @@ function fresh(): WorkspaceDoc {
   return {
     version: 1, settings: DEFAULT_SETTINGS, views: [], activeViewId: null, notes: {}, presets: [],
     accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
-    pinned: ['posture', 'intern', 'attestia', 'gulf', 'builds', 'laptop'],
+    pinned: ['elysiumprod', 'laptop'],
     pinsOffered: [...LATER_PINS],
     projectChats: {},
     costLinks: {},
@@ -175,7 +187,8 @@ function parse(json: string | null): WorkspaceDoc {
       accounts: { ...f.accounts, ...(d.accounts ?? {}) },
       projectAccounts: d.projectAccounts ?? {},
       watchers: d.watchers ?? {},
-      onboarded: Boolean(d.onboarded),
+      // The setup was rebuilt in version 2; everyone sees the new one once.
+      onboarded: Boolean(d.onboarded) && (d as { onboardVersion?: number }).onboardVersion === 2,
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
       pinsOffered: [...new Set([...(Array.isArray(d.pinsOffered) ? d.pinsOffered : []), ...LATER_PINS])],
@@ -318,7 +331,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     return { ...d, projectChats };
   }), []);
   const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests'>>) => setDoc((d) => ({ ...d, ...p })), []);
-  const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true })), []);
+  const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true, onboardVersion: 2 })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string) => {
     const existing = docRef.current.views.find((v) => v.projectId === projectId);

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { BarChart3, CircleDollarSign, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { BarChart3, ChevronDown, CircleDollarSign, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
+import { CHECKS, TOOL_INFO } from './tools';
 import { useWorkspace } from './workspace/store';
 
 export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs';
@@ -22,18 +23,22 @@ interface Props {
   onNote(text: string): void;
   /** Shows a running session's pane. */
   onFocus(sessionId: string, templateId: string): void;
+  /** Runs one of the PC Helper's quick checks. */
+  onRunCheck(checkId: string): void;
 }
 
-export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus }: Props) {
+export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus, onRunCheck }: Props) {
   const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const { doc, activeView, setActiveView, renameView, addView, togglePin } = useWorkspace();
   const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry, templates } = useLive();
   const { res } = useMachine();
   const [editing, setEditing] = useState<string | null>(null);
-  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id)).filter(Boolean) as typeof projects;
+  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id && !p.builtin)).filter(Boolean) as typeof projects;
+  const tools = projects.filter((p) => p.builtin);
+  const [checksOpen, setChecksOpen] = useState(false);
   const freeViews = doc.views.filter((v) => !v.projectId);
-  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id));
+  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id) && !p.builtin);
 
   /** A project's status: waiting on you beats busy beats running. */
   const status = (projectId: string) => {
@@ -151,6 +156,31 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
             </div>
           );
         })()}
+
+        <div className="side-label"><span>Tools</span></div>
+        {tools.map((p) => {
+          const info = TOOL_INFO[p.id];
+          const Icon = info?.icon ?? Wrench;
+          const active = page === 'workspace' && activeView?.projectId === p.id;
+          const st = status(p.id);
+          return (
+            <div key={p.id}>
+              <div className={`nav view-item ${active ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, p.name)} onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, p.name); }} title={info?.tagline ?? p.name}>
+                <span className="tool-icon"><Icon size={14} /></span>
+                <span className="grow">{info?.title ?? p.name}</span>
+                {st && <span className={`dot ${st}`} />}
+                {p.id === 'laptop' && <button className="ghost-icon tiny" onClick={(e) => { e.stopPropagation(); setChecksOpen((o) => !o); }} title="Quick checks" aria-label="Quick checks" aria-expanded={checksOpen}><ChevronDown size={13} style={{ transform: checksOpen ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} /></button>}
+              </div>
+              {p.id === 'laptop' && checksOpen && (
+                <div className="side-sessions">
+                  {CHECKS.map((c) => (
+                    <button key={c.id} className="side-session" title={c.blurb} onClick={() => onRunCheck(c.id)}><c.icon size={13} /><span className="grow">{c.title}</span></button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         {freeViews.length > 0 && <>
         <div className="side-label">

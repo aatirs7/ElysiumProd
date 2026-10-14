@@ -15,6 +15,7 @@ import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
 import { Workspace, addPanel, ensureProjectSessions, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
+import { CHECKS } from './tools';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
 import { AccountUsage, ChatWatchSwitch, NoticeStack, ThemeToggle, useNotices, type Notice } from './TopBarExtras';
@@ -113,6 +114,14 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     setPage('workspace');
     setTimeout(() => { const api = apiFor(viewId); if (api) ensureProjectSessions(api, projectId, templatesRef2.current); }, 80);
   }, [apiFor, setActiveView]);
+  // A quick check: open the PC Helper and hand it the job.
+  const runCheck = useCallback(async (checkId: string) => {
+    const c = CHECKS.find((x) => x.id === checkId);
+    if (!c) return;
+    goProject('laptop', 'PC Helper');
+    const r = await window.elysium.quickRun('laptop', c.prompt);
+    setToast(r.ok ? `${c.title} started. The PC Helper reports back here.` : r.reason ?? 'Could not start it.');
+  }, [goProject]);
   const dashboardFor = useCallback((projectId: string, projectName: string) => {
     goProject(projectId, projectName);
     setTimeout(() => {
@@ -323,7 +332,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
 
   return (
     <div className="shell">
-      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} onAddToView={addToView} onDashboard={dashboardFor} onNote={setToast} onFocus={focusSession} />
+      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} onAddToView={addToView} onDashboard={dashboardFor} onNote={setToast} onFocus={focusSession} onRunCheck={runCheck} />
       <div className="stage">
         <div className="topbar">
           {crumb}
@@ -358,7 +367,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
               : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
           )}
         </div>
-        {page === 'home' && <Home name={name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
+        {page === 'home' && <Home name={doc.settings.displayName || name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}

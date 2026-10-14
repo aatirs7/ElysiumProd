@@ -2,9 +2,9 @@
 // telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron';
 import { appendFileSync, existsSync } from 'node:fs';
-import { userInfo } from 'node:os';
+import { homedir as userHome, userInfo } from 'node:os';
 import { join } from 'node:path';
-import { Channels, type ResourceSample, type SessionInfo } from '@shared/ipc';
+import { Channels, type ConnectService, type ResourceSample, type SessionInfo } from '@shared/ipc';
 import { dataDir, scrollbackDir } from './paths';
 import { Resources } from './resources';
 import { enforceCaps } from './scrollback';
@@ -26,6 +26,7 @@ import { createProject, loadCustomProjects, removeProject } from './newproject';
 import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
 import { projectAction, runCommand } from './command';
+import { addClaudeAccount, connect, connections, scanRepos } from './connect';
 import { PROJECT_FOLDERS } from './templates';
 import { clipboard } from 'electron';
 import { execFile } from 'node:child_process';
@@ -244,6 +245,13 @@ function registerIpc(): void {
   ipcMain.handle(Channels.limitsAll, () => limits.all());
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
+  ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.handle(Channels.connections, () => connections());
+  ipcMain.handle(Channels.connect, (_e, service: unknown, action: unknown, accountId: unknown) =>
+    (['claude', 'git', 'github', 'vercel', 'neon'].includes(String(service)) && (action === 'install' || action === 'signin')
+      ? connect(service as ConnectService, action, typeof accountId === 'string' ? accountId : undefined) : { ok: false, reason: 'Unknown service.' }));
+  ipcMain.handle(Channels.addClaudeAccount, (_e, name: unknown) => addClaudeAccount(String(name ?? '')));
+  ipcMain.handle(Channels.scanRepos, () => scanRepos());
   ipcMain.on(Channels.openFolder, (_e, id: unknown) => { const p = typeof id === 'string' ? PROJECT_FOLDERS[id] : undefined; if (p && existsSync(p.folder)) void shell.openPath(p.folder); });
   ipcMain.handle(Channels.commandRun, (_e, text: unknown) => (tasks && typeof text === 'string' ? runCommand(text, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.clipboardHasImage, async () => {

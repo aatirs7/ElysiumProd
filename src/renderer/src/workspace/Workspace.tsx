@@ -23,6 +23,8 @@ import { DocumentPanel } from './DocumentPanel';
 import { ClaudePanel, overlayClosed, overlayOpened } from './ClaudePanel';
 import { SitePanel } from './SitePanel';
 import { Dashboard, PROJECT_EXTRAS } from './Dashboard';
+import { ToolIntro } from './ToolIntro';
+import { TOOL_INFO } from '../tools';
 import { FlowPanel } from './FlowPanel';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
@@ -60,6 +62,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   claude: ClaudePanel as FunctionComponent<IDockviewPanelProps>,
   web: SitePanel as FunctionComponent<IDockviewPanelProps>,
   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
+  tool: ToolIntro as FunctionComponent<IDockviewPanelProps>,
   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
 };
 
@@ -117,7 +120,9 @@ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, acco
   }
   api.addPanel({ id: `claude-${uid()}`, component: 'claude', title: 'Claude', params: { accountId, projectId: view.projectId }, position: { direction: 'right' } });
   const right = api.groups[api.groups.length - 1];
-  if (view.projectId) {
+  if (view.projectId && TOOL_INFO[view.projectId]) {
+    api.addPanel({ id: `tool-${uid()}`, component: 'tool', title: TOOL_INFO[view.projectId].title, params: { projectId: view.projectId }, position: { referenceGroup: right.id } });
+  } else if (view.projectId) {
     api.addPanel({ id: `dashboard-${uid()}`, component: 'dashboard', title: 'Dashboard', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
     const start = PROJECT_EXTRAS[view.projectId]?.open;
     if (start) api.addPanel({ id: `web-${uid()}`, component: 'web', title: 'Admin', params: { url: start, projectId: view.projectId, title: 'Admin' }, position: { referenceGroup: right.id } });

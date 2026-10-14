@@ -120,6 +120,11 @@ export const Channels = {
   flowSummary: 'flow:summary',
   commandRun: 'command:run',
   projectAction: 'project:action',
+  homeDir: 'app:home-dir',
+  connections: 'connect:status',
+  connect: 'connect:run',
+  addClaudeAccount: 'connect:add-claude',
+  scanRepos: 'connect:scan-repos',
   openFolder: 'project:open-folder',
   dictate: 'dictate:start',
   clipboardHasImage: 'clipboard:has-image',
@@ -127,7 +132,14 @@ export const Channels = {
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
 
-export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean }
+export type ConnectService = 'claude' | 'git' | 'github' | 'vercel' | 'neon';
+export interface ConnectStatus {
+  id: ConnectService; name: string; what: string; installed: boolean; signedIn: boolean; who: string | null; required: boolean;
+  accounts?: { id: string; configDir: string; signedIn: boolean }[];
+}
+export interface RepoCandidate { folder: string; name: string; touchedAt: string }
+export interface ProjectExtras { links?: { id: string; label: string; url: string }[]; people?: string[]; open?: string; checkWhat?: string }
+export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean; extras: ProjectExtras | null; builtin: boolean }
 
 export interface NewProjectRequest {
   mode: 'clone' | 'new' | 'existing';
@@ -248,6 +260,11 @@ export interface ElysiumApi {
   runCommand(text: string): Promise<CommandResult>;
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
+  homeDir(): Promise<string>;
+  connections(): Promise<ConnectStatus[]>;
+  connect(service: ConnectService, action: 'install' | 'signin', accountId?: string): Promise<{ ok: boolean; reason: string | null }>;
+  addClaudeAccount(name: string): Promise<{ ok: boolean; reason: string | null; accountId?: string }>;
+  scanRepos(): Promise<RepoCandidate[]>;
   /** Opens Windows voice typing (Win+H) for the focused text box. */
   dictate(): void;
   clipboardHasImage(): Promise<boolean>;

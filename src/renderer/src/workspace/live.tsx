@@ -2,6 +2,7 @@
 // telemetry, accounts, watchers, and projects with this week's activity.
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { AccountInfo, AccountLimits, CompactState, ProjectInfo, ProjectStats, ResourceSample, SessionInfo, Telemetry, TemplateInfo, WatcherState } from '@shared/ipc';
+import { setProjectExtras } from './Dashboard';
 
 const HISTORY = 90; // samples, two seconds apart: three minutes
 
@@ -44,7 +45,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void window.elysium.templates().then(setTemplates);
     void window.elysium.accounts().then(setAccounts);
-    void window.elysium.projects().then(setProjects);
+    void window.elysium.projects().then((p) => { setProjectExtras(p); setProjects(p); });
     void window.elysium.resources().then((r) => { if (r) setHistory([r]); });
     void window.elysium.sessions().then((list) => setSessions(new Map(list.map((s) => [s.id, s]))));
     void window.elysium.telemetry().then((list) => setTelemetry(Object.fromEntries(list.map((t) => [t.sessionId, t]))));
@@ -58,7 +59,7 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       // A project made or removed in the app: its sessions and its card appear at once.
       window.elysium.onProjectsChanged(() => {
         void window.elysium.templates().then(setTemplates);
-        void window.elysium.projects().then(setProjects);
+        void window.elysium.projects().then((p) => { setProjectExtras(p); setProjects(p); });
         setStatsTick((x) => x + 1);
       }),
       window.elysium.onLimits((l) => setLimits((m) => ({ ...m, [l.accountId]: l }))),

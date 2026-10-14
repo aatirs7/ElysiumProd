@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GitInfo, ProjectInfo, RelayInfo, TaskInfo } from '@shared/ipc';
-import { PROJECT_FOLDERS } from './templates';
+import { projectDef, PROJECT_FOLDERS } from './templates';
 import { isCustom } from './newproject';
 
 function run(cmd: string, args: string[], cwd?: string, timeout = 15000): Promise<{ ok: boolean; out: string; err: string }> {
@@ -28,16 +28,15 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 
 interface Mods { relayRepo?: string; relayFile?: string; relayIssue?: string; waitingHeading?: string; nowHeading?: string }
 
-/** The plugin's defaults, used where a repo has no .claude/mods.json (SecurITPosture). */
-const PLUGIN_DEFAULTS: Mods = { relayRepo: 'SecurITPosture-01/securitposture_2026', relayIssue: '105', waitingHeading: 'Waiting on Aatir', nowHeading: 'Now' };
 
-/** Relay settings from the repo's .claude/mods.json; the plugin's own defaults only apply to SecurITPosture. */
+/** Relay settings from the repo's .claude/mods.json, or the project's own defaults from the profile. */
 function mods(folder: string, projectId?: string): Mods {
   const f = join(folder, '.claude', 'mods.json');
   const repo = projectId ? PROJECT_FOLDERS[projectId]?.repo ?? undefined : undefined;
   try {
     if (existsSync(f)) return { relayRepo: repo, ...JSON.parse(readFileSync(f, 'utf8')) };
-    if (projectId === 'posture') return PLUGIN_DEFAULTS;
+    const own = projectId ? projectDef(projectId)?.mods : undefined;
+    if (own) return { relayRepo: repo, ...own };
     return { relayRepo: repo };
   } catch { return { relayRepo: repo }; }
 }
@@ -45,7 +44,7 @@ function mods(folder: string, projectId?: string): Mods {
 export function listProjects(): ProjectInfo[] {
   return Object.entries(PROJECT_FOLDERS).map(([id, p]) => {
     const m = mods(p.folder, id);
-    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id) };
+    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id), extras: projectDef(id)?.extras ?? null, builtin: projectDef(id)?.source === 'builtin' };
   });
 }
 
@@ -78,7 +77,7 @@ export function readTasks(projectId: string): Promise<{ ok: boolean; error: stri
     const raw = JSON.parse(r.out) as { number: number; title: string; labels: { name: string }[]; updatedAt: string; url: string; comments: unknown[] }[];
     const tasks = raw.map((i) => {
       const labels = i.labels.map((l) => l.name);
-      const needsOwner = labels.some((l) => /needs:owner|to:aatir|blocked/i.test(l)) || /^Decide/i.test(i.title);
+      const needsOwner = labels.some((l) => /needs:owner|to:owner|blocked/i.test(l)) || /^Decide/i.test(i.title);
       return { number: i.number, title: i.title, labels, updatedAt: i.updatedAt, url: i.url, comments: i.comments?.length ?? 0, needsOwner };
     });
     return { ok: true, error: null, tasks };

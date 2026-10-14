@@ -9,11 +9,12 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChatWatch } from '@shared/ipc';
-import { PROJECT_FOLDERS } from './templates';
+import { PROJECT_FOLDERS, projectDef } from './templates';
 
 /** The part of a watcher's command line that marks it, per project. */
 export function watchPattern(projectId: string): string | null {
-  if (projectId === 'posture') return 'chat-watch.mjs';
+  const own = projectDef(projectId)?.watchPattern;
+  if (own) return own;
   const p = PROJECT_FOLDERS[projectId];
   if (!p) return null;
   try {

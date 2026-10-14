@@ -15,7 +15,6 @@ const MODES: { id: Mode; label: string; icon: typeof GitBranch; blurb: string }[
   { id: 'existing', label: 'Existing folder', icon: FolderOpen, blurb: 'Something already on this PC' },
 ];
 
-const DEFAULT_PARENT = 'C:\\Users\\aatir';
 
 /** The repository's own name from an address or owner/repo, made readable. */
 function nameFromUrl(url: string): string {
@@ -30,7 +29,8 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
-  const [parent, setParent] = useState(DEFAULT_PARENT);
+  const [parent, setParent] = useState('');
+  useEffect(() => { void window.elysium.homeDir().then((h) => setParent((p) => p || h)); }, []);
   const [folder, setFolder] = useState('');
   const [sessions, setSessions] = useState<'pair' | 'solo'>('solo');
   const [github, setGithub] = useState<'none' | 'private' | 'public'>('none');

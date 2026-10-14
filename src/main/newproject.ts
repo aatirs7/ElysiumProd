@@ -4,7 +4,7 @@
 // the app; its folder, git history and Claude history stay where they are.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { arch, homedir, totalmem } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { NewProjectRequest, NewProjectResult } from '@shared/ipc';
 import { dataDir } from './paths';
@@ -26,21 +26,33 @@ function saved(): ProjectDef[] {
   } catch { return []; }
 }
 
-function save(): void {
-  writeFileSync(FILE(), JSON.stringify(PROJECTS.filter((p) => p.custom), null, 2));
+/** The owner's own list, kept on this PC only (profile.json beside workspace.json). */
+function profileProjects(): ProjectDef[] {
+  try {
+    const j = JSON.parse(readFileSync(join(dataDir(), 'profile.json'), 'utf8')) as { projects?: ProjectDef[] };
+    return (Array.isArray(j.projects) ? j.projects : []).filter((p) => p && typeof p.id === 'string' && typeof p.folder === 'string' && typeof p.name === 'string');
+  } catch { return []; }
 }
 
-/** The iOS hub: a small folder whose CLAUDE.md lists the apps the iOS session works on. Never overwritten. */
-function ensureIosHub(): void {
-  const p = PROJECTS.find((x) => x.id === 'ios');
-  if (!p) return;
-  try {
-    mkdirSync(p.folder, { recursive: true });
-    const md = join(p.folder, 'CLAUDE.md');
-    if (existsSync(md)) return;
-    const apps = (p.addDirs ?? []).map((d) => `- ${basename(d)}: ${d}`).join('\n');
-    writeFileSync(md, `# iOS\n\nThis session works on every iOS app. Each is an Expo app built with EAS, and each folder below is added to this session.\n\n${apps}\n\nWork inside the app the request names. Follow that app's own CLAUDE.md and rules. Ask which app if a request does not say.\n`);
-  } catch { /* the session reports a missing folder itself */ }
+function save(): void {
+  writeFileSync(FILE(), JSON.stringify(PROJECTS.filter((p) => p.source === 'custom'), null, 2));
+}
+
+/** What the Laptop session is for and how it works on this PC. */
+function laptopNote(): string {
+  const shell = existsSync('C:\\Program Files\\PowerShell\\7\\pwsh.exe') ? 'PowerShell 7 (pwsh) and Windows PowerShell 5.1' : 'Windows PowerShell 5.1 (pwsh is not installed)';
+  return [
+    '# PC Helper', '',
+    'This session is a tool for this computer itself, not a codebase. The owner asks it to fix things on the PC or to audit it: slowness, disk space, startup apps, drivers, Windows Update, network and Wi-Fi, battery health, security settings, installed software, scheduled tasks, odd processes.', '',
+    `Machine: Windows on ${arch() === 'arm64' ? 'ARM64' : arch()}, ${Math.round(totalmem() / 1024 ** 3)} GB of memory. Shell: ${shell}.`, '',
+    'How to work:',
+    '- Look before changing. Audits are read only: report what you found, in plain words, and what you would change.',
+    '- Before anything hard to undo (uninstalling, deleting files, registry edits, changing services, drivers or firewall rules, anything that needs a reboot), say exactly what you will do and wait for a yes.',
+    '- Never print or save the contents of passwords, keys, tokens or other secrets. Paths only.',
+    '- Do not stop or kill Elysium (electron.exe) or any claude.exe process; other work runs in them.',
+    '- When something is done, check that it worked and say how you checked.',
+    '- Keep a short log in notes/log.md: the date, what was asked, what you found, what you changed.', '',
+  ].join('\n');
 }
 
 /** The Laptop tool's folder and its CLAUDE.md, which says how to work on this PC. Never overwritten. */
@@ -50,15 +62,15 @@ function ensureLaptopTool(): void {
   try {
     mkdirSync(join(p.folder, 'notes'), { recursive: true });
     const md = join(p.folder, 'CLAUDE.md');
-    if (!existsSync(md)) writeFileSync(md, "# Laptop\n\nThis session is a tool for this Windows laptop itself, not a codebase. The owner asks it to fix things on the PC or to audit it: slowness, disk space, startup apps, drivers, Windows Update, network and Wi-Fi, battery health, security settings, installed software, scheduled tasks, odd processes.\n\nMachine: Windows 11 on ARM64 (Surface), 16 GB of memory. Use PowerShell (Windows PowerShell 5.1; pwsh is not installed).\n\nHow to work:\n- Look before changing. Audits are read only: report what you found, in plain words, and what you would change.\n- Before anything hard to undo (uninstalling, deleting files, registry edits, changing services, drivers or firewall rules, anything that needs a reboot), say exactly what you will do and wait for a yes.\n- Never print or save the contents of passwords, keys, tokens or other secrets. Paths only.\n- Do not stop or kill ElysiumProd (electron.exe) or any claude.exe process; other work runs in them.\n- When something is done, check that it worked and say how you checked.\n- Keep a short log in notes/log.md: the date, what was asked, what you found, what you changed.\n");
+    if (!existsSync(md)) writeFileSync(md, laptopNote());
   } catch { /* the session reports a missing folder itself */ }
 }
 
 /** Adds the saved projects to the live table. Called once at start up. */
 export function loadCustomProjects(): void {
-  ensureIosHub();
   ensureLaptopTool();
-  for (const p of saved()) registerProject({ ...p, custom: true });
+  for (const p of profileProjects()) registerProject({ ...p, source: 'profile' });
+  for (const p of saved()) registerProject({ ...p, custom: true, source: 'custom' });
 }
 
 /** "owner/repo" from a GitHub address, or null for anything else. */
@@ -145,5 +157,5 @@ export function removeProject(id: string): boolean {
 }
 
 export function isCustom(id: string): boolean {
-  return PROJECTS.some((p) => p.id === id && p.custom);
+  return PROJECTS.some((p) => p.id === id && p.source === 'custom');
 }

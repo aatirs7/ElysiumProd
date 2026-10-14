@@ -1,9 +1,12 @@
-// Projects and their session templates. Main projects run a Prime and Meridian
-// pair, mirroring cs.ps1 exactly (folders, SP_SESSION_NAME, flags). Side projects
-// run one Claude session that continues the folder's most recent conversation.
-// Phase 2 of the spec replaces this table with the first run import (8.3.1).
+// Projects and their session templates. The app ships with two built in
+// projects (Elysium itself, so its own session can change the app, and the Laptop
+// tool); everything else is the owner's: profile.json for a hand kept list and
+// projects.json for the ones added in the app. Main projects run a Prime and
+// Meridian pair; side projects run one Claude session.
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { app } from 'electron';
 import type { TemplateInfo } from '@shared/ipc';
 import { resolveClaude } from './claude';
 
@@ -21,8 +24,6 @@ function shell(): string {
   return existsSync(pwsh) ? pwsh : 'powershell.exe';
 }
 
-const MODS = 'C:\\Users\\aatir\\securitposture_2026\\plugins\\securitposture-mods';
-const H = 'C:\\Users\\aatir';
 
 export interface ProjectDef {
   id: string;
@@ -36,34 +37,27 @@ export interface ProjectDef {
   sessionName?: string;
   /** Side projects: more folders the one session may work in (the iOS hub). */
   addDirs?: string[];
-  /** Main projects only: the cs.ps1 names. */
-  pair?: { prime: string; meridian: string; pluginPrime: string; pluginMeridian: string; extra: string[] };
+  /** Main projects only: the two session names, and optionally a plugin both load. */
+  pair?: { prime: string; meridian: string; pluginDir?: string; pluginPrime?: string; pluginMeridian?: string; extra: string[] };
+  /** Where it came from: built in, the owner's profile.json, or added in the app. */
+  source?: 'builtin' | 'profile' | 'custom';
+  /** Other names the command box knows it by. */
+  aliases?: string[];
+  /** Relay settings used when the repo has no .claude/mods.json. */
+  mods?: { relayRepo?: string; relayFile?: string; relayIssue?: string; waitingHeading?: string; nowHeading?: string };
+  /** The part of the chat watcher's command line that marks it. */
+  watchPattern?: string;
+  /** Dashboard extras: links, people to check on, a page to open beside Claude. */
+  extras?: { links?: { id: string; label: string; url: string }[]; people?: string[]; open?: string; checkWhat?: string };
 }
 
-/** Every project with work in the last 20 days (AUDIT-REPOS.md), newest first within each tier. */
+/** The app's own source folder: where its built in session works. */
+export const APP_SOURCE = app.getAppPath();
+
+/** Built in: Elysium itself, and the Laptop tool. */
 export const PROJECTS: ProjectDef[] = [
-  { id: 'posture', name: 'SecurITPosture', folder: `${H}\\securitposture_2026`, repo: 'SecurITPosture-01/securitposture_2026', tier: 'main',
-    pair: { prime: 'Prime Posture', meridian: 'Meridian Posture', pluginPrime: 'Prime', pluginMeridian: 'Meridian', extra: ['--model', 'claude-opus-5-5', '--advisor', 'claude-fable-5-1'] } },
-  { id: 'intern', name: 'Elysium Intern', folder: `${H}\\Documents\\Elysium Ventures LLC\\elysiumintern`, repo: 'aatirs7/elysiumintern', tier: 'main',
-    pair: { prime: 'Prime Intern', meridian: 'Meridian Intern', pluginPrime: 'Prime Intern', pluginMeridian: 'Meridian Intern', extra: [] } },
-  { id: 'gulf', name: 'Gulf', folder: `${H}\\Gulf`, repo: 'aatirs7/Gulf', tier: 'main',
-    pair: { prime: 'Prime Gulf', meridian: 'Meridian Gulf', pluginPrime: 'Prime Gulf', pluginMeridian: 'Meridian Gulf', extra: [] } },
-  { id: 'attestia', name: 'Attestia', folder: `${H}\\truestate`, repo: 'aatirs7/attestia', tier: 'main',
-    pair: { prime: 'Prime Attestia', meridian: 'Meridian Attestia', pluginPrime: 'Prime Attestia', pluginMeridian: 'Meridian Attestia', extra: [] } },
-  { id: 'builds', name: 'Elysium Builds', folder: `${H}\\elysiumbuilds`, repo: 'aatirs7/elysiumbuilds', tier: 'side' },
-  { id: 'phirmilingay', name: 'Phir Milingay', folder: `${H}\\phirmilingay`, repo: 'aatirs7/phirmilingay', tier: 'side' },
-  { id: 'winboard', name: 'Winboard', folder: `${H}\\winboard`, repo: 'aatirs7/winboard', tier: 'side' },
-  { id: 'bookmarks', name: 'Bookmark Vault', folder: `${H}\\twitterbookmarksite`, repo: 'aatirs7/twitterbookmarksite', tier: 'side' },
-  { id: 'sharjeelcrm', name: 'Sharjeel CRM', folder: `${H}\\Documents\\sharjeelcrm`, repo: 'aatirs7/sharjeelcrm', tier: 'side' },
-  { id: 'accshop', name: 'AccShop', folder: `${H}\\accshop`, repo: 'aatirs7/accshop', tier: 'side' },
-  { id: 'ventures', name: 'Elysium Ventures', folder: `${H}\\ElysiumVentures`, repo: 'aatirs7/ElysiumVentures', tier: 'side' },
-  // Its own named session, so it never continues a conversation that is working on this app from outside it.
-  { id: 'elysiumprod', name: 'ElysiumProd', folder: `${H}\\ElysiumProd`, repo: 'aatirs7/ElysiumProd', tier: 'side', sessionName: 'ElysiumProd Builder' },
-  // One session for every iOS app (all Expo and EAS), started in a hub folder with each repository added.
-  { id: 'ios', name: 'iOS', folder: `${H}\\ios-hub`, repo: null, tier: 'side', sessionName: 'iOS',
-    addDirs: [`${H}\\DurusIOS`, `${H}\\cobalt`, `${H}\\drift`, `${H}\\wanderpress`, `${H}\\Documents\\Elysium Ventures LLC\\ILMYIOS`] },
-  // A tool, not a codebase: one session that fixes and audits this laptop itself. No repository.
-  { id: 'laptop', name: 'Laptop', folder: `${H}\\laptop-tool`, repo: null, tier: 'side', sessionName: 'Laptop' },
+  { id: 'elysiumprod', name: 'Customize Elysium', folder: APP_SOURCE, repo: null, tier: 'side', sessionName: 'Elysium Builder', source: 'builtin', aliases: ['elysium', 'elysiumprod', 'elysium prod', 'builder', 'the app'] },
+  { id: 'laptop', name: 'PC Helper', folder: join(homedir(), 'laptop-tool'), repo: null, tier: 'side', sessionName: 'PC Helper', source: 'builtin', aliases: ['pc', 'computer', 'laptop', 'pc helper'] },
 ];
 
 function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
@@ -73,11 +67,12 @@ function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
     id: `${p.id}.${role}`, title, kind: 'claude', project: p.id, projectName: p.name, role, cwd: p.folder,
     confirm: null,
     command: resolveClaude,
-    args: p.custom
-      ? ['--resume', title, '--dangerously-skip-permissions', ...pair.extra]
-      : ['--resume', title, '--dangerously-skip-permissions', '--plugin-dir', MODS, ...pair.extra],
-    env: p.custom ? {} : { SP_SESSION_NAME: role === 'prime' ? pair.pluginPrime : pair.pluginMeridian },
-    named: Boolean(p.custom),
+    args: pair.pluginDir && existsSync(pair.pluginDir)
+      ? ['--resume', title, '--dangerously-skip-permissions', '--plugin-dir', pair.pluginDir, ...pair.extra]
+      : ['--resume', title, '--dangerously-skip-permissions', ...pair.extra],
+    env: pair.pluginDir ? { SP_SESSION_NAME: (role === 'prime' ? pair.pluginPrime : pair.pluginMeridian) ?? title } : {},
+    // Profile pairs were named before Elysium; resume them by title. New ones are named on first launch.
+    named: p.source !== 'profile',
   };
 }
 
@@ -115,6 +110,11 @@ export function leadTemplate(projectId: string): Template | undefined {
 export const PROJECT_FOLDERS: Record<string, { name: string; folder: string; repo: string | null; tier: 'main' | 'side' }> =
   Object.fromEntries(PROJECTS.map((p) => [p.id, { name: p.name, folder: p.folder, repo: p.repo, tier: p.tier }]));
 
+/** The full definition of a project, for the extras only some have. */
+export function projectDef(id: string): ProjectDef | undefined {
+  return PROJECTS.find((p) => p.id === id);
+}
+
 /** Adds a project at runtime (one made or cloned in the app). Everything reads these tables live. */
 export function registerProject(p: ProjectDef): void {
   if (PROJECT_FOLDERS[p.id]) return;
@@ -125,7 +125,7 @@ export function registerProject(p: ProjectDef): void {
 
 /** Takes an added project out of the app. Its folder and history are left alone. */
 export function unregisterProject(id: string): boolean {
-  const i = PROJECTS.findIndex((x) => x.id === id && x.custom);
+  const i = PROJECTS.findIndex((x) => x.id === id && x.source !== 'builtin');
   if (i < 0) return false;
   PROJECTS.splice(i, 1);
   for (let j = templates.length - 1; j >= 0; j -= 1) if (templates[j].project === id) templates.splice(j, 1);

@@ -5,7 +5,7 @@ import { ChevronDown, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import type { CostItem, CostReport } from '@shared/ipc';
 import { ProjectLogo } from './ProjectLogo';
 import { ago, useLive } from './workspace/live';
-import { useWorkspace, type FixedCost } from './workspace/store';
+import { useWorkspace, type FixedCost, COST_CATEGORIES, monthlyOf } from './workspace/store';
 
 type Provider = CostItem['provider'] | 'fixed';
 const PROVIDERS: { id: Provider; name: string; color: string }[] = [
@@ -20,6 +20,20 @@ const usd = (n: number) => (n >= 100 ? `$${n.toFixed(0)}` : n >= 0.995 || n === 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 interface Row { projectId: string | null; name: string; items: CostItem[]; fixed: FixedCost[]; byProvider: Record<Provider, number>; total: number }
+
+/** One click to add the usual ones; amounts are list prices and easy to change. */
+const COST_PRESETS: { name: string; amount: number; cycle: 'monthly' | 'yearly'; category: string }[] = [
+  { name: 'Claude Max', amount: 200, cycle: 'monthly', category: 'AI' },
+  { name: 'Claude Pro', amount: 20, cycle: 'monthly', category: 'AI' },
+  { name: 'ChatGPT Plus', amount: 20, cycle: 'monthly', category: 'AI' },
+  { name: 'Cursor', amount: 20, cycle: 'monthly', category: 'AI' },
+  { name: 'GitHub Copilot', amount: 10, cycle: 'monthly', category: 'AI' },
+  { name: 'Vercel Pro seat', amount: 20, cycle: 'monthly', category: 'Hosting' },
+  { name: 'Apple Developer', amount: 99, cycle: 'yearly', category: 'Software' },
+  { name: 'Domain', amount: 15, cycle: 'yearly', category: 'Domain' },
+  { name: 'Google Workspace', amount: 7, cycle: 'monthly', category: 'Software' },
+  { name: 'Figma', amount: 16, cycle: 'monthly', category: 'Design' },
+];
 
 export function Costs() {
   const { projects } = useLive();
@@ -62,8 +76,9 @@ export function Costs() {
     for (const f of doc.fixedCosts) {
       const r = row(f.projectId);
       r.fixed.push(f);
-      r.byProvider.fixed += f.monthly;
-      r.total += f.monthly;
+      const m = monthlyOf(f);
+      r.byProvider.fixed += m;
+      r.total += m;
     }
     return [...map.values()].sort((a, b) => (a.projectId === null ? 1 : b.projectId === null ? -1 : b.total - a.total));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,13 +182,25 @@ export function Costs() {
         )}
 
         <section className="settings-card">
-          <h2>Fixed monthly costs</h2>
-          <p className="setting-hint" style={{ marginTop: '-.2rem' }}>Subscriptions and plans no API reports, such as Claude, the Vercel Pro seat, domains or Apple's developer fee.</p>
+          <h2>Your other costs</h2>
+          <p className="setting-hint" style={{ marginTop: '-.2rem' }}>Anything no provider reports: subscriptions, seats, domains, one off purchases. Yearly costs are spread across the months; a one off counts in its month.</p>
+          <div className="cost-presets">
+            {COST_PRESETS.filter((p) => !doc.fixedCosts.some((f) => f.name === p.name)).map((p) => (
+              <button key={p.name} className="cost-preset" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: p.name, monthly: p.amount, cycle: p.cycle, category: p.category, projectId: null }])}><Plus size={12} />{p.name}</button>
+            ))}
+          </div>
           {doc.fixedCosts.map((f) => (
             <div key={f.id} className="setting-row fixed-row">
-              <input className="text-input" value={f.name} placeholder="Name" aria-label="Name" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, name: e.target.value } : x)))} />
+              <input className="text-input" value={f.name} placeholder="What is it?" aria-label="Name" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, name: e.target.value } : x)))} />
               <div className="setting-control">
-                <span className="usd-input">$<input className="text-input" type="number" min={0} step={0.01} value={f.monthly} aria-label="Per month" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, monthly: Math.max(0, Number(e.target.value) || 0) } : x)))} /> / mo</span>
+                <span className="usd-input">$<input className="text-input" type="number" min={0} step={0.01} value={f.monthly} aria-label="Amount" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, monthly: Math.max(0, Number(e.target.value) || 0) } : x)))} /></span>
+                <select className="picker" value={f.cycle ?? 'monthly'} aria-label="How often" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, cycle: e.target.value as FixedCost['cycle'], date: e.target.value === 'once' ? (x.date ?? new Date().toISOString().slice(0, 10)) : x.date } : x)))}>
+                  <option value="monthly">a month</option><option value="yearly">a year</option><option value="once">once</option>
+                </select>
+                {f.cycle === 'once' && <input className="text-input" type="date" value={f.date ?? ''} aria-label="Date" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, date: e.target.value } : x)))} />}
+                <select className="picker" value={f.category ?? 'Other'} aria-label="Category" onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, category: e.target.value } : x)))}>
+                  {COST_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
                 <select className="picker" value={f.projectId ?? ''} onChange={(e) => setFixed(doc.fixedCosts.map((x) => (x.id === f.id ? { ...x, projectId: e.target.value || null } : x)))} aria-label="Project">
                   <option value="">Everything</option>
                   {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -182,13 +209,13 @@ export function Costs() {
               </div>
             </div>
           ))}
-          <button className="btn" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: '', monthly: 0, projectId: null }])}><Plus size={14} />Add a fixed cost</button>
+          <button className="btn" onClick={() => setFixed([...doc.fixedCosts, { id: uid(), name: '', monthly: 0, cycle: 'monthly', category: 'Other', projectId: null }])}><Plus size={14} />Add a cost</button>
         </section>
 
         <p className="cost-foot">
           Vercel figures come from vercel usage and show what is billed after your plan's included credit.
           Neon has no billing figures on the Launch plan, so its amounts are estimates from each project's compute time and storage at ${report?.neonRates.cuHour ?? 0.106} per CU hour and ${report?.neonRates.gbMonth ?? 0.35} per GB month.
-          AWS comes from the SecurITPosture plugin's daily Cost Explorer check.
+          AWS comes from a project's .claude/mods-cost.json, when a plugin writes one.
         </p>
       </div>
     </div>

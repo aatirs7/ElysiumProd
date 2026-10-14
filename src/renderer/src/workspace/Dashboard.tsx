@@ -13,33 +13,16 @@ import { useWorkspace, type DashLink } from './store';
 const uid = () => Math.random().toString(36).slice(2, 10);
 const usd = (n: number) => (n >= 100 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`);
 
-/** What some projects start with beyond the usual links: their own admin pages, and the people you check on. */
-export const PROJECT_EXTRAS: Record<string, { links: DashLink[]; people?: string[]; open?: string; checkWhat?: string }> = {
-  builds: {
-    links: [
-      { id: 'eb-admin', label: 'Admin', url: 'https://elysiumbuilds.dev/admin' },
-      { id: 'eb-sites', label: 'Sites', url: 'https://elysiumbuilds.dev/admin/sites' },
-      { id: 'eb-requests', label: 'Requests', url: 'https://elysiumbuilds.dev/admin/requests' },
-      { id: 'eb-inbox', label: 'Inbox', url: 'https://elysiumbuilds.dev/admin/inbox' },
-      { id: 'eb-clients', label: 'Clients', url: 'https://elysiumbuilds.dev/admin/clients' },
-    ],
-    people: ['Shahmir', 'Asher'],
-    open: 'https://elysiumbuilds.dev/admin',
-    checkWhat: 'their sites\' live status, open requests and unanswered messages, recent deploys, and billing',
-  },
-};
+/** What some projects start with beyond the usual links (from the owner's profile), filled in as projects load. */
+export const PROJECT_EXTRAS: Record<string, { links: DashLink[]; people?: string[]; open?: string; checkWhat?: string }> = {};
+export function setProjectExtras(list: { id: string; extras: { links?: DashLink[]; people?: string[]; open?: string; checkWhat?: string } | null }[]): void {
+  for (const k of Object.keys(PROJECT_EXTRAS)) delete PROJECT_EXTRAS[k];
+  for (const p of list) if (p.extras) PROJECT_EXTRAS[p.id] = { links: p.extras.links ?? [], people: p.extras.people, open: p.extras.open, checkWhat: p.extras.checkWhat };
+}
 
 /** Links a project starts with; you add the rest (admin page, team board). */
 function defaultLinks(projectId: string, repo: string | null, vercel: { team: string | null; names: string[] }): DashLink[] {
   const out: DashLink[] = [...(PROJECT_EXTRAS[projectId]?.links ?? [])];
-  if (projectId === 'ios') {
-    out.push(
-      { id: 'asc', label: 'App Store Connect', url: 'https://appstoreconnect.apple.com/apps' },
-      { id: 'tf', label: 'TestFlight', url: 'https://appstoreconnect.apple.com/apps' },
-      { id: 'dev', label: 'Apple Developer', url: 'https://developer.apple.com/account' },
-      { id: 'expo', label: 'Expo and EAS', url: 'https://expo.dev' },
-    );
-  }
   if (repo) {
     out.push({ id: 'gh', label: 'GitHub', url: `https://github.com/${repo}` });
     out.push({ id: 'issues', label: 'Issues', url: `https://github.com/${repo}/issues` });
@@ -115,7 +98,7 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
     const r = await window.elysium.quickRun('elysiumprod', prompt);
     const entry = { id: uid(), projectId, text, at: new Date().toISOString(), sent: r.ok, note: r.ok ? null : r.reason };
     patchDoc({ featureRequests: [entry, ...doc.featureRequests].slice(0, 60) });
-    if (r.ok) { setAsk(''); setNote('Sent to the ElysiumProd Builder. You get a notification when it is done.'); } else setNote(r.reason ?? 'Could not send it.');
+    if (r.ok) { setAsk(''); setNote('Sent to the Elysium Builder. You get a notification when it is done.'); } else setNote(r.reason ?? 'Could not send it.');
   };
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 6000); return () => clearTimeout(t); }, [note]);
 
