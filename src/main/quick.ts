@@ -8,7 +8,7 @@ let quick: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let registered: string | null = null;
 
-export const SHORTCUT_CANDIDATES = ['Alt+Space', 'Control+Alt+Space', 'Control+Shift+Space'];
+export const SHORTCUT_CANDIDATES = ['Control+Alt+Space', 'Alt+Space', 'Control+Shift+Space'];
 
 function trayIconPath(): string {
   return app.isPackaged ? join(process.resourcesPath, 'tray.png') : join(app.getAppPath(), 'resources', 'tray.png');

@@ -85,6 +85,7 @@ const api: ElysiumApi = {
   homeDir: () => ipcRenderer.invoke(Channels.homeDir),
   checkUpdates: () => ipcRenderer.invoke(Channels.updatesCheck),
   applyUpdate: () => ipcRenderer.invoke(Channels.updatesApply),
+  finishUpdate: () => ipcRenderer.send(Channels.updatesFinish),
   onUpdateProgress: (cb) => subscribe<[string]>(Channels.updatesProgress, cb),
   readerAsk: (id, text) => ipcRenderer.send(Channels.readerAsk, id, text),
   tokens: () => ipcRenderer.invoke(Channels.tokenStats),

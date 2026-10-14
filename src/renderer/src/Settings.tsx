@@ -81,7 +81,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
             <Seg value={s.autoCompact.enabled ? 'on' : 'off'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ autoCompact: { ...s.autoCompact, enabled: v === 'on' } })} />
           </Row>
           {s.autoCompact.enabled && (
-            <Row label="Compact at" hint={`${s.autoCompact.percent}% of the context window. Main projects' own plugin also compacts at 85%; this runs first when it is lower.`}>
+            <Row label="Compact at" hint={`${s.autoCompact.percent}% of the context window. Sessions with their own compaction rules keep them too.; this runs first when it is lower.`}>
               <input type="range" min={60} max={90} step={5} value={s.autoCompact.percent} onChange={(e) => setSettings({ autoCompact: { ...s.autoCompact, percent: Number(e.target.value) } })} />
             </Row>
           )}
@@ -215,7 +215,7 @@ function UpdatesRow({ onRestart }: { onRestart(): void }) {
   const get = async () => { setDone(null); setStep('Starting'); const r = await window.elysium.applyUpdate(); setStep(null); setDone(r); if (r.ok) setInfo({ ...info, behind: 0, changes: [] }); };
   return (
     <Row label="Updates" hint={info.error ?? (done?.ok ? 'Updated. Restart to load it.' : done ? done.reason ?? '' : step ? `${step}…` : info.behind ? `${info.behind} new change${info.behind > 1 ? 's' : ''}: ${info.changes.slice(0, 3).join('; ')}${info.mine ? `. Your ${info.mine} change${info.mine > 1 ? 's are' : ' is'} kept.` : ''}` : 'You have the latest version.')}>
-      {done?.ok ? <button className="btn primary" onClick={onRestart}>Restart now</button>
+      {done?.ok ? <button className="btn primary" onClick={() => window.elysium.finishUpdate()}>Restart now</button>
         : info.behind ? <button className="btn primary" disabled={Boolean(step)} onClick={() => void get()}>{step ? 'Updating…' : 'Get updates'}</button>
           : <button className="btn" onClick={() => void window.elysium.checkUpdates().then(setInfo)}>Check again</button>}
     </Row>

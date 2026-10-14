@@ -135,7 +135,7 @@ export async function runCommand(text: string, tasks: Tasks, sessions: SessionMa
     if (saverOn()) return { ok: false, via: 'rules', say: 'Saver mode is on, so only plain phrasings work. Try "tell <project> to …", "start <project>" or "wrap up <project>".', steps: [], open: null };
     via = 'sonnet';
     const s = await bySonnet(t, sessions);
-    if (!s) return { ok: false, via, say: 'That could not be read. Try "tell Elysium Intern to …" or "start Gulf".', steps: [], open: null };
+    if (!s) return { ok: false, via, say: `That could not be read. Try "tell ${Object.values(PROJECT_FOLDERS)[2]?.name ?? 'PC Helper'} to …" or "start ${Object.values(PROJECT_FOLDERS)[2]?.name ?? 'PC Helper'}".`, steps: [], open: null };
     actions = s.actions; say = s.say;
   }
   const { steps, open } = execute(actions, tasks, sessions);

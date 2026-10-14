@@ -79,7 +79,9 @@ export function ChatPanel(props: IDockviewPanelProps<{ chatId: string; projectId
           </div>
         )}
         {messages.map((m, i) => <Message key={m.id} m={m} live={running && i === messages.length - 1} projectId={projectId} plan={chatId.startsWith('plan:')} onNote={setNote} />)}
-        {state?.error && <div className="chat-error"><TriangleAlert size={14} />{state.error}</div>}
+        {state?.error && (state.error.startsWith('LOGIN:')
+          ? <div className="chat-error"><TriangleAlert size={14} />{state.error.slice(6).trim()} <button className="btn small primary" onClick={() => void window.elysium.connect('claude', 'signin')}>Sign in</button></div>
+          : <div className="chat-error"><TriangleAlert size={14} />{state.error}</div>)}
       </div>
 
       <form className="chat-compose" onSubmit={(e) => { e.preventDefault(); if (!running) void send(text); }}>

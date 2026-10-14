@@ -30,7 +30,7 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
   const [parent, setParent] = useState('');
-  useEffect(() => { void window.elysium.homeDir().then((h) => setParent((p) => p || h)); }, []);
+  useEffect(() => { void window.elysium.homeDir().then((h) => setParent((p) => p || `${h}\\Projects`)); }, []);
   const [folder, setFolder] = useState('');
   const [sessions, setSessions] = useState<'pair' | 'solo'>('solo');
   const [github, setGithub] = useState<'none' | 'private' | 'public'>('none');
@@ -104,7 +104,7 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
             <span>Sessions</span>
             <div className="seg">
               <button className={sessions === 'solo' ? 'on' : ''} onClick={() => setSessions('solo')}>One Claude session</button>
-              <button className={sessions === 'pair' ? 'on' : ''} onClick={() => setSessions('pair')}>Prime and Meridian</button>
+              <button className={sessions === 'pair' ? 'on' : ''} onClick={() => setSessions('pair')} title="Two sessions in the same folder. They do not coordinate on their own; give each its own part of the work.">Two sessions</button>
             </div>
           </div>
           {accounts.length > 1 && (

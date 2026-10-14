@@ -20,7 +20,7 @@ import { Ingest } from './ingest';
 import { projectStats } from './stats';
 import { usageStats } from './usage';
 import { tokenStats } from './tokens';
-import { applyUpdate, checkUpdates } from './updates';
+import { applyUpdate, checkUpdates, restartAndInstall, updateNeedsRestartInstall } from './updates';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
@@ -263,7 +263,8 @@ function registerIpc(): void {
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
   ipcMain.handle(Channels.updatesCheck, () => checkUpdates());
-  ipcMain.handle(Channels.updatesApply, () => applyUpdate((step) => send(Channels.updatesProgress, step)));
+  ipcMain.handle(Channels.updatesApply, async () => ({ ...(await applyUpdate((step) => send(Channels.updatesProgress, step))), restartToInstall: updateNeedsRestartInstall() }));
+  ipcMain.on(Channels.updatesFinish, () => { if (updateNeedsRestartInstall()) { saveRunning(sessions); restartAndInstall(process.pid, process.execPath, () => app.quit()); } else restartApp(); });
   ipcMain.on(Channels.readerAsk, (_e, id: unknown, text: unknown) => { if (typeof id === 'string' && typeof text === 'string') ingest.noteAsked(id, text); });
   ipcMain.handle(Channels.tokenStats, () => tokenStats());
   ipcMain.handle(Channels.chatGet, (_e, id: unknown) => chats.get(String(id)));

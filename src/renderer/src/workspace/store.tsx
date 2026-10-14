@@ -93,6 +93,12 @@ export interface WorkspaceDoc {
   pinned: string[];
   /** New default pins already offered once, so unpinning them sticks. */
   pinsOffered: string[];
+  /** Sidebar groups of the owner's making, like Clients or Personal. */
+  groups: { id: string; name: string; ids: string[]; collapsed?: boolean }[];
+  /** Names the owner gave projects in the sidebar. */
+  projectNames: Record<string, string>;
+  /** A colour the owner gave each project, shown in the sidebar. */
+  projectColors: Record<string, string>;
   /** The claude.ai chat (or Claude Project) each project's Claude pane opens to. */
   projectChats: Record<string, { url: string; title: string }>;
   /** Costs: a provider item linked to a project by hand (key to project id, or 'none'). */
@@ -165,6 +171,9 @@ function fresh(): WorkspaceDoc {
     accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
     pinned: ['elysiumprod', 'laptop'],
     pinsOffered: [...LATER_PINS],
+    groups: [],
+    projectNames: {},
+    projectColors: {},
     projectChats: {},
     costLinks: {},
     fixedCosts: [],
@@ -194,6 +203,9 @@ function parse(json: string | null): WorkspaceDoc {
       onboarded: Boolean(d.onboarded) && (d as { onboardVersion?: number }).onboardVersion === 2,
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
+      groups: Array.isArray(d.groups) ? d.groups.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.ids)) : [],
+      projectNames: d.projectNames && typeof d.projectNames === 'object' ? d.projectNames : {},
+      projectColors: d.projectColors && typeof d.projectColors === 'object' ? d.projectColors : {},
       pinsOffered: [...new Set([...(Array.isArray(d.pinsOffered) ? d.pinsOffered : []), ...LATER_PINS])],
       projectChats: d.projectChats ?? {},
       costLinks: d.costLinks ?? {},
@@ -242,7 +254,7 @@ interface Ctx {
   accountFor(projectId: string | null | undefined): string;
   setWatcher(projectId: string, cfg: WatcherConfig): void;
   togglePin(projectId: string): void;
-  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests'>>): void;
+  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'projectNames' | 'projectColors' | 'pinned'>>): void;
   setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
   finishOnboarding(): void;
   restartOnboarding(): void;
@@ -333,7 +345,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
     return { ...d, projectChats };
   }), []);
-  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests'>>) => setDoc((d) => ({ ...d, ...p })), []);
+  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'projectNames' | 'projectColors' | 'pinned'>>) => setDoc((d) => ({ ...d, ...p })), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true, onboardVersion: 2 })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string) => {

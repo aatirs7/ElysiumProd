@@ -3,13 +3,35 @@
 // by hand) sit on top. Getting an update saves those changes as a commit, merges
 // the new version in, rebuilds, and asks for a restart. A clash is never forced:
 // the merge is undone and Customize Elysium can be asked to combine them.
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { UpdateInfo } from '@shared/ipc';
 import { APP_SOURCE } from './templates';
 
 const UPSTREAM = 'origin/main';
+let pendingInstall = false;
+
+/** Whether the update still needs its new parts installed, which happens as the app restarts. */
+export const updateNeedsRestartInstall = () => pendingInstall;
+
+/**
+ * Quit, install the new parts and build, then open again. A small hidden helper
+ * does it, because the running app holds its own files open.
+ */
+export function restartAndInstall(pid: number, electron: string, quit: () => void): void {
+  const ps = [
+    `while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 400 }`,
+    `Set-Location '${APP_SOURCE.replace(/'/g, "''")}'`,
+    'npm ci --no-audit --no-fund',
+    "if (-not (Test-Path 'node_modules/electron/dist/electron.exe')) { node node_modules/electron/install.js }",
+    'npx electron-vite build',
+    `Start-Process -FilePath '${electron.replace(/'/g, "''")}' -ArgumentList '"${APP_SOURCE.replace(/'/g, "''")}"' -WorkingDirectory '${APP_SOURCE.replace(/'/g, "''")}'`,
+  ].join('; ');
+  const child = spawn('powershell.exe', ['-NoProfile', '-WindowStyle', 'Hidden', '-ExecutionPolicy', 'Bypass', '-Command', ps], { detached: true, stdio: 'ignore', windowsHide: true });
+  child.unref();
+  quit();
+}
 
 function git(args: string[], timeout = 120000): Promise<{ ok: boolean; out: string }> {
   return new Promise((r) => execFile('git', ['-C', APP_SOURCE, ...args], { timeout, windowsHide: true, maxBuffer: 8 * 1024 * 1024, encoding: 'utf8' }, (e, out, err) => r({ ok: !e, out: `${out ?? ''}${err ?? ''}`.trim() })));
@@ -17,10 +39,6 @@ function git(args: string[], timeout = 120000): Promise<{ ok: boolean; out: stri
 function npm(args: string[], timeout = 600000): Promise<{ ok: boolean; out: string }> {
   return new Promise((r) => execFile(process.platform === 'win32' ? 'cmd.exe' : 'npx', process.platform === 'win32' ? ['/d', '/c', 'npx', ...args] : args,
     { cwd: APP_SOURCE, timeout, windowsHide: true, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' }, (e, out, err) => r({ ok: !e, out: `${out ?? ''}${err ?? ''}`.trim().slice(-2000) })));
-}
-function npmCi(): Promise<{ ok: boolean; out: string }> {
-  return new Promise((r) => execFile(process.platform === 'win32' ? 'cmd.exe' : 'npm', process.platform === 'win32' ? ['/d', '/c', 'npm', 'ci', '--no-audit', '--no-fund'] : ['ci', '--no-audit', '--no-fund'],
-    { cwd: APP_SOURCE, timeout: 900000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, encoding: 'utf8' }, (e, out, err) => r({ ok: !e, out: `${out ?? ''}${err ?? ''}`.trim().slice(-2000) })));
 }
 
 export async function checkUpdates(): Promise<UpdateInfo> {
@@ -54,11 +72,8 @@ export async function applyUpdate(progress: (step: string) => void): Promise<{ o
     return { ok: false, reason: 'The update touches the same places as your changes. Nothing was changed. Open Customize Elysium and ask it to "merge the latest update"; it can combine them.' };
   }
   const lockChanged = (await git(['diff', '--name-only', before, 'HEAD'])).out.split(/\r?\n/).includes('package-lock.json');
-  if (lockChanged) {
-    progress('Installing new parts');
-    const i = await npmCi();
-    if (!i.ok) { await git(['reset', '--hard', before]); return { ok: false, reason: `Installing failed, so the update was undone. ${i.out.split(/\r?\n/).pop() ?? ''}` }; }
-  }
+  // New parts cannot be installed while the app runs (Windows keeps its files open); that happens on restart.
+  if (lockChanged) { pendingInstall = true; return { ok: true, reason: null }; }
   progress('Building');
   const b = await npm(['electron-vite', 'build']);
   if (!b.ok) {

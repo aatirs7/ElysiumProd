@@ -124,6 +124,7 @@ export const Channels = {
   updatesCheck: 'updates:check',
   updatesApply: 'updates:apply',
   updatesProgress: 'updates:progress',
+  updatesFinish: 'updates:finish',
   readerAsk: 'reader:ask',
   tokenStats: 'usage:tokens',
   chatGet: 'chat:get',
@@ -275,7 +276,9 @@ export interface ElysiumApi {
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
   checkUpdates(): Promise<UpdateInfo>;
-  applyUpdate(): Promise<{ ok: boolean; reason: string | null }>;
+  applyUpdate(): Promise<{ ok: boolean; reason: string | null; restartToInstall?: boolean }>;
+  /** Restart that also installs an update's new parts. */
+  finishUpdate(): void;
   onUpdateProgress(cb: (step: string) => void): () => void;
   readerAsk(sessionId: string, text: string): void;
   tokens(): Promise<TokenStats>;

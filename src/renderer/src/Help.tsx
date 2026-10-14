@@ -25,7 +25,7 @@ const TOPICS: Topic[] = [
       { q: 'What does Wrap up do?', a: <p>Every session in the project reaches a clean stopping point, saves what is unfinished, and closes by itself. If one needs you first, you get a notification.</p>, words: 'stop close end' },
       { q: 'How do I hand off a task without opening the project?', a: <p>Type it into the box on Home, for example "Tell Website to fix the footer", or press <K>Alt Space</K> anywhere in Windows. It runs in the background and you get a notification when it is done.</p>, words: 'quick alt space command home' },
       { q: 'What is the Flow button?', a: <p>A live picture of each session's steps as they happen: editing, running, searching. A short summary on top is optional and uses a little of your Claude usage.</p> },
-      { q: 'Can I run two sessions on one project?', a: <p>Yes. When you add a project, choose a pair: two sessions that split the work and message each other.</p>, words: 'pair prime meridian' },
+      { q: 'Can I run two sessions on one project?', a: <p>Yes. When you add a project, choose Two sessions. They share the folder but do not coordinate by themselves, so give each its own part of the work, for example one builds and one reviews.</p>, words: 'pair prime meridian two' },
       { q: 'Why does a session say it cannot start?', a: <p>The reason shows in the pane. If memory or disk is very low, press <strong>Start anyway</strong>. The memory pill at the bottom left shows free memory and disk.</p>, words: 'error memory disk' },
     ],
   },
@@ -140,8 +140,18 @@ export function Help() {
         {current && (
           <div className="help-topic">
             <button className="link-btn help-back" onClick={() => setTopic(null)}><ArrowLeft size={14} />All topics</button>
-            <div className="help-topic-head"><h1>{current.title}</h1></div>
-            {current.items.map((i) => <Item key={i.q} item={i} open={open === i.q} toggle={() => setOpen(open === i.q ? null : i.q)} />)}
+            <div className="help-topic-head"><h1>{current.title}</h1><p>{current.blurb}</p></div>
+            {current.id === 'start' && (
+              <ol className="help-steps">
+                <li><span className="help-step-n">1</span><div><strong>Add a project</strong><p>A folder you work in, a GitHub repository, or a new one.</p></div><button className="btn" onClick={() => window.dispatchEvent(new Event('ep:new-project'))}>Add a project</button></li>
+                <li><span className="help-step-n">2</span><div><strong>Talk to it</strong><p>Click it in the sidebar. Its Claude session starts and picks up where it left off.</p></div></li>
+                <li><span className="help-step-n">3</span><div><strong>Hand off and walk away</strong><p>Type a task on Home, or press the quick key anywhere in Windows. You get a notification when it is done.</p></div><button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('ep:go', { detail: 'home' }))}>Go to Home</button></li>
+                <li><span className="help-step-n">4</span><div><strong>Try a tool</strong><p>PC Helper checks this computer. Customize Elysium changes the app.</p></div><button className="btn" onClick={() => window.dispatchEvent(new CustomEvent('ep:open-tool', { detail: 'laptop' }))}>Open PC Helper</button></li>
+              </ol>
+            )}
+            <div className="help-read">
+              {current.items.map((i) => <section key={i.q} className="help-read-item"><h3>{i.q}</h3><div className="help-a">{i.a}</div></section>)}
+            </div>
           </div>
         )}
 

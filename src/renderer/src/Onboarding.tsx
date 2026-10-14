@@ -10,7 +10,7 @@ const STEPS = ['Welcome', 'Make it yours', 'Connect', 'Projects', 'How you work'
 
 const BENEFITS = [
   { icon: Layers, title: 'Every project, side by side', text: 'Each project opens with its Claude sessions, terminals, dashboard and browser in one window. No more juggling VS Code, a browser and a dozen terminals.' },
-  { icon: Zap, title: 'Hand off work, get told when it is done', text: 'Tell any project what to do from Home or with Alt Space from anywhere in Windows. It runs in the background and taps you on the shoulder when it finishes or needs you.' },
+  { icon: Zap, title: 'Hand off work, get told when it is done', text: 'Tell any project what to do from Home, or with the quick key from anywhere in Windows. It runs in the background and taps you on the shoulder when it finishes or needs you.' },
   { icon: Workflow, title: 'See what your agents are doing', text: 'Live status, context use and a step by step flow for every session, plus costs and usage across your accounts, at a glance.' },
   { icon: Wand2, title: 'It changes itself for you', text: 'Elysium has its own built in session. Ask it for a new theme, a button, a page or a fix, and it edits the app, tests it and loads it on restart.' },
 ];
@@ -24,10 +24,13 @@ export function Onboarding({ name }: { name: string }) {
   const go = (n: number) => { setDir(n > step ? 1 : -1); setStep(Math.max(0, Math.min(STEPS.length - 1, n))); };
   const s = doc.settings;
   const shown = s.displayName || name || 'there';
+  const [shortcut, setShortcut] = useState<string | null>(null);
+  useEffect(() => { void window.elysium.shortcut().then(setShortcut); }, []);
+  const keys = (shortcut ?? 'Control+Alt+Space').replace('Control', 'Ctrl').split('+');
 
   return (
     <div className="ob" role="dialog" aria-modal="true" aria-label="Welcome to Elysium">
-      <div className="ob-bg" aria-hidden="true"><i /><i /><i /></div>
+      <div className={`ob-bg step-${step}`} aria-hidden="true"><i className="ob-horizon" /><i className="ob-arc" /><i className="ob-grid" /></div>
       <header className="ob-top">
         <div className="ob-brand"><Logo />Elysium</div>
         <ol className="ob-rail" aria-label="Setup steps">
@@ -115,17 +118,17 @@ export function Onboarding({ name }: { name: string }) {
 
         {step === 5 && (
           <section className="ob-section ob-ready">
-            <div className="ob-burst" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ ['--a' as string]: `${(i / 14) * 360}deg`, animationDelay: `${i * 18}ms` }} />)}<span><Sparkles size={26} /></span></div>
+            <div className="ob-burst" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ ['--a' as string]: `${(i / 14) * 360}deg`, animationDelay: `${i * 18}ms` }} />)}<span><Logo /></span></div>
             <h1>You are set, {shown}.</h1>
             <p className="ob-lede">Three shortcuts worth knowing. Everything else is in Help.</p>
             <div className="ob-keys">
               <div className="ob-key"><kbd>Ctrl</kbd><kbd>K</kbd><span>Search and run anything: projects, sessions, panes, settings.</span></div>
-              <div className="ob-key"><kbd>Alt</kbd><kbd>Space</kbd><span>From anywhere in Windows, hand a project a task.</span></div>
+              <div className="ob-key">{keys.map((k) => <kbd key={k}>{k}</kbd>)}<span>From anywhere in Windows, hand a project a task.</span></div>
               <div className="ob-key"><Keyboard size={16} /><span>Right click any project in the sidebar to start, compact or end its sessions.</span></div>
             </div>
             <div className="ob-customize">
               <Wand2 size={18} />
-              <span><strong>Want it different?</strong> Open <em>Elysium</em> in the sidebar and ask, in plain words: "add a button that…", "make the sidebar narrower", "fix…". It changes the app for you.</span>
+              <span><strong>Want it different?</strong> Open <em>Customize Elysium</em> under Tools and ask, in plain words: "add a button that…", "make the sidebar narrower", "fix…". It changes the app for you.</span>
             </div>
           </section>
         )}

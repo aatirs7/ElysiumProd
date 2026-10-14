@@ -21,7 +21,7 @@ import { saverOn } from './settings';
 import { readGit, readTasks } from './projects';
 import { PROJECT_FOLDERS } from './templates';
 
-interface Chat { state: ChatState; child: ChildProcess | null }
+interface Chat { state: ChatState; child: ChildProcess | null; stopped?: boolean }
 
 const FILE = (id: string) => join(dataDir(), 'chats', `${id.replace(/[^\w.-]/g, '_')}.json`);
 const KEEP = 400;
@@ -176,7 +176,9 @@ export class Chats {
       if (buf.trim()) onLine(buf.trim());
       c.child = null;
       const r = current();
-      if (code !== 0 && !r.text) c.state = { ...c.state, error: err.trim().split(/\r?\n/).pop() || `Claude stopped (code ${code}).` };
+      if (c.stopped) { c.stopped = false; if (!r.text) update({ text: '_Stopped._' }); }
+      else if (code !== 0 && !r.text) c.state = { ...c.state, error: err.trim().split(/\r?\n/).pop() || `Claude stopped (code ${code}).` };
+      if (c.state.error && /log ?in|sign ?in|authenticat|credential|\/login/i.test(c.state.error)) c.state = { ...c.state, error: 'LOGIN: Claude Code is not signed in on this account yet.' };
       c.state = { ...c.state, running: false };
       this.save(c);
       this.emit({ chatId: id, state: c.state, finished: true });
@@ -188,6 +190,7 @@ export class Chats {
   stop(id: string): void {
     const c = this.chats.get(id);
     if (!c?.child) return;
+    c.stopped = true;
     try { c.child.kill(); } catch { /* already gone */ }
   }
 

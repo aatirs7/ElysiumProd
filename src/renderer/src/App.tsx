@@ -83,7 +83,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const { templates, sessions, telemetry, compacting } = useLive();
   const { res } = useMachine();
   const [wrapping, setWrapping] = useState<string[]>([]);
-  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding } = useWorkspace();
+  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding, setSettings } = useWorkspace();
 
   useAppearance(doc.settings);
   useEffect(() => { void window.elysium.info().then((i) => setName(i.userName)); }, []);
@@ -165,6 +165,12 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   useEffect(() => window.elysium.onFocusSession(focusSession), [focusSession]);
   // Help and others can open a tool by id.
   useEffect(() => { const on = (e: Event) => { const id = (e as CustomEvent<string>).detail; goProject(id, TOOL_INFO[id]?.title ?? id); }; window.addEventListener('ep:open-tool', on); return () => window.removeEventListener('ep:open-tool', on); }, [goProject]);
+  useEffect(() => {
+    const np = () => setNewProject(true);
+    const goTo = (e: Event) => setPage((e as CustomEvent<Page>).detail);
+    window.addEventListener('ep:new-project', np); window.addEventListener('ep:go', goTo);
+    return () => { window.removeEventListener('ep:new-project', np); window.removeEventListener('ep:go', goTo); };
+  }, []);
 
   // Whether you can see a session right now: its pane is showing in the open view of a focused window.
   const pageRef = useRef(page);
@@ -250,7 +256,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const n = projectRunning.length;
     setConfirm({
       title: `Wrap up ${activeView?.name}?`,
-      body: `${n === 1 ? 'Its session' : `All ${n} sessions`} will finish the current step at a clean point, save their state and relay line, then close. If one needs your answer first, you will get a notification.`,
+      body: `${n === 1 ? 'Its session' : `All ${n} sessions`} will finish the current step at a clean point, note where they are, then close. If one needs your answer first, you will get a notification.`,
       yes: 'Wrap up',
       run: () => void window.elysium.wrapUp(projectId).then((ids) => setWrapping((w) => [...new Set([...w, ...ids])])),
     });
@@ -263,7 +269,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const names = claudeHere.map((x) => templates.find((t) => t.id === x.templateId)?.title ?? x.title);
     setConfirm({
       title: `Compact ${names.length === 1 ? names[0] : names.join(' and ')}?`,
-      body: `${names.length === 1 ? 'It' : 'Each'} first finishes its current step and saves its resume note and relay line, then compacts and carries on. Nothing is typed into a session while it is in the middle of a turn.`,
+      body: `${names.length === 1 ? 'It' : 'Each'} first finishes its current step and notes where it is, then compacts and carries on. Nothing is typed into a session while it is in the middle of a turn.`,
       yes: 'Compact',
       run: () => void window.elysium.compact(claudeHere.map((x) => x.id)),
     });
@@ -367,7 +373,14 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           {projectId && claudeHere.length > 0 && !wrappingHere.length && (
             compactingHere.length
               ? <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>
-              : <button className="pill" onClick={compactNow} title="Save notes at a clean stopping point, then compact"><FoldVertical size={14} />Compact</button>
+              : <span className="pill-group">
+                  <button className={`pill auto-compact ${doc.settings.autoCompact.enabled ? 'on' : ''}`} role="switch" aria-checked={doc.settings.autoCompact.enabled}
+                    onClick={() => setSettings({ autoCompact: { ...doc.settings.autoCompact, enabled: !doc.settings.autoCompact.enabled } })}
+                    title={doc.settings.autoCompact.enabled ? `Auto compact is on: a session past ${doc.settings.autoCompact.percent}% context saves its notes, compacts and carries on. Click to turn it off.` : 'Auto compact is off. Click to turn it on.'}>
+                    <FoldVertical size={14} />Auto compact <span className="mini-switch"><i /></span>
+                  </button>
+                  <button className="pill ghost" onClick={compactNow} title="Compact every session in this project now">Now</button>
+                </span>
           )}
           {projectId && projectRunning.length > 0 && (
             wrappingHere.length

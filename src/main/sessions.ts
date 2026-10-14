@@ -33,6 +33,8 @@ const HISTORY_CHARS = 512 * 1024;
 
 export class SessionManager {
   private live = new Map<string, Live>();
+  /** Sessions launched with -n whose name is not yet backed by a saved conversation. */
+  private pendingNames = new Map<string, { accountId: string; title: string; cwd: string }>();
   private flushTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -89,7 +91,7 @@ export class SessionManager {
       } else if (r >= 0 && t.named) {
         // The CLI refuses --resume with a name it has never seen, so the first launch names it instead.
         if (namedStarted(accountId, t)) resumed = true;
-        else { args.splice(r, 2, '-n', t.title); markNamed(accountId, t); }
+        else { args.splice(r, 2, '-n', t.title); this.pendingNames.set(id, { accountId, title: t.title, cwd: t.cwd }); }
       } else if (r >= 0) {
         if (hasHistory(accountId, t.cwd)) resumed = true;
         else args.splice(r, 2, '-n', t.title);
@@ -164,6 +166,9 @@ export class SessionManager {
   noteConversation(sessionId: string, conversationId: string): void {
     const l = this.live.get(sessionId);
     if (!l) return;
+    // The first launch named it; now there is a conversation, later launches may resume by name.
+    const named = this.pendingNames.get(sessionId);
+    if (named) { markNamed(named.accountId, named); this.pendingNames.delete(sessionId); }
     const all = conversations();
     all[convKey(l.info.accountId, l.info.templateId)] = conversationId;
     try { writeFileSync(CONVERSATIONS(), JSON.stringify(all, null, 2)); } catch { /* falls back to the template's own resume */ }

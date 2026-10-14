@@ -4,7 +4,7 @@
 // the app; its folder, git history and Claude history stay where they are.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { arch, homedir, totalmem } from 'node:os';
+import { arch, homedir, totalmem, userInfo } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { NewProjectRequest, NewProjectResult } from '@shared/ipc';
 import { dataDir } from './paths';
@@ -127,7 +127,10 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
     if (existsSync(folder) && !isEmptyDir(folder)) return { ok: false, reason: `${folder} already exists and is not empty. Choose another folder name.` };
     mkdirSync(folder, { recursive: true });
     writeFileSync(join(folder, 'README.md'), `# ${name}\n`);
-    const steps: [string, string[]][] = [['git', ['init', '-b', 'main']], ['git', ['add', 'README.md']], ['git', ['commit', '-m', `Start ${name}`]]];
+    const steps: [string, string[]][] = [['git', ['init', '-b', 'main']], ['git', ['add', 'README.md']], ['git', ['-c', `user.name=${userInfo().username}`, '-c', `user.email=${userInfo().username}@localhost`, 'commit', '-m', `Start ${name}`]]];
+    // Use their own identity when git has one; the fallback only covers a fresh install.
+    const who = await run('git', ['config', 'user.email'], folder, 10000);
+    if (who.ok && who.out.trim()) steps[2] = ['git', ['commit', '-m', `Start ${name}`]];
     for (const [c, a] of steps) {
       const r = await run(c, a, folder, 30000);
       if (!r.ok) return { ok: false, reason: `Could not set up git in ${folder}: ${r.err.trim().slice(0, 200)}` };

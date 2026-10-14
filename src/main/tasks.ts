@@ -24,12 +24,12 @@ export function accountForProject(projectId: string): string {
   }
 }
 
-const WRAP_PROMPT = 'Please wrap up now. Bring your current step to a clean stopping point, commit or note anything uncommitted as the project rules say, update your resume note and your line on the relay, then stop. Do not start anything new.';
+const WRAP_PROMPT = 'Please wrap up now. Bring your current step to a clean stopping point, commit or note anything uncommitted as the project rules say, and write down where you are and what comes next wherever this project keeps its notes (its resume note or relay, if it has them). Then stop. Do not start anything new.';
 const WRAP_TIMEOUT_MS = 20 * 60 * 1000;
 
-const COMPACT_PREP = 'This session will be compacted in a moment to free up context. Bring your current step to a clean stopping point now: finish or pause what you are doing, commit or note anything uncommitted as the project rules say, and update your resume note and your relay line with exactly where you are and what comes next, so nothing is lost. Do not start anything new. Reply in one line when you are ready.';
-const COMPACT_CMD = '/compact Keep what this session was doing, the path of its resume note, open tasks and decisions, and anything uncommitted. After compacting, carry on from the resume note.';
-const RESUME_PROMPT = 'Compaction is done. Read your resume note and carry on from where you left off.';
+const COMPACT_PREP = 'This session will be compacted in a moment to free up context. Bring your current step to a clean stopping point now: finish or pause what you are doing, commit or note anything uncommitted as the project rules say, and write down exactly where you are and what comes next wherever this project keeps its notes (its resume note or relay, if it has them), so nothing is lost. Do not start anything new. Reply in one line when you are ready.';
+const COMPACT_CMD = '/compact Keep what this session was doing, where its notes are, open tasks and decisions, and anything uncommitted. After compacting, carry on from those notes.';
+const RESUME_PROMPT = 'Compaction is done. Read your notes and carry on from where you left off.';
 const COMPACT_TIMEOUT_MS = 25 * 60 * 1000;
 const AUTO_COOLDOWN_MS = 15 * 60 * 1000;
 
