@@ -33,7 +33,7 @@ export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { o
       { id: 'settings', label: 'Settings', hint: 'Theme, projects, accounts', icon: <SettingsIcon size={15} />, run: () => go('settings') },
       { id: 'costs', label: 'Costs', hint: 'Vercel, Neon, AWS and subscriptions', icon: <BarChart3 size={15} />, run: () => go('costs') },
       { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
-      { id: 'restart', label: 'Restart ElysiumProd', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
+      { id: 'restart', label: 'Restart Elysium', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
   }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onNewProject]);

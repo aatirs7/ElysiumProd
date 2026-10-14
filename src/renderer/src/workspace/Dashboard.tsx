@@ -88,12 +88,12 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
     const text = ask.trim();
     if (!text) return;
     const prompt = [
-      `Feature request from the ${project?.name ?? projectId} dashboard in ElysiumProd (src/renderer/src/workspace/Dashboard.tsx, project id "${projectId}"):`,
+      `Feature request from the ${project?.name ?? projectId} dashboard in Elysium (src/renderer/src/workspace/Dashboard.tsx, project id "${projectId}"):`,
       '',
       text,
       '',
-      'Build it in the ElysiumProd repository. Keep to the app\'s UI rules (clean, glanceable, no em dashes, no dense tables). Run the typecheck, the build and the isolated smoke test, then commit and push to the current branch.',
-      'Do not restart ElysiumProd yourself; the owner restarts it to load the change. Reply with one short line saying what you built.',
+      'Build it in the Elysium repository. Keep to the app\'s UI rules (clean, glanceable, no em dashes, no dense tables). Run the typecheck and the build, then commit it to the current branch.',
+      'Do not restart Elysium yourself; the owner restarts it to load the change. Reply with one short line saying what you built.',
     ].join('\n');
     const r = await window.elysium.chatSend('tool:elysiumprod', prompt);
     const entry = { id: uid(), projectId, text, at: new Date().toISOString(), sent: r.ok, note: r.ok ? null : r.reason };
@@ -201,7 +201,7 @@ export function Dashboard(props: IDockviewPanelProps<{ projectId: string }>) {
           <div className="dash-ask">
             <textarea className="text-input" rows={3} placeholder="For example: show this week's signups and failed logins as two numbers at the top." value={ask}
               onChange={(e) => setAsk(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) void sendAsk(); }} />
-            <button className="btn primary" onClick={() => void sendAsk()} disabled={!ask.trim()}><SendHorizontal size={14} />Send to ElysiumProd</button>
+            <button className="btn primary" onClick={() => void sendAsk()} disabled={!ask.trim()}><SendHorizontal size={14} />Send to Elysium</button>
           </div>
           {note && <p className="dash-hint">{note}</p>}
           {requests.length > 0 && (

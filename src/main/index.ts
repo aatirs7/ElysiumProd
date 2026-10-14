@@ -1,7 +1,7 @@
 // ElysiumProd main process: the main window, the quick bar and tray, sessions,
 // telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, Notification, shell } from 'electron';
-import { appendFileSync, existsSync } from 'node:fs';
+import { appendFileSync, existsSync, unlinkSync } from 'node:fs';
 import { homedir as userHome, userInfo } from 'node:os';
 import { join } from 'node:path';
 import { Channels, type ConnectService, type ResourceSample, type SessionInfo } from '@shared/ipc';
@@ -20,6 +20,7 @@ import { Ingest } from './ingest';
 import { projectStats } from './stats';
 import { usageStats } from './usage';
 import { tokenStats } from './tokens';
+import { applyUpdate, checkUpdates } from './updates';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
@@ -119,12 +120,16 @@ function appIcon(): string {
 function ensureStartMenuShortcut(): void {
   if (process.platform !== 'win32') return;
   try {
-    const lnk = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'ElysiumProd.lnk');
+    const dir = join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs');
+    const lnk = join(dir, 'Elysium.lnk');
+    // The entry used to be called ElysiumProd; one is enough.
+    const old = join(dir, 'ElysiumProd.lnk');
+    if (existsSync(old)) { try { unlinkSync(old); } catch { /* leave it */ } }
     const options = {
       target: process.execPath,
       args: app.isPackaged ? '' : `"${app.getAppPath()}"`,
       cwd: app.isPackaged ? undefined : app.getAppPath(),
-      description: 'ElysiumProd',
+      description: 'Elysium',
       icon: resourcePath('icon.ico'),
       iconIndex: 0,
       appUserModelId: 'ElysiumProd',
@@ -159,7 +164,7 @@ function createWindow(): BrowserWindow {
     minWidth: 760,
     minHeight: 500,
     backgroundColor: '#262624',
-    title: 'ElysiumProd',
+    title: 'Elysium',
     // The Elysium mark in the taskbar, Alt+Tab and the window corner.
     icon: appIcon(),
     autoHideMenuBar: true,
@@ -193,7 +198,7 @@ function createWindow(): BrowserWindow {
     const flag = join(dataDir(), 'tray-notice-shown');
     if (!existsSync(flag)) {
       try { appendFileSync(flag, new Date().toISOString()); } catch { /* shown again next time */ }
-      if (Notification.isSupported()) new Notification({ title: 'ElysiumProd is still running', body: 'It keeps your sessions going in the tray. To load a new version, right-click the tray icon and choose Restart ElysiumProd, or use Settings.', icon: appIcon() }).show();
+      if (Notification.isSupported()) new Notification({ title: 'Elysium is still running', body: 'It keeps your sessions going in the tray. To load a new version, right-click the tray icon and choose Restart Elysium, or use Settings.', icon: appIcon() }).show();
     }
   });
   loadRenderer(w);
@@ -256,6 +261,8 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.handle(Channels.updatesCheck, () => checkUpdates());
+  ipcMain.handle(Channels.updatesApply, () => applyUpdate((step) => send(Channels.updatesProgress, step)));
   ipcMain.on(Channels.readerAsk, (_e, id: unknown, text: unknown) => { if (typeof id === 'string' && typeof text === 'string') ingest.noteAsked(id, text); });
   ipcMain.handle(Channels.tokenStats, () => tokenStats());
   ipcMain.handle(Channels.chatGet, (_e, id: unknown) => chats.get(String(id)));

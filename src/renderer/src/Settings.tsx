@@ -109,7 +109,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
                     {pinned ? <Pin size={15} /> : <PinOff size={15} />}
                   </button>
                   {p.custom && (
-                    <button className="ghost-icon" title="Remove from ElysiumProd. The folder and its history stay on disk." aria-label={`Remove ${p.name}`}
+                    <button className="ghost-icon" title="Remove from Elysium. The folder and its history stay on disk." aria-label={`Remove ${p.name}`}
                       onClick={() => void window.elysium.removeProject(p.id).then((ok) => { if (ok && pinned) togglePin(p.id); })}>
                       <Trash2 size={15} />
                     </button>
@@ -179,7 +179,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
           <Row label="Reset appearance" hint="Theme, text size and spacing back to defaults">
             <button className="btn" onClick={() => setSettings({ ...DEFAULT_SETTINGS, autoEnd: s.autoEnd })}>Reset</button>
           </Row>
-          <Row label="Restart ElysiumProd" hint="Loads the newest version. Running sessions stop and can be resumed.">
+          <UpdatesRow onRestart={onRestart} />
+          <Row label="Restart Elysium" hint="Loads the newest build. Running sessions come back on their own.">
             <button className="btn" onClick={onRestart}>Restart</button>
           </Row>
           <Row label="Run the welcome again" hint="Accounts, projects and a quick tour">
@@ -202,4 +203,21 @@ function Row({ label, hint, children }: { label: string; hint?: string; children
 
 function Seg({ value, options, onChange }: { value: string; options: [string, string][]; onChange(v: string): void }) {
   return <div className="seg">{options.map(([v, l]) => <button key={v} className={value === v ? 'on' : ''} onClick={() => onChange(v)}>{l}</button>)}</div>;
+}
+
+/** Get updates: only for an installed copy, which keeps the owner's own changes on top. */
+function UpdatesRow({ onRestart }: { onRestart(): void }) {
+  const [info, setInfo] = useState<import('@shared/ipc').UpdateInfo | null>(null);
+  const [step, setStep] = useState<string | null>(null);
+  const [done, setDone] = useState<{ ok: boolean; reason: string | null } | null>(null);
+  useEffect(() => { void window.elysium.checkUpdates().then(setInfo); return window.elysium.onUpdateProgress(setStep); }, []);
+  if (!info?.managed) return null;
+  const get = async () => { setDone(null); setStep('Starting'); const r = await window.elysium.applyUpdate(); setStep(null); setDone(r); if (r.ok) setInfo({ ...info, behind: 0, changes: [] }); };
+  return (
+    <Row label="Updates" hint={info.error ?? (done?.ok ? 'Updated. Restart to load it.' : done ? done.reason ?? '' : step ? `${step}…` : info.behind ? `${info.behind} new change${info.behind > 1 ? 's' : ''}: ${info.changes.slice(0, 3).join('; ')}${info.mine ? `. Your ${info.mine} change${info.mine > 1 ? 's are' : ' is'} kept.` : ''}` : 'You have the latest version.')}>
+      {done?.ok ? <button className="btn primary" onClick={onRestart}>Restart now</button>
+        : info.behind ? <button className="btn primary" disabled={Boolean(step)} onClick={() => void get()}>{step ? 'Updating…' : 'Get updates'}</button>
+          : <button className="btn" onClick={() => void window.elysium.checkUpdates().then(setInfo)}>Check again</button>}
+    </Row>
+  );
 }

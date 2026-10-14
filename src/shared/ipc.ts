@@ -121,6 +121,9 @@ export const Channels = {
   commandRun: 'command:run',
   projectAction: 'project:action',
   homeDir: 'app:home-dir',
+  updatesCheck: 'updates:check',
+  updatesApply: 'updates:apply',
+  updatesProgress: 'updates:progress',
   readerAsk: 'reader:ask',
   tokenStats: 'usage:tokens',
   chatGet: 'chat:get',
@@ -271,6 +274,9 @@ export interface ElysiumApi {
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
+  checkUpdates(): Promise<UpdateInfo>;
+  applyUpdate(): Promise<{ ok: boolean; reason: string | null }>;
+  onUpdateProgress(cb: (step: string) => void): () => void;
   readerAsk(sessionId: string, text: string): void;
   tokens(): Promise<TokenStats>;
   chatGet(chatId: string): Promise<ChatState>;
@@ -379,6 +385,8 @@ export interface ProjectStats {
   lastSessionAt: string | null;
 }
 
+/** An installed copy: how far behind the published version it is, and how many changes of its own it has. */
+export interface UpdateInfo { managed: boolean; behind: number; changes: string[]; mine: number; error: string | null }
 export interface TokenSplit { input: number; output: number; cacheRead: number; cacheWrite: number }
 export interface TokenStats {
   computedAt: string;

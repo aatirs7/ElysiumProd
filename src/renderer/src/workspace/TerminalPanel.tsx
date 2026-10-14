@@ -266,7 +266,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
         <div className="term-overlay">
           <div className="overlay-card">
             <strong>{error ? 'Could not start' : pending ? (template?.title ?? 'Terminal') : 'This session has ended'}</strong>
-            <p>{error ?? (pending ? 'Saved in this layout, not started yet.' : 'It stopped when ElysiumProd last closed. Its scrollback is kept on disk.')}</p>
+            <p>{error ?? (pending ? 'Saved in this layout, not started yet.' : 'It stopped when Elysium last closed. Its scrollback is kept on disk.')}</p>
             <div className="row-gap">
               {lowRes ? <button className="btn primary" onClick={() => { overrideRef.current = true; startAgain(); }}><RotateCcw size={14} />Start anyway</button>
                 : <button className="btn primary" onClick={startAgain}><RotateCcw size={14} />{verb}</button>}
@@ -350,7 +350,7 @@ function ReaderView({ sessionId, title }: { sessionId: string; title: string }) 
       <div className="reader-scroll" ref={scroller} onClick={onLinkClick}>
         <div className="reader-page">
           <h1 className="reader-title">{title}</h1>
-          {!entries.length && <p className="reader-empty">Replies appear here as the session works. Anything from before ElysiumProd opened it is in the Terminal view.</p>}
+          {!entries.length && <p className="reader-empty">Replies appear here as the session works. Anything from before Elysium opened it is in the Terminal view.</p>}
           {turns(entries).map((t, i, all) => <Turn key={i} t={t} last={i === all.length - 1} busy={state === 'busy'} />)}
           {state === 'busy' && !(entries.length && entries[entries.length - 1].role === 'you') && <div className="reader-working"><span className="dot busy" /> Working</div>}
           {state === 'waiting' && <div className="reader-working warn"><span className="dot waiting" /> Waiting for you in the Terminal view</div>}

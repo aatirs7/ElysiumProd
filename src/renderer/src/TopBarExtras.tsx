@@ -253,6 +253,8 @@ export function NoticeStack({ notices, onOpen, onDismiss }: { notices: Notice[];
   );
 }
 
+const LIGHT: string[] = ['claude-light', 'paper', 'sand', 'mint'];
+
 /** Every theme, one click from the top bar. */
 export function ThemeToggle() {
   const { doc, setSettings } = useWorkspace();
@@ -273,13 +275,21 @@ export function ThemeToggle() {
       </button>
       {open && (
         <div className="theme-menu" role="menu">
-          {THEMES.map((t) => (
-            <button key={t.id} role="menuitemradio" aria-checked={doc.settings.theme === t.id} className={`theme-item ${doc.settings.theme === t.id ? 'on' : ''}`}
-              onClick={() => { setSettings({ theme: t.id }); setOpen(false); }}>
-              <span className="theme-sw">{t.swatch.map((c, i) => <span key={i} style={{ background: c }} />)}</span>
-              <span className="theme-name">{t.name}</span>
-              {doc.settings.theme === t.id && <Check size={14} />}
-            </button>
+          {(['Automatic', 'Dark', 'Light'] as const).map((group) => (
+            <div key={group} className="theme-group">
+              <div className="theme-group-label">{group}</div>
+              {THEMES.filter((t) => (t.id === 'system' ? group === 'Automatic' : (LIGHT.includes(t.id) ? 'Light' : 'Dark') === group)).map((t) => (
+                <button key={t.id} role="menuitemradio" aria-checked={doc.settings.theme === t.id} className={doc.settings.theme === t.id ? 'theme-item on' : 'theme-item'}
+                  onClick={() => { setSettings({ theme: t.id }); setOpen(false); }} title={t.blurb}>
+                  <span className="theme-mini" style={{ background: t.swatch[0] }}>
+                    <i style={{ background: t.swatch[1] }} />
+                    <b style={{ background: t.swatch[2] }} />
+                  </span>
+                  <span className="theme-name">{t.id === 'system' ? 'Match Windows' : t.name}</span>
+                  {doc.settings.theme === t.id && <Check size={14} />}
+                </button>
+              ))}
+            </div>
           ))}
         </div>
       )}

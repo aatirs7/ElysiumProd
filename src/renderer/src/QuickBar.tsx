@@ -89,7 +89,7 @@ export function QuickBar() {
       )}
       <div className="qb-foot">
         {error ? <span className="error-text">{error}</span> : <span>{project ? `Enter hands it to ${project.tier === 'main' ? 'Prime' : 'its session'} in the background. You will get a notification.` : 'Enter or Tab to choose. Esc to close.'}</span>}
-        <button className="link-btn" onClick={() => window.elysium.quickOpenMain()}>Open ElysiumProd</button>
+        <button className="link-btn" onClick={() => window.elysium.quickOpenMain()}>Open Elysium</button>
       </div>
     </div>
   );

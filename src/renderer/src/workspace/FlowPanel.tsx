@@ -23,6 +23,14 @@ const KINDS: Record<FlowKind, { name: string; color: string; icon: typeof Bot }>
   other: { name: 'Other tools', color: '#8E8E8E', icon: Wrench },
 };
 
+/** A turn reads left to right: look around, change things, check them, then report. */
+const STAGES: { id: string; name: string; kinds: FlowKind[]; color: string; icon: typeof Bot }[] = [
+  { id: 'look', name: 'Understand', kinds: ['read', 'search', 'web'], color: '#3FB5B0', icon: FileSearch },
+  { id: 'change', name: 'Change', kinds: ['edit', 'agent'], color: '#5B8DEF', icon: FilePen },
+  { id: 'check', name: 'Check', kinds: ['run', 'other'], color: '#D9A043', icon: SquareTerminal },
+  { id: 'report', name: 'Report', kinds: ['message', 'ask'], color: '#4FA97A', icon: MessageSquare },
+];
+
 /** Repeated steps fold into one node: "Edit store.tsx ×3". */
 function fold(events: FlowEvent[]): { kind: FlowKind; label: string; n: number; at: string; to?: string }[] {
   const out: { kind: FlowKind; label: string; n: number; at: string; to?: string }[] = [];
@@ -98,7 +106,7 @@ export function FlowPanel(props: IDockviewPanelProps<{ projectId?: string }>) {
         const all = events[s.id] ?? [];
         // This turn: steps since the latest ask.
         const turn = ask ? all.filter((e) => e.at >= ask.at) : all;
-        const steps = fold(turn).slice(-10);
+        const steps = fold(turn).slice(-12);
         const now = steps[steps.length - 1];
         const files = new Set(turn.filter((e) => e.kind === 'edit').map((e) => e.label)).size;
         const runs = turn.filter((e) => e.kind === 'run').length;
@@ -117,21 +125,36 @@ export function FlowPanel(props: IDockviewPanelProps<{ projectId?: string }>) {
             </div>
             {ask && <div className="flow-ask" title={ask.text.slice(0, 400)}>Asked: {ask.text.split('\n').find((l) => l.trim())?.slice(0, 140)}</div>}
             {summariesOn && sum && <div className="flow-summary"><Sparkles size={13} /><span>{sum.text}</span><em>{ago(sum.at)}</em></div>}
+            {/* Where it is in the turn: understand, change, check, report. */}
+            <div className="flow-stages" role="list" aria-label="Stages this turn">
+              {STAGES.map((g, gi) => {
+                const n = turn.filter((e) => g.kinds.includes(e.kind)).length;
+                const here = now && g.kinds.includes(now.kind) && st === 'busy';
+                const done = !here && n > 0;
+                return (
+                  <div key={g.id} role="listitem" className={`flow-stage ${here ? 'here' : done ? 'done' : ''}`} style={{ ['--k' as string]: g.color }}>
+                    {gi > 0 && <span className="flow-arrow" aria-hidden="true" />}
+                    <span className="flow-stage-dot"><g.icon size={14} /></span>
+                    <span className="flow-stage-text"><strong>{g.name}</strong><span>{n ? `${n} step${n > 1 ? 's' : ''}` : 'not yet'}</span></span>
+                  </div>
+                );
+              })}
+            </div>
             {steps.length ? (
-              <div className="flow-trail" role="list" aria-label="Steps this turn">
-                {steps.map((step, i) => {
+              <ol className="flow-timeline" aria-label="Latest steps, newest first">
+                {[...steps].reverse().slice(0, 7).map((step, i) => {
                   const k = KINDS[step.kind];
                   const Icon = k.icon;
-                  const current = i === steps.length - 1 && st === 'busy';
+                  const current = i === 0 && st === 'busy';
                   return (
-                    <div key={`${step.at}-${i}`} role="listitem" className={`flow-node ${current ? 'now' : ''}`} style={{ ['--k' as string]: k.color }} title={`${k.name}: ${step.label}${step.n > 1 ? ` (${step.n} times)` : ''}, ${ago(step.at)}`}>
-                      {i > 0 && <span className="flow-link" />}
-                      <span className="flow-dot"><Icon size={13} /></span>
-                      <span className="flow-label">{step.label}{step.n > 1 && <b> ×{step.n}</b>}</span>
-                    </div>
+                    <li key={`${step.at}-${i}`} className={`flow-step ${current ? 'now' : ''}`} style={{ ['--k' as string]: k.color }} title={`${k.name}: ${step.label}`}>
+                      <span className="flow-step-dot"><Icon size={12} /></span>
+                      <span className="flow-step-label">{step.label}{step.n > 1 && <b> ×{step.n}</b>}</span>
+                      <span className="flow-step-when">{current ? 'now' : ago(step.at)}</span>
+                    </li>
                   );
                 })}
-              </div>
+              </ol>
             ) : <div className="flow-quiet">No steps yet this turn.</div>}
             <div className="flow-foot">
               {now && <span>Now: <strong style={{ color: KINDS[now.kind].color }}>{KINDS[now.kind].name}</strong></span>}
@@ -142,7 +165,6 @@ export function FlowPanel(props: IDockviewPanelProps<{ projectId?: string }>) {
           </div>
         );
       })}
-      <div className="flow-legend">{(Object.keys(KINDS) as FlowKind[]).filter((k) => k !== 'other').map((k) => <span key={k}><i style={{ background: KINDS[k].color }} />{KINDS[k].name}</span>)}</div>
     </div>
   );
 }

@@ -324,7 +324,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const n = sessions.filter((x) => x.status === 'running').length;
     if (!n) { window.elysium.restartApp(); return; }
     setConfirm({
-      title: 'Restart ElysiumProd?',
+      title: 'Restart Elysium?',
       body: `${n} session${n > 1 ? 's are' : ' is'} running and will stop. Claude sessions can be resumed afterwards from the project's top bar. Use Wrap up first if one is in the middle of something.`,
       yes: 'Restart',
       run: () => window.elysium.restartApp(),

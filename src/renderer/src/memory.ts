@@ -23,7 +23,7 @@ const KNOWN: Record<string, { label: string; tip: string }> = {
   spotify: { label: 'Spotify', tip: 'Fine to keep; quit it if memory is tight.' },
   onedrive: { label: 'OneDrive', tip: 'Syncing. Pause it if memory is tight.' },
   msedgewebview2: { label: 'Web views', tip: 'Small windows inside other apps. Closing those apps frees these.' },
-  electron: { label: 'ElysiumProd and Electron apps', tip: 'This app and others built the same way.' },
+  electron: { label: 'Elysium and Electron apps', tip: 'This app and others built the same way.' },
 };
 
 export function adviceFor(p: ProcGroup): { label: string; tip: string } {
