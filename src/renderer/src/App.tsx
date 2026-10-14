@@ -17,7 +17,7 @@ import { Workspace, addPanel, ensureProjectSessions, shortModel } from './worksp
 import { NewProject } from './NewProject';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
-import { AccountUsage, ChatWatchSwitch, NoticeStack, useNotices, type Notice } from './TopBarExtras';
+import { AccountUsage, ChatWatchSwitch, NoticeStack, ThemeToggle, useNotices, type Notice } from './TopBarExtras';
 
 interface Confirm { title: string; body: string; yes: string; run(): void }
 
@@ -321,6 +321,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
           <AccountUsage />
+          <ThemeToggle />
           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
           {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting</button> : null}
           {projectId && claudeHere.length > 0 && !wrappingHere.length && (

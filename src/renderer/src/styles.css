@@ -860,3 +860,6 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .cmd-input { overflow-y: hidden; }
 .cmd-input:focus { overflow-y: auto; }
 .cmd-hint { text-align: center; color: var(--text-3); font-size: .82rem; margin-top: .55rem; }
+
+.topbar .glance-btn.icon-only { padding: .3rem .45rem; color: var(--text-2); }
+.topbar .glance-btn.icon-only:hover { color: var(--text); }

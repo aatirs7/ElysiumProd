@@ -34,7 +34,7 @@ process.stdin.on('data', (c) => (d += c)).on('end', () => {
 });
 `;
 
-interface Registered { secret: string; t: Telemetry; reader: ReaderEntry[]; flow: FlowEvent[] }
+interface Registered { secret: string; t: Telemetry; reader: ReaderEntry[]; flow: FlowEvent[]; conversation?: string }
 
 const FLOW_KEEP = 200;
 const base = (p: unknown) => (typeof p === 'string' ? p.split(/[\\/]/).pop() ?? p : '');
@@ -123,6 +123,9 @@ export class Ingest {
 
   forget(sessionId: string): void { this.sessions.delete(sessionId); }
 
+  /** Called when a session's Claude conversation id is first seen or changes (a /clear starts a new one). */
+  onConversation: ((sessionId: string, conversationId: string) => void) | null = null;
+
   reader(sessionId: string): ReaderEntry[] { return this.sessions.get(sessionId)?.reader ?? []; }
   flow(sessionId: string): FlowEvent[] { return this.sessions.get(sessionId)?.flow ?? []; }
 
@@ -145,6 +148,10 @@ export class Ingest {
     let p: Record<string, any> = {};
     try { p = JSON.parse(m.payload || '{}'); } catch { return; }
     const t = { ...r.t, lastEventAt: new Date().toISOString() };
+    if (typeof p.session_id === 'string' && /^[0-9a-f-]{36}$/i.test(p.session_id) && p.session_id !== r.conversation) {
+      r.conversation = p.session_id;
+      this.onConversation?.(m.sid!, p.session_id);
+    }
     if (m.kind === 'status') {
       const cw = p.context_window ?? {};
       t.model = p.model?.display_name ?? t.model;

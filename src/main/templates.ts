@@ -62,6 +62,8 @@ export const PROJECTS: ProjectDef[] = [
   // One session for every iOS app (all Expo and EAS), started in a hub folder with each repository added.
   { id: 'ios', name: 'iOS', folder: `${H}\\ios-hub`, repo: null, tier: 'side', sessionName: 'iOS',
     addDirs: [`${H}\\DurusIOS`, `${H}\\cobalt`, `${H}\\drift`, `${H}\\wanderpress`, `${H}\\Documents\\Elysium Ventures LLC\\ILMYIOS`] },
+  // A tool, not a codebase: one session that fixes and audits this laptop itself. No repository.
+  { id: 'laptop', name: 'Laptop', folder: `${H}\\laptop-tool`, repo: null, tier: 'side', sessionName: 'Laptop' },
 ];
 
 function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {

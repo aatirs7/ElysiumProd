@@ -37,6 +37,12 @@ export function hasHistory(accountId: string | null | undefined, cwd: string): b
   try { return readdirSync(dir).some((f) => f.endsWith('.jsonl')); } catch { return false; }
 }
 
+/** Whether one exact conversation's transcript exists for this account and folder. */
+export function hasConversation(accountId: string | null | undefined, cwd: string, conversationId: string): boolean {
+  const slug = cwd.replace(/[:\\/ _.]/g, '-');
+  return existsSync(join(accountDir(accountId), 'projects', slug, `${conversationId}.jsonl`));
+}
+
 function safeReaddir(d: string): string[] {
   try { return readdirSync(d); } catch { return []; }
 }

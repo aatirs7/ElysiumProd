@@ -362,6 +362,8 @@ app.on('window-all-closed', () => { if (SMOKE) app.quit(); });
 // Projects made in the app join the table before anything reads it.
 loadCustomProjects();
 
+ingest.onConversation = (sid, conv) => sessions.noteConversation(sid, conv);
+
 app.whenReady().then(async () => {
   try { enforceCaps(scrollbackDir()); } catch { /* never block startup on cleanup */ }
   registerIpc();

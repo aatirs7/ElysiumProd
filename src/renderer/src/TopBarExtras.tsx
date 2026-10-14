@@ -1,7 +1,7 @@
 // Top bar pieces: plan usage for every Claude account, the chat watcher switch,
 // and the notices that say a session you are not looking at has replied.
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Radio, X } from 'lucide-react';
+import { Moon, Radio, Sun, X } from 'lucide-react';
 import type { AccountLimits, ChatWatch, ReaderEntry } from '@shared/ipc';
 import { ProjectLogo } from './ProjectLogo';
 import { ago, useLive } from './workspace/live';
@@ -199,5 +199,19 @@ export function NoticeStack({ notices, onOpen, onDismiss }: { notices: Notice[];
         </div>
       ))}
     </div>
+  );
+}
+
+/** Light or dark in one click. Settings still has every theme. */
+export function ThemeToggle() {
+  const { doc, setSettings } = useWorkspace();
+  const [, redraw] = useState(0);
+  const light = ['claude-light', 'paper'].includes(document.documentElement.dataset.theme ?? '');
+  useEffect(() => { requestAnimationFrame(() => redraw((n) => n + 1)); }, [doc.settings.theme]);
+  return (
+    <button className="glance-btn icon-only" onClick={() => setSettings({ theme: light ? 'claude-dark' : 'claude-light' })}
+      title={light ? 'Switch to dark' : 'Switch to light'} aria-label={light ? 'Switch to dark theme' : 'Switch to light theme'}>
+      {light ? <Moon size={14} /> : <Sun size={14} />}
+    </button>
   );
 }

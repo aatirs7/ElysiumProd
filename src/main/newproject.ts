@@ -43,9 +43,21 @@ function ensureIosHub(): void {
   } catch { /* the session reports a missing folder itself */ }
 }
 
+/** The Laptop tool's folder and its CLAUDE.md, which says how to work on this PC. Never overwritten. */
+function ensureLaptopTool(): void {
+  const p = PROJECTS.find((x) => x.id === 'laptop');
+  if (!p) return;
+  try {
+    mkdirSync(join(p.folder, 'notes'), { recursive: true });
+    const md = join(p.folder, 'CLAUDE.md');
+    if (!existsSync(md)) writeFileSync(md, "# Laptop\n\nThis session is a tool for this Windows laptop itself, not a codebase. The owner asks it to fix things on the PC or to audit it: slowness, disk space, startup apps, drivers, Windows Update, network and Wi-Fi, battery health, security settings, installed software, scheduled tasks, odd processes.\n\nMachine: Windows 11 on ARM64 (Surface), 16 GB of memory. Use PowerShell (Windows PowerShell 5.1; pwsh is not installed).\n\nHow to work:\n- Look before changing. Audits are read only: report what you found, in plain words, and what you would change.\n- Before anything hard to undo (uninstalling, deleting files, registry edits, changing services, drivers or firewall rules, anything that needs a reboot), say exactly what you will do and wait for a yes.\n- Never print or save the contents of passwords, keys, tokens or other secrets. Paths only.\n- Do not stop or kill ElysiumProd (electron.exe) or any claude.exe process; other work runs in them.\n- When something is done, check that it worked and say how you checked.\n- Keep a short log in notes/log.md: the date, what was asked, what you found, what you changed.\n");
+  } catch { /* the session reports a missing folder itself */ }
+}
+
 /** Adds the saved projects to the live table. Called once at start up. */
 export function loadCustomProjects(): void {
   ensureIosHub();
+  ensureLaptopTool();
   for (const p of saved()) registerProject({ ...p, custom: true });
 }
 

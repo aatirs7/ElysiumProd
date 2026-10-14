@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { dataDir } from './paths';
 import type { IPty } from 'node-pty';
 import type { CreateOptions, CreateResult, SessionInfo } from '@shared/ipc';
-import { accountEnv, hasHistory } from './accounts';
+import { accountEnv, hasConversation, hasHistory } from './accounts';
 import { childEnv } from './env';
 import { Scrollback } from './scrollback';
 import { findTemplate } from './templates';
@@ -71,6 +71,11 @@ export class SessionManager {
     let args = [...t.args];
     let resumed = false;
     const env: Record<string, string> = { ...t.env };
+    if (t.kind === 'claude' && !resumeId) {
+      // The conversation this pane last ran, if its transcript is still there.
+      const last = conversations()[convKey(accountId, templateId)];
+      if (last && hasConversation(accountId, t.cwd, last)) resumeId = last;
+    }
     if (t.kind === 'claude') {
       // Resume only where the history lives. A session's transcripts belong to the
       // account it ran on, so on another account the same title starts fresh.
@@ -155,6 +160,15 @@ export class SessionManager {
     return { info: { ...l.info }, data: l.history, endOffset: l.offset };
   }
 
+  /** Remember the conversation a session is in, so Start and Restart resume exactly it. */
+  noteConversation(sessionId: string, conversationId: string): void {
+    const l = this.live.get(sessionId);
+    if (!l) return;
+    const all = conversations();
+    all[convKey(l.info.accountId, l.info.templateId)] = conversationId;
+    try { writeFileSync(CONVERSATIONS(), JSON.stringify(all, null, 2)); } catch { /* falls back to the template's own resume */ }
+  }
+
   /** The running session for a template, if any. */
   runningFor(templateId: string): SessionInfo | null {
     for (const l of this.live.values()) if (l.info.templateId === templateId && l.info.status === 'running') return l.info;
@@ -218,6 +232,12 @@ async function waitForExit(pid: number, ms: number): Promise<void> {
 }
 
 /** Named sessions ElysiumProd has started, per account: "account|title|folder". */
+const CONVERSATIONS = () => join(dataDir(), 'conversations.json');
+const convKey = (accountId: string, templateId: string) => `${accountId}|${templateId}`;
+function conversations(): Record<string, string> {
+  try { const j = JSON.parse(readFileSync(CONVERSATIONS(), 'utf8')) as unknown; return j && typeof j === 'object' ? j as Record<string, string> : {}; } catch { return {}; }
+}
+
 const NAMED = () => join(dataDir(), 'named-sessions.json');
 function namedSet(): Set<string> {
   try { return new Set(JSON.parse(readFileSync(NAMED(), 'utf8')) as string[]); } catch { return new Set(); }
