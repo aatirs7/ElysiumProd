@@ -168,7 +168,18 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       if (sid) {
         const r = await window.elysium.replay(sid);
         if (disposed) return;
-        if (!r) { setGone(true); return; }
+        if (!r) {
+          // After a restart the same session may be running again under a new id: connect to it.
+          const again = (await window.elysium.sessions()).find((x) => x.templateId === props.params.templateId && x.status === 'running');
+          if (disposed) return;
+          if (again && templates.find((x) => x.id === props.params.templateId)?.kind === 'claude') {
+            props.api.updateParameters({ ...props.params, sessionId: again.id });
+            setAttempt((a) => a + 1);
+            return;
+          }
+          setGone(true);
+          return;
+        }
         term.write(r.data);
         seen = r.endOffset;
         attach(sid);

@@ -47,7 +47,8 @@ export class SessionManager {
     return [...this.live.values()].map((l) => l.info);
   }
 
-  create(templateId: string, cols: number, rows: number, opts: CreateOptions = {}): CreateResult {
+  /** `resumeId` (main process only) resumes that exact conversation instead of the template's own. */
+  create(templateId: string, cols: number, rows: number, opts: CreateOptions = {}, resumeId?: string): CreateResult {
     const t = findTemplate(templateId);
     if (!t) return { ok: false, reason: `No template called ${templateId}.` };
     const refused = this.gate();
@@ -75,7 +76,12 @@ export class SessionManager {
       // account it ran on, so on another account the same title starts fresh.
       const r = args.indexOf('--resume');
       const c = args.indexOf('--continue');
-      if (r >= 0 && t.named) {
+      if (resumeId) {
+        if (r >= 0) args.splice(r, 2); else if (c >= 0) args.splice(c, 1);
+        const n = args.indexOf('-n'); if (n >= 0) args.splice(n, 2);
+        args = ['--resume', resumeId, ...args];
+        resumed = true;
+      } else if (r >= 0 && t.named) {
         // The CLI refuses --resume with a name it has never seen, so the first launch names it instead.
         if (namedStarted(accountId, t)) resumed = true;
         else { args.splice(r, 2, '-n', t.title); markNamed(accountId, t); }

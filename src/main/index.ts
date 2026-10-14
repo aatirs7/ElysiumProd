@@ -33,6 +33,7 @@ import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
+import { resumeRunning, saveRunning } from './resume';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
@@ -125,8 +126,9 @@ function loadRenderer(w: BrowserWindow, hash = ''): void {
   else void w.loadFile(join(__dirname, '../renderer/index.html'), hash ? { hash } : undefined);
 }
 
-/** Restart: the normal quit (sessions stop, cookies and layout saved), then start again. */
+/** Restart: the normal quit (sessions stop, cookies and layout saved), then start again with the same sessions resumed. */
 function restartApp(): void {
+  saveRunning(sessions);
   app.relaunch();
   app.quit();
 }
@@ -373,5 +375,6 @@ app.whenReady().then(async () => {
     registerShortcut();
     createTray(showMain, () => app.quit(), restartApp);
   }
+  if (!SMOKE) resumeRunning(sessions);
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });
