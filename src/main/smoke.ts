@@ -126,6 +126,13 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(1500);
     await js(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Customize Home')?.click()`);
     await sleep(700); await shot('19-home-customize');
+    await js(`window.dispatchEvent(new Event('ep:theme-builder'))`);
+    await sleep(800);
+    await js(`(() => { const set = (i, v) => { const el = document.querySelectorAll('.tb-part input[type=color]')[i]; const d = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value'); d.set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); }; set(0, '#1d2421'); set(6, '#e2b48c'); })()`);
+    await sleep(900); await shot('23-theme-builder');
+    await js(`[...document.querySelectorAll('.tb-foot button')].find((x) => x.textContent.trim() === 'Save theme')?.click()`);
+    await sleep(600);
+    r.customTheme = await js(`({ theme: document.documentElement.dataset.theme, bg: document.documentElement.style.getPropertyValue('--bg') })`);
     await js(`[...document.querySelectorAll('button')].find((x) => x.textContent.trim() === 'Done')?.click()`);
     await js(`window.__smoke.open({ kind: 'files', title: 'Files', params: { projectId: 'elysiumprod' } })`);
     await sleep(1500);

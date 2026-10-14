@@ -275,6 +275,16 @@ export function ThemeToggle() {
       </button>
       {open && (
         <div className="theme-menu" role="menu">
+          {doc.settings.customTheme && (
+            <div className="theme-group">
+              <div className="theme-group-label">Yours</div>
+              <button role="menuitemradio" aria-checked={doc.settings.theme === 'custom'} className={doc.settings.theme === 'custom' ? 'theme-item on' : 'theme-item'} onClick={() => { setSettings({ theme: 'custom' }); setOpen(false); }}>
+                <span className="theme-mini" style={{ background: doc.settings.customTheme.vars['--bg'] ?? 'var(--bg)' }}><i style={{ background: doc.settings.customTheme.vars['--chrome'] ?? 'var(--chrome)' }} /><b style={{ background: doc.settings.customTheme.vars['--accent-default'] ?? 'var(--accent)' }} /></span>
+                <span className="theme-name">{doc.settings.customTheme.name}</span>
+                {doc.settings.theme === 'custom' && <Check size={14} />}
+              </button>
+            </div>
+          )}
           {(['Automatic', 'Dark', 'Light'] as const).map((group) => (
             <div key={group} className="theme-group">
               <div className="theme-group-label">{group}</div>
@@ -291,6 +301,7 @@ export function ThemeToggle() {
               ))}
             </div>
           ))}
+          <button className="theme-build" onClick={() => { setOpen(false); window.dispatchEvent(new Event('ep:theme-builder')); }}>Build your own theme</button>
         </div>
       )}
     </div>

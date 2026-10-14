@@ -9,7 +9,7 @@ import type { WatcherConfig } from '@shared/ipc';
 /** Projects added after the first run that should show up pinned once. */
 const LATER_PINS = ['laptop'];
 
-export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora' | 'dusk';
+export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora' | 'dusk' | 'custom';
 export type Density = 'comfortable' | 'compact';
 
 export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string, string, string] }[] = [
@@ -53,6 +53,8 @@ export interface Settings {
   displayName: string;
   /** Saver mode: fewer extra tokens (no Flow summaries or Sonnet fallback, chats on Sonnet). */
   saver: boolean;
+  /** Your own theme, made in the theme builder. */
+  customTheme: CustomTheme | null;
   /** Home widgets, in order. */
   homeWidgets: string[];
   /** Tools you connected yourself on the Connect step. */
@@ -121,6 +123,8 @@ export interface FeatureRequest { id: string; projectId: string; text: string; a
 
 /** A cost no provider reports: a subscription, a domain, a one off purchase. `monthly` is the amount per cycle. */
 export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null; cycle?: 'monthly' | 'yearly' | 'once'; category?: string; date?: string }
+/** A theme of your own: a base theme with any of its colours replaced, plus texture and corners. */
+export interface CustomTheme { name: string; base: Exclude<ThemeId, 'system' | 'custom'>; vars: Partial<Record<'--bg' | '--chrome' | '--surface' | '--surface-2' | '--text' | '--text-2' | '--accent-default' | '--term', string>>; grain: number; grid: boolean; radius: number }
 export const COST_CATEGORIES = ['AI', 'Hosting', 'Software', 'Domain', 'Design', 'Hardware', 'Other'];
 /** What a cost adds to this month: monthly as is, yearly spread over twelve, a one off only in its month. */
 export function monthlyOf(f: FixedCost, now = new Date()): number {
@@ -166,6 +170,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flowSummaries: true,
   displayName: '',
   saver: false,
+  customTheme: null,
   homeWidgets: ['live', 'week', 'recent', 'news'],
   customTools: [],
 };
@@ -195,7 +200,7 @@ function parse(json: string | null): WorkspaceDoc {
   try {
     const d = JSON.parse(json) as Partial<WorkspaceDoc> & { settings?: Partial<Settings> & { theme?: string } };
     const views = Array.isArray(d.views) ? d.views : [];
-    const theme = THEMES.some((t) => t.id === d.settings?.theme) ? (d.settings!.theme as ThemeId) : 'system';
+    const theme = THEMES.some((t) => t.id === d.settings?.theme) || (d.settings?.theme === 'custom' && d.settings?.customTheme) ? (d.settings!.theme as ThemeId) : 'system';
     return {
       version: 1,
       settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) }, autoCompact: { ...DEFAULT_SETTINGS.autoCompact, ...(d.settings?.autoCompact ?? {}) } },

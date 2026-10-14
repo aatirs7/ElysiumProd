@@ -1736,3 +1736,44 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .wm-shadow { position: absolute; left: 50%; bottom: -3px; width: 26px; height: 5px; margin-left: -13px; border-radius: 50%; background: rgba(0, 0, 0, .35); filter: blur(2px); }
 .wm-stars i { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: var(--text-3); animation: twinkle 4.2s ease-in-out infinite; }
 @keyframes twinkle { 0%, 100% { opacity: .1; } 50% { opacity: .7; } }
+
+/* ---- Theme builder ---- */
+.shell::after { opacity: var(--grain-o, .05); }
+[data-grid="off"] .dv-dockview, [data-grid="off"] .dockview-theme-abyss .dv-groupview { background-image: none; }
+.theme-build { width: 100%; margin-top: .35rem; padding: .55rem; border: 1px dashed var(--line-strong); border-radius: 9px; background: transparent; color: var(--text-2); font: inherit; font-size: .84rem; cursor: pointer; }
+.theme-build:hover { color: var(--text); border-style: solid; }
+.dialog.tb { width: min(60rem, 94vw); max-height: 90vh; display: flex; flex-direction: column; }
+.tb-body { display: grid; grid-template-columns: 1fr 1fr; gap: 1.4rem; padding: 1rem 1.2rem; overflow: auto; }
+@media (max-width: 860px) { .tb-body { grid-template-columns: 1fr; } }
+.tb-controls { display: flex; flex-direction: column; gap: .8rem; }
+.tb-row { display: flex; align-items: center; gap: .7rem; font-size: .88rem; }
+.tb-row > span { width: 9rem; color: var(--text-2); }
+.tb-row .text-input, .tb-row .picker, .tb-row input[type=range] { flex: 1; }
+.tb-row em { font-style: normal; color: var(--text-3); width: 3.4rem; font-size: .8rem; }
+.tb-parts { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+.tb-part { display: flex; align-items: center; gap: .55rem; padding: .45rem .5rem; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); cursor: pointer; }
+.tb-part input[type=color] { width: 1.9rem; height: 1.9rem; border: 0; padding: 0; border-radius: 8px; background: none; cursor: pointer; flex: none; }
+.tb-part input[type=color]::-webkit-color-swatch-wrapper { padding: 0; }
+.tb-part input[type=color]::-webkit-color-swatch { border: 1px solid var(--line-strong); border-radius: 7px; }
+.tb-part-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tb-part-text strong { font-size: .84rem; }
+.tb-part-text em { font-style: normal; font-size: .7rem; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tb-preview { display: flex; flex-direction: column; gap: .6rem; }
+.tbp-window { display: flex; height: 17rem; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line-strong); background: var(--bg); box-shadow: var(--shadow); }
+.tbp-side { width: 3.4rem; background: var(--chrome); display: flex; flex-direction: column; gap: .45rem; padding: .8rem .55rem; }
+.tbp-side i { height: .45rem; border-radius: 99px; background: var(--line-strong); }
+.tbp-side i.on { background: var(--accent); }
+.tbp-main { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.tbp-title { font: 560 1.2rem var(--font-display); color: var(--text); letter-spacing: -.02em; }
+.tbp-input { display: flex; justify-content: space-between; align-items: center; padding: .45rem .55rem .45rem .8rem; border-radius: 99px; background: var(--surface); border: 1px solid var(--line-strong); color: var(--text-2); font-size: .75rem; }
+.tbp-input b { width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--accent); }
+.tbp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: .45rem; }
+.tbp-card { padding: .55rem .65rem; border-radius: calc(var(--radius) - 4px); background: var(--surface); border: 1px solid var(--line); display: flex; flex-direction: column; }
+.tbp-card strong { color: var(--text); font-size: 1rem; }
+.tbp-card span { color: var(--text-2); font-size: .7rem; }
+.tbp-term { flex: 1; border-radius: calc(var(--radius) - 4px); background: var(--term); color: var(--term-fg); font: .72rem var(--mono); padding: .55rem .7rem; display: flex; gap: .5rem; }
+.tbp-acc { color: var(--accent); }
+.tb-foot { display: flex; gap: .5rem; padding: .8rem 1.2rem; border-top: 1px solid var(--line); }
+.backdrop .dialog.tb { width: min(60rem, 94vw); max-width: none; text-align: left; padding: 0; }
+.dialog.tb .bar { padding: .9rem 1.2rem; }
+.tb-part-text, .tb-part-text strong { text-align: left; }

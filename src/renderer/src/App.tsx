@@ -17,6 +17,7 @@ import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/s
 import { Workspace, addPanel, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
 import { Tour } from './Tour';
+import { ThemeBuilder } from './ThemeBuilder';
 import { CHECKS, TOOL_INFO } from './tools';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
@@ -82,6 +83,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [tour, setTour] = useState(false);
+  const [builder, setBuilder] = useState(false);
+  useEffect(() => { const on = () => setBuilder(true); window.addEventListener('ep:theme-builder', on); return () => window.removeEventListener('ep:theme-builder', on); }, []);
   const tourHome = useCallback(() => setPage('home'), []);
   useEffect(() => { const on = () => setTour(true); window.addEventListener('ep:tour', on); return () => window.removeEventListener('ep:tour', on); }, []);
   const { templates, sessions, telemetry, compacting } = useLive();
@@ -441,6 +444,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
 
       {ready && !doc.onboarded && <Onboarding name={name} />}
       {tour && <Tour onClose={() => setTour(false)} goHome={tourHome} />}
+      {builder && <ThemeBuilder onClose={() => setBuilder(false)} />}
     </div>
   );
 }
