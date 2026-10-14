@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { BarChart3, CircleHelp, Home, Layers, MemoryStick, PinOff, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
+import { BarChart3, CircleDollarSign, CircleHelp, Home, Layers, MemoryStick, PinOff, Plus, Search, Settings as SettingsIcon, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 
-export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats';
+export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs';
 
 interface Props {
   page: Page;
@@ -50,6 +50,9 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
       </button>
       <button className={`nav ${page === 'stats' ? 'active' : ''}`} onClick={() => go('stats')}>
         <BarChart3 size={17} strokeWidth={1.75} /><span className="grow">Your stats</span>
+      </button>
+      <button className={`nav ${page === 'costs' ? 'active' : ''}`} onClick={() => go('costs')}>
+        <CircleDollarSign size={17} strokeWidth={1.75} /><span className="grow">Costs</span>
       </button>
 
       <div className="side-scroll">

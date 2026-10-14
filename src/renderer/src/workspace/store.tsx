@@ -76,7 +76,13 @@ export interface WorkspaceDoc {
   pinned: string[];
   /** The claude.ai chat (or Claude Project) each project's Claude pane opens to. */
   projectChats: Record<string, { url: string; title: string }>;
+  /** Costs: a provider item linked to a project by hand (key to project id, or 'none'). */
+  costLinks: Record<string, string>;
+  /** Costs: subscriptions and other fixed monthly amounts. */
+  fixedCosts: FixedCost[];
 }
+
+export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null }
 
 /**
  * A preset never carries live session ids. Terminal panes are saved as
@@ -122,6 +128,8 @@ function fresh(): WorkspaceDoc {
     accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
     pinned: ['posture', 'intern', 'attestia', 'gulf', 'builds'],
     projectChats: {},
+    costLinks: {},
+    fixedCosts: [],
   };
 }
 
@@ -146,6 +154,8 @@ function parse(json: string | null): WorkspaceDoc {
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? d.pinned : f.pinned,
       projectChats: d.projectChats ?? {},
+      costLinks: d.costLinks ?? {},
+      fixedCosts: Array.isArray(d.fixedCosts) ? d.fixedCosts : [],
     };
   } catch {
     return f;
@@ -188,6 +198,7 @@ interface Ctx {
   accountFor(projectId: string | null | undefined): string;
   setWatcher(projectId: string, cfg: WatcherConfig): void;
   togglePin(projectId: string): void;
+  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts'>>): void;
   setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
   finishOnboarding(): void;
   restartOnboarding(): void;
@@ -278,6 +289,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
     return { ...d, projectChats };
   }), []);
+  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts'>>) => setDoc((d) => ({ ...d, ...p })), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string) => {
@@ -308,8 +320,8 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
   const activeView = doc.views.find((v) => v.id === doc.activeViewId) ?? null;
   const value = useMemo<Ctx>(() => ({
     doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
-    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
   }), [doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
-    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

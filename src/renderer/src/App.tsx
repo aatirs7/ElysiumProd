@@ -6,6 +6,7 @@ import { Home } from './Home';
 import { Settings } from './Settings';
 import { Help } from './Help';
 import { Stats } from './Stats';
+import { Costs } from './Costs';
 import { Palette } from './Palette';
 import { Onboarding } from './Onboarding';
 import { ProjectLogo } from './ProjectLogo';
@@ -68,7 +69,7 @@ function WithWorkspace() {
   );
 }
 
-const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats' };
+const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs' };
 
 function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c: Confirm | null): void }) {
   const [name, setName] = useState('');
@@ -321,6 +322,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
+        {page === 'costs' && <Costs />}
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 

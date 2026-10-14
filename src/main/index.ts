@@ -23,6 +23,7 @@ import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
 import { createProject, loadCustomProjects, removeProject } from './newproject';
+import { costReport } from './costs';
 import { dialog } from 'electron';
 import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
@@ -233,6 +234,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.costsGet, (_e, force: unknown) => costReport(Boolean(force)));
   ipcMain.handle(Channels.projectCreate, async (_e, req: unknown) => {
     const r = await createProject((req ?? {}) as Parameters<typeof createProject>[0]);
     if (r.ok) send(Channels.projectsChanged);

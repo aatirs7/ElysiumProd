@@ -57,6 +57,16 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Settings'))?.click()`);
     await sleep(1200);
     await shot('7-settings');
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Costs'))?.click()`);
+    const costStart = Date.now();
+    for (let k = 0; k < 90 && !(await js(`Boolean(document.querySelector('.cost-row'))`)); k += 1) await sleep(1000);
+    r.costsSeconds = Math.round((Date.now() - costStart) / 1000);
+    r.costRows = await js(`document.querySelectorAll('.cost-row').length`);
+    r.costErrors = await js(`document.querySelector('.cost-errors')?.textContent ?? null`);
+    await shot('9-costs');
+    await js(`document.querySelector('.cost-row-head')?.click()`);
+    await sleep(600);
+    await shot('10-costs-open');
     // New project: the dialog, then a from scratch project made and removed through the same calls.
     await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
     await sleep(400);

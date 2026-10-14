@@ -69,6 +69,7 @@ const api: ElysiumApi = {
   removeProject: (id) => ipcRenderer.invoke(Channels.projectRemove, id),
   pickFolder: () => ipcRenderer.invoke(Channels.folderPick),
   onProjectsChanged: (cb) => subscribe<[]>(Channels.projectsChanged, cb),
+  costs: (force) => ipcRenderer.invoke(Channels.costsGet, Boolean(force)),
   loadWorkspace: () => ipcRenderer.invoke(Channels.workspaceGet),
   saveWorkspace: (json) => ipcRenderer.send(Channels.workspaceSet, json),
   onData: (cb) => subscribe<[string, string, number]>(Channels.sessionData, cb),

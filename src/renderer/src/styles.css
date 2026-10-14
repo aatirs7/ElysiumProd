@@ -704,3 +704,40 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .np-error { margin: 1rem 0 0; padding: .6rem .8rem; border-radius: 10px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); font-size: .88rem; }
 .dialog.np .dialog-row { margin-top: 1.4rem; justify-content: flex-end; }
 .spin { animation: spin 1s linear infinite; }
+
+/* ---- Costs ---- */
+.costs-refresh { margin-left: .7rem; display: inline-flex; align-items: center; gap: .3rem; }
+.cost-hero { text-align: center; padding: 1.6rem 1rem 1.4rem; margin-bottom: 1.2rem; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); animation: rise .4s var(--ease) both; }
+.cost-total { font-family: var(--font-display); font-size: 3rem; font-weight: 600; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.cost-total-label { color: var(--text-3); margin-top: .4rem; }
+.cost-split { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem 1.6rem; margin-top: 1.2rem; }
+.cost-split-item { display: inline-flex; align-items: center; gap: .45rem; color: var(--text-2); font-size: .9rem; }
+.cost-split-item strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.cost-last { margin-top: .8rem; color: var(--text-3); font-size: .82rem; }
+.cost-key { display: inline-block; width: .6rem; height: .6rem; border-radius: 3px; flex: none; }
+.setting-label .cost-key { margin-right: .1rem; }
+.cost-errors { margin: 0 0 1rem; padding: .7rem .9rem; border-radius: 12px; background: color-mix(in srgb, var(--warn) 10%, transparent); color: var(--text-2); font-size: .86rem; display: grid; gap: .25rem; }
+.cost-row { border-top: 1px solid var(--line); }
+.cost-row:first-of-type { border-top: 0; }
+.cost-row-head { display: grid; grid-template-columns: auto minmax(8rem, 14rem) 1fr auto auto; align-items: center; gap: .8rem; width: 100%; padding: .7rem .2rem; border: 0; background: transparent; color: var(--text); cursor: pointer; text-align: left; border-radius: 10px; }
+.cost-row-head:hover { background: var(--hover); }
+.cost-row-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cost-bar { display: flex; gap: 2px; height: .55rem; min-width: 0; }
+.cost-bar span { display: block; height: 100%; border-radius: 4px; min-width: 3px; transform-origin: left; animation: grow .5s var(--ease) both; }
+.cost-row-total { font-variant-numeric: tabular-nums; font-weight: 600; min-width: 4.5rem; text-align: right; }
+.cost-chev { color: var(--text-3); transition: transform .2s var(--ease); }
+.cost-row.open .cost-chev { transform: rotate(180deg); }
+.cost-break { padding: .2rem .4rem 1rem 2.4rem; display: grid; gap: .7rem; animation: drop .2s var(--ease) both; }
+.cost-item-head { display: flex; align-items: center; gap: .55rem; font-size: .9rem; }
+.cost-item-name { font-weight: 600; }
+.cost-item-head strong { margin-left: auto; font-variant-numeric: tabular-nums; }
+.cost-line { display: flex; justify-content: space-between; padding: .15rem 0 .15rem 1.15rem; color: var(--text-2); font-size: .84rem; font-variant-numeric: tabular-nums; }
+.cost-line em { color: var(--text-3); font-style: normal; }
+.small-picker { font-size: .78rem; padding: .15rem .4rem; }
+.cost-legend { display: flex; gap: 1rem; justify-content: center; padding-top: .8rem; color: var(--text-3); font-size: .8rem; }
+.cost-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.cost-amt { font-variant-numeric: tabular-nums; min-width: 4rem; text-align: right; }
+.fixed-row > .text-input { flex: 1; max-width: 18rem; }
+.usd-input { display: inline-flex; align-items: center; gap: .3rem; color: var(--text-2); font-size: .88rem; }
+.usd-input .text-input { width: 6rem; }
+.cost-foot { color: var(--text-3); font-size: .8rem; line-height: 1.55; text-align: center; max-width: 44rem; margin: 1.2rem auto 2rem; }

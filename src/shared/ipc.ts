@@ -112,6 +112,7 @@ export const Channels = {
   projectRemove: 'project:remove',
   folderPick: 'folder:pick',
   projectsChanged: 'projects:changed',
+  costsGet: 'costs:get',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
@@ -224,6 +225,33 @@ export interface ElysiumApi {
   removeProject(id: string): Promise<boolean>;
   pickFolder(): Promise<string | null>;
   onProjectsChanged(cb: () => void): () => void;
+  /** Costs across Vercel, Neon and AWS; cached for an hour unless forced. */
+  costs(force?: boolean): Promise<CostReport>;
+}
+
+export interface CostLine { name: string; cost: number; value: number }
+export interface CostItem {
+  provider: 'vercel' | 'neon' | 'aws';
+  /** Stable across refreshes, for linking an item to a project by hand. */
+  key: string;
+  name: string;
+  /** What is billed this period, in USD. */
+  cost: number;
+  /** The usage's list price before plan credits; equal to cost where there are none. */
+  value: number;
+  /** True where the dollars are worked out from usage rather than read from a bill. */
+  estimate: boolean;
+  projectId: string | null;
+  services: CostLine[];
+  note: string | null;
+}
+export interface CostReport {
+  computedAt: string;
+  period: { from: string; to: string };
+  items: CostItem[];
+  lastMonth: { vercel: number | null; vercelValue: number | null };
+  errors: { vercel: string | null; neon: string | null; aws: string | null };
+  neonRates: { cuHour: number; gbMonth: number };
 }
 
 export interface AccountLimits { accountId: string; fiveHourPercent: number | null; sevenDayPercent: number | null; fiveHourResetsAt: number | null; sevenDayResetsAt: number | null; at: string }

@@ -31,6 +31,7 @@ export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { o
       { id: 'newview', label: 'New view', hint: 'An empty layout', icon: <Plus size={15} />, run: toWs(() => addView()) },
       { id: 'home', label: 'Home', hint: 'Ctrl 0', icon: <Home size={15} />, run: () => go('home') },
       { id: 'settings', label: 'Settings', hint: 'Theme, projects, accounts', icon: <SettingsIcon size={15} />, run: () => go('settings') },
+      { id: 'costs', label: 'Costs', hint: 'Vercel, Neon, AWS and subscriptions', icon: <BarChart3 size={15} />, run: () => go('costs') },
       { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
       { id: 'restart', label: 'Restart ElysiumProd', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
