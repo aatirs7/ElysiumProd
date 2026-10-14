@@ -54,14 +54,14 @@ function matcher(): (provider: string, name: string, id?: string) => string | nu
   };
 }
 
-async function vercel(from?: string, to?: string): Promise<{ items: CostItem[]; error: string | null; period: { from: string; to: string } | null }> {
+async function vercel(from?: string, to?: string): Promise<{ items: CostItem[]; error: string | null; period: { from: string; to: string } | null; team?: string }> {
   if (!existsSync(VERCEL_JS)) return { items: [], error: 'The Vercel CLI is not installed.', period: null };
   const args = [VERCEL_JS, 'usage', '--group-by', 'project', '--format', 'json', ...(from ? ['--from', from] : []), ...(to ? ['--to', to] : [])];
   const r = await run('node', args);
   const start = r.out.indexOf('{');
   if (start < 0) return { items: [], error: /login|auth/i.test(r.err) ? 'Sign in with vercel login.' : 'Vercel did not answer.', period: null };
   try {
-    const j = JSON.parse(r.out.slice(start)) as { period: { from: string; to: string }; groupBy: { data: { name: string; services: { name: string; billedCost: number; effectiveCost: number }[]; totals: { billedCost: number; effectiveCost: number } }[] } };
+    const j = JSON.parse(r.out.slice(start)) as { context?: string; period: { from: string; to: string }; groupBy: { data: { name: string; services: { name: string; billedCost: number; effectiveCost: number }[]; totals: { billedCost: number; effectiveCost: number } }[] } };
     const match = matcher();
     const items = j.groupBy.data.map((p): CostItem => ({
       provider: 'vercel', key: `vercel:${p.name}`, name: p.name, cost: p.totals.billedCost, value: p.totals.effectiveCost, estimate: false,
@@ -69,7 +69,7 @@ async function vercel(from?: string, to?: string): Promise<{ items: CostItem[]; 
       services: p.services.filter((s) => s.effectiveCost > 0.0005).map((s) => ({ name: s.name, cost: s.billedCost, value: s.effectiveCost })),
       note: null,
     }));
-    return { items, error: null, period: j.period };
+    return { items, error: null, period: j.period, team: j.context };
   } catch {
     return { items: [], error: 'Vercel answered in a form this version does not read.', period: null };
   }
@@ -170,6 +170,7 @@ export async function costReport(force = false): Promise<CostReport> {
     lastMonth: { vercel: vLast.error ? null : vLast.items.reduce((s, i) => s + i.cost, 0), vercelValue: vLast.error ? null : vLast.items.reduce((s, i) => s + i.value, 0) },
     errors: { vercel: v.error, neon: n.error, aws: a.error },
     neonRates: NEON_RATES,
+    vercelTeam: v.team ?? null,
   };
   try { writeFileSync(CACHE(), JSON.stringify(report)); } catch { /* cache is optional */ }
   return report;

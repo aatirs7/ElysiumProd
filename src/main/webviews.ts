@@ -7,6 +7,11 @@
 //   - it may only navigate to Claude, Anthropic and sign-in hosts; any other link
 //     opens in the system browser;
 //   - it never receives app IPC, and the app never reads its pages.
+//
+// Site panes (a project's dashboard links, App Store Connect) use the same view
+// with one persistent partition per project, may go to any https page, and keep
+// every site's sign in for 30 days. Pages there cannot ask for the camera,
+// microphone, notifications or any other permission.
 import { app, BrowserWindow, WebContentsView, clipboard, session, shell, type Session } from 'electron';
 import { appendFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -44,12 +49,14 @@ const log = (line: string) => {
  * so even a hard stop keeps the sign-in.
  */
 const kept = new Set<string>();
-function keepSignedIn(partition: string): Session {
+function keepSignedIn(partition: string, everySite = false): Session {
   const ses = session.fromPartition(partition);
   if (kept.has(partition)) return ses;
   kept.add(partition);
+  if (everySite) ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
   ses.cookies.on('changed', (_e, c, _cause, removed) => {
-    if (removed || c.expirationDate || !c.domain || !/(^|\.)(claude\.ai|anthropic\.com)$/.test(c.domain.replace(/^\./, ''))) return;
+    if (removed || c.expirationDate || !c.domain) return;
+    if (!everySite && !/(^|\.)(claude\.ai|anthropic\.com)$/.test(c.domain.replace(/^\./, ''))) return;
     const host = c.domain.replace(/^\./, '');
     void ses.cookies.set({
       url: `https://${host}${c.path ?? '/'}`, name: c.name, value: c.value, domain: c.hostOnly ? undefined : c.domain, path: c.path,
@@ -64,7 +71,7 @@ export async function flushWebSessions(): Promise<void> {
 setInterval(() => void flushWebSessions(), 60000).unref?.();
 
 interface Bounds { x: number; y: number; width: number; height: number }
-interface Entry { view: WebContentsView; accountId: string; home: string }
+interface Entry { view: WebContentsView; accountId: string; home: string; site: string | null }
 
 const views = new Map<string, Entry>();
 let hiddenAll = false;
@@ -74,10 +81,12 @@ function startUrl(u: string | null | undefined): string {
   try { const h = new URL(u ?? ''); return h.protocol === 'https:' && /(^|\.)claude\.ai$/.test(h.hostname) ? h.toString() : HOME; } catch { return HOME; }
 }
 
-export function attachWeb(win: BrowserWindow, id: string, accountId: string, emit: (s: WebState) => void, start?: string | null): void {
+const httpsUrl = (u: string | null | undefined) => { try { const h = new URL(u ?? ''); return h.protocol === 'https:' ? h.toString() : null; } catch { return null; } };
+
+export function attachWeb(win: BrowserWindow, id: string, accountId: string, emit: (s: WebState) => void, start?: string | null, site?: string | null): void {
   const existing = views.get(id);
-  const home = startUrl(start);
-  if (existing && existing.accountId === accountId) {
+  const home = site ? httpsUrl(start) ?? 'https://www.google.com/' : startUrl(start);
+  if (existing && existing.accountId === accountId && existing.site === (site ?? null)) {
     // Same account: only move to a newly pinned chat, never interrupt the one that is open.
     if (existing.home !== home) {
       existing.home = home;
@@ -87,19 +96,21 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
     return;
   }
   if (existing) detachWeb(win, id);
-  keepSignedIn(`persist:claude-${accountId}`);
+  const partition = site ? `persist:site-${site}` : `persist:claude-${accountId}`;
+  keepSignedIn(partition, Boolean(site));
   const view = new WebContentsView({
-    webPreferences: { partition: `persist:claude-${accountId}`, sandbox: true, contextIsolation: true, nodeIntegration: false },
+    webPreferences: { partition, sandbox: true, contextIsolation: true, nodeIntegration: false },
   });
+  const ok = (u: string) => (site ? Boolean(httpsUrl(u)) : allowed(u));
   const wc = view.webContents;
   wc.setUserAgent(chromeUserAgent());
   const state = (loading: boolean, error: string | null = null) => emit({ id, url: wc.getURL(), title: wc.getTitle(), loading, error, accountId });
   wc.setWindowOpenHandler(({ url }) => {
-    if (allowed(url)) void wc.loadURL(url); else if (/^https:\/\//.test(url)) void shell.openExternal(url);
+    if (ok(url)) void wc.loadURL(url); else if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   const guard = (e: Electron.Event, url: string) => {
-    if (allowed(url)) return;
+    if (ok(url)) return;
     e.preventDefault();
     log(`blocked navigation to ${new URL(url).hostname}`);
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
@@ -117,7 +128,7 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
   wc.on('render-process-gone', (_e, d) => { log(`renderer gone: ${d.reason}`); state(false, 'The page crashed. Reload to try again.'); });
   view.setVisible(false);
   win.contentView.addChildView(view);
-  views.set(id, { view, accountId, home });
+  views.set(id, { view, accountId, home, site: site ?? null });
   void wc.loadURL(home);
 }
 
@@ -132,6 +143,13 @@ export function setWebBounds(id: string, b: Bounds, visible: boolean): void {
 export function hideAllWeb(hide: boolean): void {
   hiddenAll = hide;
   for (const e of views.values()) if (hide) e.view.setVisible(false);
+}
+
+/** A site pane goes to an address typed in its bar; https only. */
+export function goWeb(id: string, url: string): void {
+  const e = views.get(id);
+  const u = httpsUrl(/^https?:\/\//i.test(url) ? url.replace(/^http:/i, 'https:') : `https://${url}`);
+  if (e?.site && u) void e.view.webContents.loadURL(u);
 }
 
 export function navWeb(id: string, action: 'back' | 'forward' | 'reload' | 'home' | 'external'): void {

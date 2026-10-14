@@ -80,7 +80,14 @@ export interface WorkspaceDoc {
   costLinks: Record<string, string>;
   /** Costs: subscriptions and other fixed monthly amounts. */
   fixedCosts: FixedCost[];
+  /** Each project's dashboard: its links, in order. */
+  dashboards: Record<string, { links: DashLink[] }>;
+  /** What was asked for from a dashboard, newest first. */
+  featureRequests: FeatureRequest[];
 }
+
+export interface DashLink { id: string; label: string; url: string }
+export interface FeatureRequest { id: string; projectId: string; text: string; at: string; sent: boolean; note: string | null }
 
 export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null }
 
@@ -130,6 +137,8 @@ function fresh(): WorkspaceDoc {
     projectChats: {},
     costLinks: {},
     fixedCosts: [],
+    dashboards: {},
+    featureRequests: [],
   };
 }
 
@@ -156,13 +165,15 @@ function parse(json: string | null): WorkspaceDoc {
       projectChats: d.projectChats ?? {},
       costLinks: d.costLinks ?? {},
       fixedCosts: Array.isArray(d.fixedCosts) ? d.fixedCosts : [],
+      dashboards: d.dashboards ?? {},
+      featureRequests: Array.isArray(d.featureRequests) ? d.featureRequests : [],
     };
   } catch {
     return f;
   }
 }
 
-export type PanelKind = 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
+export type PanelKind = 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
 
 export interface OpenRequest {
   kind: PanelKind;
@@ -198,7 +209,7 @@ interface Ctx {
   accountFor(projectId: string | null | undefined): string;
   setWatcher(projectId: string, cfg: WatcherConfig): void;
   togglePin(projectId: string): void;
-  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts'>>): void;
+  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests'>>): void;
   setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
   finishOnboarding(): void;
   restartOnboarding(): void;
@@ -289,7 +300,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
     return { ...d, projectChats };
   }), []);
-  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts'>>) => setDoc((d) => ({ ...d, ...p })), []);
+  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests'>>) => setDoc((d) => ({ ...d, ...p })), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string) => {

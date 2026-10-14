@@ -21,9 +21,12 @@ import { ContextMeter, LauncherWidget, MachineWidget, NotesWidget, SessionsWidge
 import { GitWidget, RelayWidget, TasksWidget } from './project-widgets';
 import { DocumentPanel } from './DocumentPanel';
 import { ClaudePanel, overlayClosed, overlayOpened } from './ClaudePanel';
+import { SitePanel } from './SitePanel';
+import { Dashboard } from './Dashboard';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
   { kind: 'claude', title: 'Claude', blurb: 'Your planning chat, beside the terminals', icon: MessageCircle },
+  { kind: 'dashboard', title: 'Dashboard', blurb: 'Tasks, numbers, links and requests for this project', icon: LayoutGrid },
   { kind: 'relay', title: 'Relay', blurb: 'What waits on you, and what agents are doing', icon: Radio },
   { kind: 'tasks', title: 'Tasks', blurb: 'Open board issues', icon: ListTodo },
   { kind: 'launcher', title: 'Launch', blurb: 'Start a session', icon: Rocket },
@@ -53,6 +56,8 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   git: GitWidget as FunctionComponent<IDockviewPanelProps>,
   document: DocumentPanel as FunctionComponent<IDockviewPanelProps>,
   claude: ClaudePanel as FunctionComponent<IDockviewPanelProps>,
+  web: SitePanel as FunctionComponent<IDockviewPanelProps>,
+  dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -110,6 +115,7 @@ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, acco
   api.addPanel({ id: `claude-${uid()}`, component: 'claude', title: 'Claude', params: { accountId, projectId: view.projectId }, position: { direction: 'right' } });
   const right = api.groups[api.groups.length - 1];
   if (view.projectId) {
+    api.addPanel({ id: `dashboard-${uid()}`, component: 'dashboard', title: 'Dashboard', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
     if (projectHasRelay) {
       api.addPanel({ id: `relay-${uid()}`, component: 'relay', title: 'Relay', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
       api.addPanel({ id: `tasks-${uid()}`, component: 'tasks', title: 'Tasks', params: { projectId: view.projectId }, position: { referenceGroup: right.id }, inactive: true });
@@ -143,6 +149,11 @@ export function ensureProjectSessions(api: DockviewApi, projectId: string, templ
 }
 
 /** Pane colours: a soft tint on the tab bar and a ring around the pane, so sessions are easy to tell apart. */
+/** "Claude Opus 5.5" or "Opus 5.5 (1M context)" reads as "Opus 5.5". */
+export function shortModel(m: string): string {
+  return m.replace(/^claude\s+/i, '').replace(/\s*\(.*\)\s*$/, '').trim();
+}
+
 export const TINTS: { name: string; value: string }[] = [
   { name: 'None', value: '' },
   { name: 'Blue', value: '#5B8DEF' },
@@ -208,6 +219,7 @@ function Tab(props: IDockviewPanelHeaderProps) {
       <Icon size={14} />
       <span className="ep-tab-title">{title}</span>
       {kind === 'terminal' && <span className={`dot ${state}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
+      {kind === 'terminal' && t?.kind === 'claude' && tel?.model && <span className="model-chip" title={`Model: ${tel.model}`}>{shortModel(tel.model)}</span>}
       {kind === 'terminal' && t?.kind === 'claude' && <ContextMeter t={tel} compact />}
       {drift && (
         <button className="ep-tab-close drift" style={{ opacity: 1 }} onClick={(e) => void fix(e)}

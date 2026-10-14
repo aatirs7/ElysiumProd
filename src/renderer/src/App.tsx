@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FoldVertical, Moon, ShieldAlert, X } from 'lucide-react';
+import { FoldVertical, LayoutGrid, Moon, ShieldAlert, X } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -13,7 +13,7 @@ import { ProjectLogo } from './ProjectLogo';
 import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
-import { Workspace, addPanel, ensureProjectSessions } from './workspace/Workspace';
+import { Workspace, addPanel, ensureProjectSessions, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
@@ -201,8 +201,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   // Lets the smoke test start a template the same way a click does.
   useEffect(() => {
     const prev = window.__smoke;
-    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id) };
-  }, [launch]);
+    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id), open: (req: OpenRequest) => { setPage('workspace'); open(req); } };
+  }, [launch, open]);
 
   // Wrap up: once a wrapped session exits, close its pane.
   useEffect(() => {
@@ -260,7 +260,12 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const s = projectRunning.find((x) => x.templateId === `${projectId}.${role}`);
     if (!s) return null;
     const st = telemetry[s.id]?.state ?? 'running';
-    return { st, label: st === 'busy' ? 'working' : st === 'waiting' ? 'needs you' : st === 'starting' ? 'starting' : 'idle' };
+    return { st, label: st === 'busy' ? 'working' : st === 'waiting' ? 'needs you' : st === 'starting' ? 'starting' : 'idle', model: telemetry[s.id]?.model ?? null };
+  };
+  const openDashboard = () => {
+    const api = activeView ? apiFor(activeView.id) : undefined;
+    const p = api?.panels.find((x) => x.id.startsWith('dashboard-'));
+    if (p) p.api.setActive(); else open({ kind: 'dashboard', params: { projectId } });
   };
   const openRelay = () => {
     const api = activeView ? apiFor(activeView.id) : undefined;
@@ -298,10 +303,11 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
             // Always one click away: shows the session if it runs, offers to start it if not.
             return (
               <button key={role} className="glance-btn" onClick={() => open({ kind: 'terminal', templateId: t.id, title: t.title })} title={a ? `Show ${t.title}` : `Start ${t.title}`}>
-                <span className={`dot ${a?.st ?? ''}`} />{role === 'prime' ? 'Prime' : 'Meridian'} <span className="muted">{a ? a.label : 'off'}</span>
+                <span className={`dot ${a?.st ?? ''}`} />{role === 'prime' ? 'Prime' : 'Meridian'}{a?.model && <span className="model-chip" title={`Model: ${a.model}`}>{shortModel(a.model)}</span>} <span className="muted">{a ? a.label : 'off'}</span>
               </button>
             );
           })}
+          {projectId && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
           {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
           <span className="spacer" />
           <AccountUsage />

@@ -30,8 +30,22 @@ function save(): void {
   writeFileSync(FILE(), JSON.stringify(PROJECTS.filter((p) => p.custom), null, 2));
 }
 
+/** The iOS hub: a small folder whose CLAUDE.md lists the apps the iOS session works on. Never overwritten. */
+function ensureIosHub(): void {
+  const p = PROJECTS.find((x) => x.id === 'ios');
+  if (!p) return;
+  try {
+    mkdirSync(p.folder, { recursive: true });
+    const md = join(p.folder, 'CLAUDE.md');
+    if (existsSync(md)) return;
+    const apps = (p.addDirs ?? []).map((d) => `- ${basename(d)}: ${d}`).join('\n');
+    writeFileSync(md, `# iOS\n\nThis session works on every iOS app. Each is an Expo app built with EAS, and each folder below is added to this session.\n\n${apps}\n\nWork inside the app the request names. Follow that app's own CLAUDE.md and rules. Ask which app if a request does not say.\n`);
+  } catch { /* the session reports a missing folder itself */ }
+}
+
 /** Adds the saved projects to the live table. Called once at start up. */
 export function loadCustomProjects(): void {
+  ensureIosHub();
   for (const p of saved()) registerProject({ ...p, custom: true });
 }
 

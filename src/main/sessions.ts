@@ -2,7 +2,9 @@
 // streams output to the renderer in small batches and to scrollback on disk,
 // and kills everything on quit.
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { dataDir } from './paths';
 import type { IPty } from 'node-pty';
 import type { CreateOptions, CreateResult, SessionInfo } from '@shared/ipc';
 import { accountEnv, hasHistory } from './accounts';
@@ -73,7 +75,11 @@ export class SessionManager {
       // account it ran on, so on another account the same title starts fresh.
       const r = args.indexOf('--resume');
       const c = args.indexOf('--continue');
-      if (r >= 0) {
+      if (r >= 0 && t.named) {
+        // The CLI refuses --resume with a name it has never seen, so the first launch names it instead.
+        if (namedStarted(accountId, t)) resumed = true;
+        else { args.splice(r, 2, '-n', t.title); markNamed(accountId, t); }
+      } else if (r >= 0) {
         if (hasHistory(accountId, t.cwd)) resumed = true;
         else args.splice(r, 2, '-n', t.title);
       } else if (c >= 0) {
@@ -203,4 +209,17 @@ function alive(pid: number): boolean {
 async function waitForExit(pid: number, ms: number): Promise<void> {
   const end = Date.now() + ms;
   while (Date.now() < end && alive(pid)) await new Promise((r) => setTimeout(r, 50));
+}
+
+/** Named sessions ElysiumProd has started, per account: "account|title|folder". */
+const NAMED = () => join(dataDir(), 'named-sessions.json');
+function namedSet(): Set<string> {
+  try { return new Set(JSON.parse(readFileSync(NAMED(), 'utf8')) as string[]); } catch { return new Set(); }
+}
+const namedKey = (accountId: string, t: { title: string; cwd: string }) => `${accountId}|${t.title}|${t.cwd.toLowerCase()}`;
+function namedStarted(accountId: string, t: { title: string; cwd: string }): boolean { return namedSet().has(namedKey(accountId, t)); }
+function markNamed(accountId: string, t: { title: string; cwd: string }): void {
+  const s = namedSet();
+  s.add(namedKey(accountId, t));
+  try { writeFileSync(NAMED(), JSON.stringify([...s], null, 2)); } catch { /* next launch names it again */ }
 }

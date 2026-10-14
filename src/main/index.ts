@@ -29,7 +29,7 @@ import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
-import { attachWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
+import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
 
@@ -216,9 +216,10 @@ function registerIpc(): void {
   ipcMain.handle(Channels.docPick, () => pickDocument(win));
   ipcMain.handle(Channels.procList, () => listProcessGroups());
   ipcMain.handle(Channels.procEnd, (_e, name: unknown) => endProgram(String(name)));
-  ipcMain.on(Channels.webAttach, (_e, id: unknown, accountId: unknown, start: unknown) => {
-    if (win && typeof id === 'string') attachWeb(win, id, typeof accountId === 'string' && /^[\w-]{1,40}$/.test(accountId) ? accountId : 'main', (s) => send(Channels.webState, s), typeof start === 'string' ? start : null);
+  ipcMain.on(Channels.webAttach, (_e, id: unknown, accountId: unknown, start: unknown, site: unknown) => {
+    if (win && typeof id === 'string') attachWeb(win, id, typeof accountId === 'string' && /^[\w-]{1,40}$/.test(accountId) ? accountId : 'main', (s) => send(Channels.webState, s), typeof start === 'string' ? start : null, typeof site === 'string' && /^[\w-]{1,40}$/.test(site) ? site : null);
   });
+  ipcMain.on(Channels.webGo, (_e, id: unknown, url: unknown) => { if (typeof id === 'string' && typeof url === 'string' && url.length < 2000) goWeb(id, url); });
   ipcMain.on(Channels.webBounds, (_e, id: unknown, b: unknown, visible: unknown) => {
     if (typeof id === 'string' && b && typeof b === 'object') setWebBounds(id, b as { x: number; y: number; width: number; height: number }, Boolean(visible));
   });

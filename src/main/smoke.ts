@@ -67,6 +67,14 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await js(`document.querySelector('.cost-row-head')?.click()`);
     await sleep(600);
     await shot('10-costs-open');
+    // A project dashboard and a site pane, opened in this plain view so no Claude session starts.
+    await js(`window.__smoke.open({ kind: 'dashboard', params: { projectId: 'posture' } })`);
+    await sleep(6000);
+    r.dashboard = await js(`({ tiles: document.querySelectorAll('.dash-tile').length, links: document.querySelectorAll('.dash-link-main').length, tasks: document.querySelectorAll('.dash-task').length })`);
+    await shot('11-dashboard');
+    await js(`window.__smoke.open({ kind: 'web', title: 'Example', params: { url: 'https://example.com/', projectId: 'smoke' } })`);
+    await sleep(5000);
+    r.sitePane = webStates().filter((w) => /example\.com/.test(w.url)).map((w) => ({ url: w.url, title: w.title }));
     // New project: the dialog, then a from scratch project made and removed through the same calls.
     await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
     await sleep(400);

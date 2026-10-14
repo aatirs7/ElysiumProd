@@ -113,6 +113,7 @@ export const Channels = {
   folderPick: 'folder:pick',
   projectsChanged: 'projects:changed',
   costsGet: 'costs:get',
+  webGo: 'web:go',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
@@ -170,7 +171,9 @@ export interface ElysiumApi {
   processes(): Promise<ProcGroup[]>;
   endProgram(name: string): Promise<{ ok: boolean; error: string | null; ended: number }>;
   /** Opens claude.ai in a pane on an account, at the project's pinned chat if it has one. */
-  webAttach(id: string, accountId: string, startUrl?: string | null): void;
+  webAttach(id: string, accountId: string, startUrl?: string | null, site?: string | null): void;
+  /** A site pane goes to a typed address. */
+  webGo(id: string, url: string): void;
   onWebState(cb: (s: WebState) => void): () => void;
   webBounds(id: string, bounds: { x: number; y: number; width: number; height: number }, visible: boolean): void;
   webDetach(id: string): void;
@@ -252,6 +255,8 @@ export interface CostReport {
   lastMonth: { vercel: number | null; vercelValue: number | null };
   errors: { vercel: string | null; neon: string | null; aws: string | null };
   neonRates: { cuHour: number; gbMonth: number };
+  /** The Vercel team the figures are for, for links to its projects. */
+  vercelTeam: string | null;
 }
 
 export interface AccountLimits { accountId: string; fiveHourPercent: number | null; sevenDayPercent: number | null; fiveHourResetsAt: number | null; sevenDayResetsAt: number | null; at: string }

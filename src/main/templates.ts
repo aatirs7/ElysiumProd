@@ -12,6 +12,8 @@ export interface Template extends TemplateInfo {
   command(): string | null;
   args: string[];
   env: Record<string, string>;
+  /** Resume by name only once ElysiumProd has started that name on the account (see sessions.ts). */
+  named?: boolean;
 }
 
 function shell(): string {
@@ -30,6 +32,10 @@ export interface ProjectDef {
   tier: 'main' | 'side';
   /** Added in the app (projects.json), not part of the built-in table. */
   custom?: boolean;
+  /** Side projects: a named session of their own instead of the folder's latest conversation. */
+  sessionName?: string;
+  /** Side projects: more folders the one session may work in (the iOS hub). */
+  addDirs?: string[];
   /** Main projects only: the cs.ps1 names. */
   pair?: { prime: string; meridian: string; pluginPrime: string; pluginMeridian: string; extra: string[] };
 }
@@ -51,7 +57,11 @@ export const PROJECTS: ProjectDef[] = [
   { id: 'sharjeelcrm', name: 'Sharjeel CRM', folder: `${H}\\Documents\\sharjeelcrm`, repo: 'aatirs7/sharjeelcrm', tier: 'side' },
   { id: 'accshop', name: 'AccShop', folder: `${H}\\accshop`, repo: 'aatirs7/accshop', tier: 'side' },
   { id: 'ventures', name: 'Elysium Ventures', folder: `${H}\\ElysiumVentures`, repo: 'aatirs7/ElysiumVentures', tier: 'side' },
-  { id: 'elysiumprod', name: 'ElysiumProd', folder: `${H}\\ElysiumProd`, repo: 'aatirs7/ElysiumProd', tier: 'side' },
+  // Its own named session, so it never continues a conversation that is working on this app from outside it.
+  { id: 'elysiumprod', name: 'ElysiumProd', folder: `${H}\\ElysiumProd`, repo: 'aatirs7/ElysiumProd', tier: 'side', sessionName: 'ElysiumProd Builder' },
+  // One session for every iOS app (all Expo and EAS), started in a hub folder with each repository added.
+  { id: 'ios', name: 'iOS', folder: `${H}\\ios-hub`, repo: null, tier: 'side', sessionName: 'iOS',
+    addDirs: [`${H}\\DurusIOS`, `${H}\\cobalt`, `${H}\\drift`, `${H}\\wanderpress`, `${H}\\Documents\\Elysium Ventures LLC\\ILMYIOS`] },
 ];
 
 function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
@@ -65,16 +75,19 @@ function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
       ? ['--resume', title, '--dangerously-skip-permissions', ...pair.extra]
       : ['--resume', title, '--dangerously-skip-permissions', '--plugin-dir', MODS, ...pair.extra],
     env: p.custom ? {} : { SP_SESSION_NAME: role === 'prime' ? pair.pluginPrime : pair.pluginMeridian },
+    named: Boolean(p.custom),
   };
 }
 
 function soloTemplate(p: ProjectDef): Template {
+  const dirs = (p.addDirs ?? []).filter((d) => existsSync(d)).flatMap((d) => ['--add-dir', d]);
   return {
-    id: `${p.id}.claude`, title: p.name, kind: 'claude', project: p.id, projectName: p.name, role: 'solo', cwd: p.folder,
+    id: `${p.id}.claude`, title: p.sessionName ?? p.name, kind: 'claude', project: p.id, projectName: p.name, role: 'solo', cwd: p.folder,
     confirm: null,
     command: resolveClaude,
-    args: ['--continue', '--dangerously-skip-permissions'],
+    args: p.sessionName ? ['--resume', p.sessionName, '--dangerously-skip-permissions', ...dirs] : ['--continue', '--dangerously-skip-permissions', ...dirs],
     env: {},
+    named: Boolean(p.sessionName),
   };
 }
 

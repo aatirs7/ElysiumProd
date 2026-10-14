@@ -15,7 +15,7 @@ type Box = { x: number; y: number; width: number; height: number };
 // The Claude page is a native view that always draws above the window's own
 // content, so a floating group over it would be hidden. Give the page the
 // largest part of its pane that no floating group covers instead.
-function clearOfFloats(el: HTMLElement): Box {
+export function clearOfFloats(el: HTMLElement): Box {
   const h = el.getBoundingClientRect();
   let box: Box = { x: h.x, y: h.y, width: h.width, height: h.height };
   for (const f of document.querySelectorAll<HTMLElement>('.dv-resize-container, .over-native')) {
