@@ -9,7 +9,7 @@ import type { WatcherConfig } from '@shared/ipc';
 /** Projects added after the first run that should show up pinned once. */
 const LATER_PINS = ['laptop'];
 
-export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora';
+export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora' | 'dusk';
 export type Density = 'comfortable' | 'compact';
 
 export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string, string, string] }[] = [
@@ -25,6 +25,7 @@ export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string
   { id: 'nord', name: 'Nord', blurb: 'Cool slate, arctic blue', swatch: ['#242933', '#2E3440', '#88C0D0'] },
   { id: 'rose', name: 'Rose', blurb: 'Dark plum with rose', swatch: ['#1C1519', '#271D23', '#F07AA6'] },
   { id: 'aurora', name: 'Aurora', blurb: 'Ink blue with northern greens', swatch: ['#0D1117', '#151B24', '#7EE0B5'] },
+  { id: 'dusk', name: 'Dusk', blurb: 'Violet night with amber light', swatch: ['#1B1923', '#24212E', '#F2A65A'] },
   { id: 'sand', name: 'Sand', blurb: 'Warm beige, soft light', swatch: ['#F4EFE6', '#FBF8F2', '#B4652F'] },
   { id: 'mint', name: 'Mint', blurb: 'Fresh light green', swatch: ['#F2F7F4', '#FBFDFC', '#1F9D6B'] },
 ];
@@ -52,6 +53,8 @@ export interface Settings {
   displayName: string;
   /** Saver mode: fewer extra tokens (no Flow summaries or Sonnet fallback, chats on Sonnet). */
   saver: boolean;
+  /** Tools you connected yourself on the Connect step. */
+  customTools: { id: string; name: string; check: string; signin: string }[];
 }
 
 export interface AccountPrefs { label: string }
@@ -161,6 +164,7 @@ export const DEFAULT_SETTINGS: Settings = {
   flowSummaries: true,
   displayName: '',
   saver: false,
+  customTools: [],
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);

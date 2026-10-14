@@ -20,6 +20,7 @@ import { Ingest } from './ingest';
 import { projectStats } from './stats';
 import { usageStats } from './usage';
 import { tokenStats } from './tokens';
+import { news } from './news';
 import { applyUpdate, checkUpdates, restartAndInstall, updateNeedsRestartInstall } from './updates';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
@@ -262,6 +263,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
+  ipcMain.handle(Channels.newsGet, (_e, force: unknown) => news(force === true));
   ipcMain.handle(Channels.updatesCheck, () => checkUpdates());
   ipcMain.handle(Channels.updatesApply, async () => ({ ...(await applyUpdate((step) => send(Channels.updatesProgress, step))), restartToInstall: updateNeedsRestartInstall() }));
   ipcMain.on(Channels.updatesFinish, () => { if (updateNeedsRestartInstall()) { saveRunning(sessions); restartAndInstall(process.pid, process.execPath, () => app.quit()); } else restartApp(); });
@@ -273,7 +275,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.chatReset, (_e, id: unknown) => chats.reset(String(id)));
   ipcMain.handle(Channels.connections, () => connections());
   ipcMain.handle(Channels.connect, (_e, service: unknown, action: unknown, accountId: unknown) =>
-    (['claude', 'git', 'github', 'vercel', 'neon'].includes(String(service)) && (action === 'install' || action === 'signin')
+    (/^(claude|git|github|vercel|neon|aws|supabase|stripe|cloudflare|netlify|firebase|custom:[\w-]+)$/.test(String(service)) && (action === 'install' || action === 'signin')
       ? connect(service as ConnectService, action, typeof accountId === 'string' ? accountId : undefined) : { ok: false, reason: 'Unknown service.' }));
   ipcMain.handle(Channels.addClaudeAccount, (_e, name: unknown) => addClaudeAccount(String(name ?? '')));
   ipcMain.handle(Channels.scanRepos, () => scanRepos());

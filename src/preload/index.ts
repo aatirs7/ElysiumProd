@@ -83,6 +83,7 @@ const api: ElysiumApi = {
   projectAction: (projectId, type) => ipcRenderer.invoke(Channels.projectAction, projectId, type),
   openFolder: (projectId) => ipcRenderer.send(Channels.openFolder, projectId),
   homeDir: () => ipcRenderer.invoke(Channels.homeDir),
+  news: (force) => ipcRenderer.invoke(Channels.newsGet, Boolean(force)),
   checkUpdates: () => ipcRenderer.invoke(Channels.updatesCheck),
   applyUpdate: () => ipcRenderer.invoke(Channels.updatesApply),
   finishUpdate: () => ipcRenderer.send(Channels.updatesFinish),

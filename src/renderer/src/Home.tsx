@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ReaderEntry, UsageStats } from '@shared/ipc';
+import type { NewsItem, ReaderEntry, UsageStats } from '@shared/ipc';
+import { ArrowUpRight } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { plainLine } from './TopBarExtras';
@@ -28,6 +29,8 @@ interface Props {
 export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
   const [usage, setUsage] = useState<UsageStats | null>(null);
+  const [news, setNews] = useState<NewsItem[] | null>(null);
+  useEffect(() => { void window.elysium.news().then((n) => setNews(n.items)).catch(() => setNews([])); }, []);
   const [lastSaid, setLastSaid] = useState<Record<string, ReaderEntry>>({});
   useEffect(() => { void window.elysium.usage().then(setUsage); }, []);
 
@@ -44,6 +47,12 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveKey]);
 
+  const recent = projects.filter((p) => !p.builtin).map((p) => {
+    const st = stats.find((x) => x.id === p.id);
+    const u = usage?.projects.find((x) => x.id === p.id);
+    const t = Math.max(...[st?.lastSessionAt, st?.lastCommitAt, u?.lastAt].filter(Boolean).map((x) => Date.parse(x!)), 0);
+    return { id: p.id, name: p.name, t };
+  }).filter((p) => p.t > 0).sort((a, b) => b.t - a.t).slice(0, 5);
   const commits = stats.reduce((n, s) => n + s.commitsThisWeek, 0);
   const waiting = live.filter((s) => telemetry[s.id]?.state === 'waiting').length;
   const working = live.filter((s) => telemetry[s.id]?.state === 'busy').length;
@@ -139,6 +148,33 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
             </div>
           </div>
         </section>
+
+        <div className="home-two">
+          <section className="home-block home-recent">
+            <div className="section-title">Pick up where you left off</div>
+            {!recent.length && <p className="home-empty">Projects you work on show up here. Add one with the plus beside Projects.</p>}
+            {recent.map((p, i) => (
+              <button key={p.id} className="recent-row" style={{ animationDelay: `${380 + i * 60}ms` }} onClick={() => onOpen(p.id, p.name)}>
+                <ProjectLogo projectId={p.id} />
+                <span className="recent-name">{p.name}</span>
+                <span className="recent-when">{ago(new Date(p.t).toISOString())}</span>
+                <ArrowUpRight size={14} className="recent-go" />
+              </button>
+            ))}
+          </section>
+          <section className="home-block home-news">
+            <div className="section-title">What is new<button className="link-btn news-refresh" onClick={() => void window.elysium.news(true).then((n) => setNews(n.items))}>Refresh</button></div>
+            {!news && <div className="news-skeleton">{[0, 1, 2, 3].map((i) => <span key={i} />)}</div>}
+            {news && !news.length && <p className="home-empty">Could not reach the news just now.</p>}
+            {news?.slice(0, 7).map((n, i) => (
+              <button key={n.url} className="news-row" style={{ animationDelay: `${420 + i * 55}ms` }} onClick={() => window.elysium.openExternal(n.url)} title={n.url}>
+                <span className={`news-src src-${n.source.toLowerCase().replace(/\s+/g, '-')}`}>{n.source}</span>
+                <span className="news-title">{n.title}</span>
+                {n.at && <span className="news-when">{ago(n.at)}</span>}
+              </button>
+            ))}
+          </section>
+        </div>
 
       </div>
     </div>

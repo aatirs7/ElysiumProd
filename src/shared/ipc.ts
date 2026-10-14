@@ -121,6 +121,7 @@ export const Channels = {
   commandRun: 'command:run',
   projectAction: 'project:action',
   homeDir: 'app:home-dir',
+  newsGet: 'news:get',
   updatesCheck: 'updates:check',
   updatesApply: 'updates:apply',
   updatesProgress: 'updates:progress',
@@ -146,11 +147,17 @@ export interface ProcGroup { name: string; pids: number[]; bytes: number; window
 export interface ChatMessage { id: string; role: 'you' | 'claude'; text: string; at: string; steps: FlowEvent[]; costUsd?: number }
 export interface ChatState { id: string; conversationId: string | null; messages: ChatMessage[]; running: boolean; error: string | null }
 export interface ChatEvent { chatId: string; state: ChatState; finished?: boolean }
-export type ConnectService = 'claude' | 'git' | 'github' | 'vercel' | 'neon';
+/** The built in ones, the extra integrations (aws, supabase, ...) and custom:<id> for your own. */
+export type ConnectService = string;
 export interface ConnectStatus {
   id: ConnectService; name: string; what: string; installed: boolean; signedIn: boolean; who: string | null; required: boolean;
+  /** core: shown first; more: the extra integrations; custom: added by you. */
+  group?: 'core' | 'more' | 'custom';
   accounts?: { id: string; configDir: string; signedIn: boolean }[];
 }
+export interface NewsItem { title: string; url: string; source: string; at: string | null; points?: number }
+/** A tool you added yourself: a command that succeeds when you are signed in, and one that signs you in. */
+export interface CustomTool { id: string; name: string; check: string; signin: string }
 export interface RepoCandidate { folder: string; name: string; touchedAt: string }
 export interface ProjectExtras { links?: { id: string; label: string; url: string }[]; people?: string[]; open?: string; checkWhat?: string }
 export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean; extras: ProjectExtras | null; builtin: boolean }
@@ -275,6 +282,7 @@ export interface ElysiumApi {
   projectAction(projectId: string, type: 'start' | 'stop' | 'kill' | 'compact'): Promise<CommandResult>;
   openFolder(projectId: string): void;
   homeDir(): Promise<string>;
+  news(force?: boolean): Promise<{ items: NewsItem[]; at: string }>;
   checkUpdates(): Promise<UpdateInfo>;
   applyUpdate(): Promise<{ ok: boolean; reason: string | null; restartToInstall?: boolean }>;
   /** Restart that also installs an update's new parts. */

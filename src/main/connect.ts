@@ -6,8 +6,10 @@ import { execFile, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import type { ConnectService, ConnectStatus, RepoCandidate } from '@shared/ipc';
+import type { ConnectService, ConnectStatus, CustomTool, RepoCandidate } from '@shared/ipc';
+import { shell } from 'electron';
 import { listAccounts } from './accounts';
+import { appSetting } from './settings';
 import { DEMO, demoAddAccount, demoConnect, demoConnections, demoRepos } from './demo';
 import { resolveClaude } from './claude';
 import { PROJECT_FOLDERS } from './templates';
@@ -50,7 +52,38 @@ export async function connections(): Promise<ConnectStatus[]> {
     { id: 'github', name: 'GitHub', what: 'Clone repositories, see issues and pull requests.', installed: Boolean(gh), signedIn: Boolean(ghAuth?.ok), who: ghAuth?.ok ? ghUser : null, required: false },
     { id: 'vercel', name: 'Vercel', what: 'Deploys and what each project costs to host.', installed: Boolean(vercelBin && node), signedIn: vercelSignedIn, who: null, required: false },
     { id: 'neon', name: 'Neon', what: 'Database usage and cost per project.', installed: Boolean(node), signedIn: existsSync(NEON_CRED), who: null, required: false },
+    ...(await extras(Boolean(node))),
+    ...(await customs()),
   ];
+}
+
+const H = homedir();
+/** More integrations: each is a CLI whose sign in leaves a file behind, so checking it is instant. */
+const EXTRAS: { id: string; name: string; what: string; bin?: string; npx?: boolean; files: string[]; signin: string; install?: string; docs?: string }[] = [
+  { id: 'aws', name: 'AWS', what: 'Cloud accounts, so sessions can deploy and read costs.', bin: 'aws', files: [join(H, '.aws', 'credentials'), join(H, '.aws', 'config')], signin: 'aws configure', install: 'winget install --id Amazon.AWSCLI -e --source winget --accept-package-agreements --accept-source-agreements' },
+  { id: 'supabase', name: 'Supabase', what: 'Postgres, auth and storage projects.', npx: true, files: [join(H, '.supabase', 'access-token')], signin: 'npx -y supabase login' },
+  { id: 'stripe', name: 'Stripe', what: 'Payments, test events and webhooks.', bin: 'stripe', files: [join(H, '.config', 'stripe', 'config.toml')], signin: 'stripe login', docs: 'https://docs.stripe.com/stripe-cli' },
+  { id: 'cloudflare', name: 'Cloudflare', what: 'Workers, Pages, DNS and R2.', npx: true, files: [join(APPDATA, 'xdg.config', '.wrangler', 'config', 'default.toml'), join(H, '.wrangler', 'config', 'default.toml'), join(H, '.config', '.wrangler', 'config', 'default.toml')], signin: 'npx -y wrangler login' },
+  { id: 'netlify', name: 'Netlify', what: 'Sites and deploys.', npx: true, files: [join(APPDATA, 'netlify', 'Config', 'config.json'), join(H, '.netlify', 'config.json')], signin: 'npx -y netlify-cli login' },
+  { id: 'firebase', name: 'Firebase', what: 'Hosting, Firestore and functions.', npx: true, files: [join(H, '.config', 'configstore', 'firebase-tools.json')], signin: 'npx -y firebase-tools login' },
+];
+
+async function extras(hasNode: boolean): Promise<ConnectStatus[]> {
+  const bins = await Promise.all(EXTRAS.map((x) => (x.bin ? which(x.bin) : Promise.resolve(null))));
+  return EXTRAS.map((x, i) => ({
+    id: x.id, name: x.name, what: x.what, group: 'more' as const, required: false, who: null,
+    installed: x.npx ? hasNode : Boolean(bins[i]),
+    signedIn: x.files.some((f) => existsSync(f)),
+  }));
+}
+
+/** Your own: its check command decides, with a short time limit so a slow one never holds the page. */
+async function customs(): Promise<ConnectStatus[]> {
+  const list = appSetting<CustomTool[]>('customTools', []).filter((t) => t && t.id && t.name);
+  return Promise.all(list.map(async (t) => {
+    const ok = t.check ? (await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', t.check], 6000)).ok : false;
+    return { id: `custom:${t.id}`, name: t.name, what: t.check ? 'Your own tool.' : 'Your own tool, with no check set.', group: 'custom' as const, required: false, who: null, installed: true, signedIn: ok };
+  }));
 }
 
 /** Opens a visible PowerShell window that runs the tool's own installer or sign in. */
@@ -89,6 +122,19 @@ export async function connect(service: ConnectService, action: 'install' | 'sign
     case 'neon':
       openWindow('Sign in to Neon', ['npx -y neonctl@latest auth']);
       return { ok: true, reason: null };
+  }
+  const extra = EXTRAS.find((x) => x.id === service);
+  if (extra) {
+    if (action === 'install' && extra.install) openWindow(`Install ${extra.name}`, [extra.install]);
+    else if (action === 'install' && extra.docs) void shell.openExternal(extra.docs);
+    else openWindow(`Sign in to ${extra.name}`, [extra.signin]);
+    return { ok: true, reason: null };
+  }
+  if (service.startsWith('custom:')) {
+    const t = appSetting<CustomTool[]>('customTools', []).find((x) => `custom:${x.id}` === service);
+    if (!t?.signin) return { ok: false, reason: 'This tool has no sign in command.' };
+    openWindow(`Sign in to ${t.name}`, [t.signin]);
+    return { ok: true, reason: null };
   }
   return { ok: false, reason: 'Unknown service.' };
 }

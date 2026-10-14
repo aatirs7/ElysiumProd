@@ -7,31 +7,45 @@ import type { ConnectService, ConnectStatus, RepoCandidate } from '@shared/ipc';
 export const DEMO = process.env.ELYSIUM_DEMO === '1';
 
 interface Fake { installed: boolean; signedIn: boolean; who: string | null }
-const state: Record<ConnectService, Fake> = {
+const state: Record<string, Fake> = {
   claude: { installed: true, signedIn: false, who: null },
   git: { installed: true, signedIn: true, who: null },
   github: { installed: false, signedIn: false, who: null },
   vercel: { installed: true, signedIn: false, who: null },
   neon: { installed: true, signedIn: false, who: null },
+  aws: { installed: false, signedIn: false, who: null },
+  supabase: { installed: true, signedIn: false, who: null },
+  stripe: { installed: false, signedIn: false, who: null },
+  cloudflare: { installed: true, signedIn: false, who: null },
+  netlify: { installed: true, signedIn: false, who: null },
+  firebase: { installed: true, signedIn: false, who: null },
 };
 const accounts: { id: string; configDir: string; signedIn: boolean }[] = [{ id: 'main', configDir: 'C:\\Users\\you\\.claude', signedIn: false }];
 const WHO: Partial<Record<ConnectService, string>> = { github: 'you-on-github', vercel: 'you-on-vercel' };
 
-const META: Record<ConnectService, { name: string; what: string; required: boolean }> = {
+const MORE = ['aws', 'supabase', 'stripe', 'cloudflare', 'netlify', 'firebase'];
+const META: Record<string, { name: string; what: string; required: boolean }> = {
   claude: { name: 'Claude Code', what: 'Runs every session. Add more accounts to run more at once.', required: true },
   git: { name: 'Git', what: 'Tracks changes in your projects.', required: true },
   github: { name: 'GitHub', what: 'Clone repositories, see issues and pull requests.', required: false },
   vercel: { name: 'Vercel', what: 'Deploys and what each project costs to host.', required: false },
   neon: { name: 'Neon', what: 'Database usage and cost per project.', required: false },
+  aws: { name: 'AWS', what: 'Cloud accounts, so sessions can deploy and read costs.', required: false },
+  supabase: { name: 'Supabase', what: 'Postgres, auth and storage projects.', required: false },
+  stripe: { name: 'Stripe', what: 'Payments, test events and webhooks.', required: false },
+  cloudflare: { name: 'Cloudflare', what: 'Workers, Pages, DNS and R2.', required: false },
+  netlify: { name: 'Netlify', what: 'Sites and deploys.', required: false },
+  firebase: { name: 'Firebase', what: 'Hosting, Firestore and functions.', required: false },
 };
 
 export function demoConnections(): ConnectStatus[] {
   state.claude.signedIn = accounts.some((a) => a.signedIn);
-  return (Object.keys(META) as ConnectService[]).map((id) => ({ id, ...META[id], ...state[id], ...(id === 'claude' ? { accounts: accounts.map((a) => ({ ...a })) } : {}) }));
+  return Object.keys(META).map((id) => ({ id, ...META[id], ...state[id], group: MORE.includes(id) ? 'more' as const : 'core' as const, ...(id === 'claude' ? { accounts: accounts.map((a) => ({ ...a })) } : {}) }));
 }
 
 export function demoConnect(service: ConnectService, action: 'install' | 'signin', accountId?: string): { ok: boolean; reason: string | null } {
   setTimeout(() => {
+    if (!state[service]) return;
     if (action === 'install') { state[service].installed = true; return; }
     if (service === 'claude') { const a = accounts.find((x) => x.id === (accountId ?? 'main')); if (a) a.signedIn = true; return; }
     state[service].signedIn = true;

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ArrowRight, Bell, Check, GitBranch, GitPullRequest, Keyboard, Layers, Loader2, Plus, RefreshCw, Sparkles, Triangle, Wand2, Workflow, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Bell, Check, Cloud, CreditCard, Database, Flame, Globe, GitBranch, GitPullRequest, Keyboard, Layers, Loader2, Plus, RefreshCw, Sparkles, Triangle, Wand2, Workflow, Zap } from 'lucide-react';
 import type { ConnectStatus, RepoCandidate } from '@shared/ipc';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
@@ -160,13 +160,18 @@ function Toggle({ icon: Icon, title, text, on, set }: { icon: typeof Bell; title
   );
 }
 
-const SERVICE_ICON: Record<string, typeof Bell> = { claude: Sparkles, git: GitBranch, github: GitPullRequest, vercel: Triangle, neon: Zap };
+const SERVICE_ICON: Record<string, typeof Bell> = { claude: Sparkles, git: GitBranch, github: GitPullRequest, vercel: Triangle, neon: Zap, aws: Cloud, supabase: Database, stripe: CreditCard, cloudflare: Cloud, netlify: Globe, firebase: Flame };
 
 function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: { id: string; isDefault: boolean }[]; setAccountLabel(id: string, label: string): void; accountLabels: Record<string, { label: string }> }) {
   const [list, setList] = useState<ConnectStatus[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [adding, setAdding] = useState('');
   const [note, setNote] = useState<string | null>(null);
+  const [more, setMore] = useState(false);
+  const [addingTool, setAddingTool] = useState(false);
+  const [tool, setTool] = useState({ name: '', check: '', signin: '' });
+  const { doc: wdoc, setSettings } = useWorkspace();
+  const customs = wdoc.settings.customTools ?? [];
   const check = useCallback(async () => { setList(await window.elysium.connections()); }, []);
   // Sign ins happen in their own window; keep checking so a finished one turns green here.
   useEffect(() => { void check(); const t = setInterval(() => void check(), 5000); return () => clearInterval(t); }, [check]);
@@ -186,12 +191,18 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
       <h1>Connect your tools</h1>
       <p className="ob-lede">Elysium uses the tools you already have. Each sign in happens in that tool's own login; Elysium never sees a password.</p>
       <div className="ob-services">
+        {list && <div className="ob-services-label">Essentials</div>}
         {!list && Array.from({ length: 5 }, (_, i) => <div key={i} className="ob-service skeleton"><span /></div>)}
-        {list?.map((c, i) => {
+        {list?.filter((c) => (c.group ?? 'core') === 'core' || (more && c.group !== 'core')).map((c, i, all) => {
+          const firstMore = c.group === 'more' && all[i - 1]?.group !== 'more';
+          const firstCustom = c.group === 'custom' && all[i - 1]?.group !== 'custom';
           const Icon = SERVICE_ICON[c.id] ?? Sparkles;
           const ok = c.installed && c.signedIn;
           return (
-            <div key={c.id} className={`ob-service ${ok ? 'ok' : ''}`} style={{ animationDelay: `${i * 60}ms` }}>
+            <div key={c.id} className="ob-service-wrap">
+            {firstMore && <div className="ob-services-label">More integrations</div>}
+            {firstCustom && <div className="ob-services-label">Your own</div>}
+            <div className={`ob-service ${ok ? 'ok' : ''}`} style={{ animationDelay: `${i * 45}ms` }}>
               <div className="ob-service-head">
                 <span className="ob-service-icon"><Icon size={18} /></span>
                 <span className="ob-service-name"><span className="ob-service-title"><strong>{c.name}</strong>{c.required && <em>Required</em>}</span><span className="ob-service-what">{c.what}</span></span>
@@ -216,8 +227,23 @@ function ConnectStep({ accounts, setAccountLabel, accountLabels }: { accounts: {
                 </div>
               )}
             </div>
+            </div>
           );
         })}
+        {list && (
+          <div className="ob-more-row">
+            <button className="link-btn" onClick={() => setMore((m) => !m)}>{more ? 'Show fewer' : `Show more: AWS, Supabase, Stripe, Cloudflare, Netlify, Firebase${customs.length ? ', your own' : ''}`}</button>
+            {more && !addingTool && <button className="link-btn" onClick={() => setAddingTool(true)}><Plus size={13} />Add your own</button>}
+          </div>
+        )}
+        {addingTool && (
+          <form className="ob-custom" onSubmit={(e) => { e.preventDefault(); if (!tool.name.trim()) return; setSettings({ customTools: [...customs, { id: Date.now().toString(36), name: tool.name.trim(), check: tool.check.trim(), signin: tool.signin.trim() }] }); setTool({ name: '', check: '', signin: '' }); setAddingTool(false); setTimeout(() => void check(), 300); }}>
+            <input className="text-input" placeholder="Name, like Railway" value={tool.name} onChange={(e) => setTool({ ...tool, name: e.target.value })} autoFocus />
+            <input className="text-input" placeholder="Sign in command, like railway login" value={tool.signin} onChange={(e) => setTool({ ...tool, signin: e.target.value })} />
+            <input className="text-input" placeholder="Check command that works once signed in, like railway whoami" value={tool.check} onChange={(e) => setTool({ ...tool, check: e.target.value })} />
+            <div className="ob-custom-actions"><button type="button" className="btn" onClick={() => setAddingTool(false)}>Cancel</button><button type="submit" className="btn primary" disabled={!tool.name.trim()}>Add</button></div>
+          </form>
+        )}
       </div>
       {note && <p className="ob-note" role="status">{note}</p>}
       {accounts.length > 1 && <p className="muted small">Each account keeps its own limits, so more accounts means more sessions at once. Pick an account per project in Settings.</p>}
