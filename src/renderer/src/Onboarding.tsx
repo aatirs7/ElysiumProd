@@ -37,14 +37,21 @@ function Sky() {
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
-    const css = getComputedStyle(document.documentElement);
-    const accent = toRgb(css.getPropertyValue('--accent').trim()) ?? [217, 119, 87];
-    const ok = toRgb(css.getPropertyValue('--ok').trim()) ?? [120, 190, 140];
-    const ink = toRgb(css.getPropertyValue('--text').trim()) ?? [240, 236, 228];
+    // Colours follow the theme and accent: the aurora is the accent and two neighbours of its hue.
+    let accent: number[] = [217, 119, 87], ink: number[] = [240, 236, 228], pal: number[][] = [accent, accent, accent];
+    const readColors = () => {
+      const css = getComputedStyle(document.documentElement);
+      accent = toRgb(css.getPropertyValue('--accent').trim()) ?? accent;
+      ink = toRgb(css.getPropertyValue('--text').trim()) ?? ink;
+      pal = [shiftHue(accent, 38, 1.1), accent, shiftHue(accent, -46, 1.2)];
+    };
+    readColors();
     const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
     const rgba = (c: number[], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
     let w = 0, h = 0, raf = 0, last = 0;
     type Star = { x: number; y: number; s: number; a: number; tw: number; sp: number; warm: boolean };
+    type Glint = { x: number; y: number; r: number; age: number; life: number };
+    const glints: Glint[] = [];
     let stars: Star[] = [];
     const band = document.createElement('canvas');
     const aur = document.createElement('canvas');
@@ -54,7 +61,7 @@ function Sky() {
       const r = cv.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1);
       w = r.width; h = r.height; cv.width = w * d; cv.height = h * d; ctx.setTransform(d, 0, 0, d, 0, 0);
       // Stars thin out toward the horizon.
-      stars = Array.from({ length: Math.round((w * h) / 2400) }, () => {
+      stars = Array.from({ length: Math.round((w * h) / 1100) }, () => {
         const y = Math.pow(Math.random(), 1.4) * h * 0.8;
         return { x: Math.random() * w, y, s: Math.random() < 0.06 ? 1.8 : 0.6 + Math.random() * 0.9, a: (0.25 + Math.random() * 0.6) * (1 - y / (h * 0.85)), tw: Math.random() * 6.28, sp: 0.4 + Math.random() * 1.4, warm: Math.random() < 0.25 };
       });
@@ -77,14 +84,17 @@ function Sky() {
       aur.width = Math.max(1, Math.round(w / 6)); aur.height = Math.max(1, Math.round(h / 6));
     };
     size(); window.addEventListener('resize', size);
+    const watch = new MutationObserver(() => { readColors(); size(); });
+    watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
 
     const curtains = [
-      { c: ok, base: 0.36, amp: 0.06, f: 1.6, sp: 0.05, len: 0.22, cycle: 19, off: 0 },
-      { c: accent, base: 0.28, amp: 0.05, f: 2.3, sp: -0.035, len: 0.18, cycle: 23, off: 8 },
-      { c: ok, base: 0.46, amp: 0.04, f: 3.1, sp: 0.06, len: 0.14, cycle: 17, off: 13 },
+      { c: 0, base: 0.36, amp: 0.06, f: 1.6, sp: 0.05, len: 0.22, cycle: 19, off: 0 },
+      { c: 1, base: 0.28, amp: 0.05, f: 2.3, sp: -0.035, len: 0.18, cycle: 23, off: 8 },
+      { c: 2, base: 0.46, amp: 0.04, f: 3.1, sp: 0.06, len: 0.14, cycle: 17, off: 13 },
     ];
-    let shoot: { x: number; y: number; vx: number; vy: number; life: number } | null = null;
-    let nextShoot = 4;
+    type Shoot = { x: number; y: number; vx: number; vy: number; life: number; c: number[] };
+    const shoots: Shoot[] = [];
+    let nextShoot = 1.5, nextGlint = 0.3;
 
     const frame = (now: number) => {
       if (!still) raf = requestAnimationFrame(frame);
@@ -112,7 +122,7 @@ function Sky() {
           const edge = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI);
           const a = 0.3 * life * edge * (0.6 + 0.4 * Math.sin(u * 23 + t * 1.3));
           const g = actx.createLinearGradient(0, y - len, 0, y + len * 0.15);
-          g.addColorStop(0, rgba(k.c, 0)); g.addColorStop(0.75, rgba(k.c, a)); g.addColorStop(1, rgba(k.c, 0));
+          const kc = pal[k.c]; g.addColorStop(0, rgba(kc, 0)); g.addColorStop(0.75, rgba(kc, a)); g.addColorStop(1, rgba(kc, 0));
           actx.fillStyle = g; actx.fillRect(x, y - len, 1, len * 1.15);
         }
       }
@@ -125,28 +135,68 @@ function Sky() {
         ctx.fillRect(s.x, s.y, s.s, s.s);
       }
 
-      // Now and then a shooting star crosses the upper sky.
       if (!still) {
-        nextShoot -= dt;
-        if (!shoot && nextShoot <= 0) {
-          const dir = Math.random() < 0.5 ? 1 : -1;
-          shoot = { x: w * (0.2 + Math.random() * 0.6), y: h * (0.05 + Math.random() * 0.25), vx: dir * w * 0.55, vy: h * 0.18, life: 1 };
-          nextShoot = 7 + Math.random() * 9;
+        // Glitter: a star here and there flares into a four-point sparkle and fades.
+        nextGlint -= dt;
+        if (nextGlint <= 0 && glints.length < 7) {
+          glints.push({ x: Math.random() * w, y: Math.pow(Math.random(), 1.3) * h * 0.7, r: 4 + Math.random() * 7, age: 0, life: 1.1 + Math.random() * 1.2 });
+          nextGlint = 0.25 + Math.random() * 0.7;
         }
-        if (shoot) {
-          shoot.x += shoot.vx * dt; shoot.y += shoot.vy * dt; shoot.life -= dt * 1.2;
-          const tail = 0.12, g = ctx.createLinearGradient(shoot.x, shoot.y, shoot.x - shoot.vx * tail, shoot.y - shoot.vy * tail);
-          g.addColorStop(0, rgba(ink, 0.8 * Math.max(0, shoot.life))); g.addColorStop(1, rgba(ink, 0));
-          ctx.strokeStyle = g; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(shoot.x, shoot.y); ctx.lineTo(shoot.x - shoot.vx * tail, shoot.y - shoot.vy * tail); ctx.stroke();
-          if (shoot.life <= 0) shoot = null;
+        for (let i = glints.length - 1; i >= 0; i--) {
+          const g = glints[i]; g.age += dt;
+          const p = g.age / g.life; if (p >= 1) { glints.splice(i, 1); continue; }
+          const k = Math.sin(p * Math.PI), r = g.r * (0.4 + 0.6 * k);
+          const c = i % 2 ? accent : ink;
+          ctx.strokeStyle = rgba(c, 0.75 * k); ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.moveTo(g.x - r, g.y); ctx.lineTo(g.x + r, g.y); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x, g.y + r); ctx.stroke();
+          const halo = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, r * 0.7);
+          halo.addColorStop(0, rgba(ink, 0.9 * k)); halo.addColorStop(1, rgba(c, 0));
+          ctx.fillStyle = halo; ctx.fillRect(g.x - r, g.y - r, r * 2, r * 2);
+        }
+        // Shooting stars: every few seconds, now and then two together, in the theme's colours.
+        nextShoot -= dt;
+        if (nextShoot <= 0) {
+          const n = Math.random() < 0.25 ? 2 : 1, dir = Math.random() < 0.5 ? 1 : -1;
+          for (let j = 0; j < n; j++) {
+            const speed = 0.45 + Math.random() * 0.35;
+            shoots.push({ x: w * (0.15 + Math.random() * 0.7) + j * 60, y: h * (0.04 + Math.random() * 0.3) + j * 30, vx: dir * w * speed, vy: h * (0.12 + Math.random() * 0.14), life: 1, c: Math.random() < 0.5 ? ink : pal[Math.floor(Math.random() * 3)] });
+          }
+          nextShoot = 2.5 + Math.random() * 4;
+        }
+        for (let i = shoots.length - 1; i >= 0; i--) {
+          const s = shoots[i];
+          s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt * 1.1;
+          if (s.life <= 0) { shoots.splice(i, 1); continue; }
+          const a = Math.min(1, s.life * 2.2), tail = 0.16, tx = s.x - s.vx * tail, ty = s.y - s.vy * tail;
+          const g = ctx.createLinearGradient(s.x, s.y, tx, ty);
+          g.addColorStop(0, rgba(ink, 0.9 * a)); g.addColorStop(0.25, rgba(s.c, 0.5 * a)); g.addColorStop(1, rgba(s.c, 0));
+          ctx.strokeStyle = g; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tx, ty); ctx.stroke();
+          const head = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 6);
+          head.addColorStop(0, rgba(ink, 0.9 * a)); head.addColorStop(1, rgba(s.c, 0));
+          ctx.fillStyle = head; ctx.fillRect(s.x - 6, s.y - 6, 12, 12);
         }
       }
       ctx.globalCompositeOperation = 'source-over';
     };
     raf = requestAnimationFrame(frame);
-    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); };
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); watch.disconnect(); };
   }, []);
   return <canvas ref={ref} className="ob-sky" aria-hidden="true" />;
+}
+
+/** Turns a colour around the hue wheel by some degrees, and lifts its saturation a little. */
+function shiftHue([r, g, b]: number[], deg: number, sat = 1): number[] {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2, d = max - min;
+  let h = 0, s = 0;
+  if (d) {
+    s = d / (1 - Math.abs(2 * l - 1));
+    h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  }
+  h = (((h * 60 + deg) % 360) + 360) % 360; s = Math.min(1, s * sat);
+  const c = (1 - Math.abs(2 * l - 1)) * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = l - c / 2;
+  const [a, bb, cc] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [a, bb, cc].map((v) => Math.round((v + m) * 255));
 }
 
 function toRgb(v: string): [number, number, number] | null {
