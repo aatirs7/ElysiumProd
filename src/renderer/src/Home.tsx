@@ -23,9 +23,10 @@ interface Props {
   name: string;
   onOpen(projectId: string, projectName: string): void;
   onFocus(sessionId: string, templateId: string): void;
+  onNewProject(): void;
 }
 
-export function Home({ name, onOpen, onFocus }: Props) {
+export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
   const { doc, togglePin } = useWorkspace();
   const [usage, setUsage] = useState<UsageStats | null>(null);
@@ -174,14 +175,17 @@ export function Home({ name, onOpen, onFocus }: Props) {
                 </button>
               );
             })}
-            {unpinned.length > 0 && (
-              <div className="pin-card-wrap">
-                <button className="project-card add" onClick={() => setPicking((x) => !x)} aria-expanded={picking}>
-                  <span className="project-logo-wrap add"><Plus size={18} /></span>
-                  <span className="project-text"><span className="title">Pin a project</span><span className="sub">{unpinned.length} more available</span></span>
-                </button>
+            <div className="pin-card-wrap">
+              <button className="project-card add" onClick={() => setPicking((x) => !x)} aria-expanded={picking}>
+                <span className="project-logo-wrap add"><Plus size={18} /></span>
+                <span className="project-text"><span className="title">Add a project</span><span className="sub">Clone, start new, or pin one you have</span></span>
+              </button>
                 {picking && (
                   <div className="pin-list" role="menu">
+                    <button className="nav new-project" role="menuitem" onClick={() => { setPicking(false); onNewProject(); }}>
+                      <span className="plogo new"><Plus size={13} /></span><span className="grow">New project</span>
+                    </button>
+                    {unpinned.length > 0 && <div className="pin-picker-label">Pin one you have</div>}
                     {unpinned.map((p) => (
                       <button key={p.id} className="nav" role="menuitem" onClick={() => { togglePin(p.id); if (unpinned.length === 1) setPicking(false); }}>
                         <ProjectLogo projectId={p.id} /><span className="grow">{p.name}</span><Plus size={14} className="muted" />
@@ -189,8 +193,7 @@ export function Home({ name, onOpen, onFocus }: Props) {
                     ))}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         </section>
       </div>

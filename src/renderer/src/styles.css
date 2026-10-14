@@ -679,3 +679,28 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .topbar .glance { font-size: .8rem; color: var(--text-3); }
 @media (max-width: 1350px) { .usage-num small, .topbar .glance { display: none; } }
 @media (max-width: 1150px) { .usage-strip { display: none; } }
+
+/* ---- New project ---- */
+.plogo.new { background: color-mix(in srgb, var(--accent) 18%, var(--surface-2)); color: var(--accent); }
+.nav.new-project { font-weight: 600; }
+.pin-picker-label { font-size: .72rem; font-weight: 600; color: var(--text-3); padding: .45rem .6rem .2rem; }
+.dialog.np { position: relative; max-width: 40rem; width: calc(100vw - 3rem); text-align: left; padding: 1.6rem 1.7rem 1.4rem; }
+.dialog.np h3 { text-align: center; margin: 0 0 .3rem; font-size: 1.3rem; }
+.np-sub { text-align: center; color: var(--text-3); margin: 0 0 1.2rem; }
+.np-close { position: absolute; top: .8rem; right: .8rem; }
+.np-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin-bottom: 1.3rem; }
+.np-mode { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .9rem .6rem; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); cursor: pointer; text-align: center; transition: border-color .15s var(--ease), background-color .15s var(--ease), color .15s var(--ease); }
+.np-mode:hover { border-color: var(--line-strong); color: var(--text); }
+.np-mode.on { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); color: var(--text); }
+.np-mode-label { font-weight: 600; font-size: .92rem; }
+.np-mode-blurb { font-size: .76rem; color: var(--text-3); }
+.np-fields { display: flex; flex-direction: column; gap: .8rem; }
+.np-field { display: grid; grid-template-columns: 6.5rem 1fr; align-items: center; gap: .8rem; }
+.np-field > span { color: var(--text-2); font-size: .88rem; }
+.np-field .text-input { width: 100%; }
+.np-field .seg { justify-self: start; }
+.np-field .picker { justify-self: start; }
+.np-folder { justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; gap: .45rem; }
+.np-error { margin: 1rem 0 0; padding: .6rem .8rem; border-radius: 10px; background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); font-size: .88rem; }
+.dialog.np .dialog-row { margin-top: 1.4rem; justify-content: flex-end; }
+.spin { animation: spin 1s linear infinite; }

@@ -28,6 +28,8 @@ export interface ProjectDef {
   folder: string;
   repo: string | null;
   tier: 'main' | 'side';
+  /** Added in the app (projects.json), not part of the built-in table. */
+  custom?: boolean;
   /** Main projects only: the cs.ps1 names. */
   pair?: { prime: string; meridian: string; pluginPrime: string; pluginMeridian: string; extra: string[] };
 }
@@ -57,17 +59,19 @@ function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
   const title = role === 'prime' ? pair.prime : pair.meridian;
   return {
     id: `${p.id}.${role}`, title, kind: 'claude', project: p.id, projectName: p.name, role, cwd: p.folder,
-    confirm: `This resumes your ${title} session, exactly as cs ${title.toLowerCase()} does. If it is open in another terminal, close it there first so two copies do not run at once.`,
+    confirm: null,
     command: resolveClaude,
-    args: ['--resume', title, '--dangerously-skip-permissions', '--plugin-dir', MODS, ...pair.extra],
-    env: { SP_SESSION_NAME: role === 'prime' ? pair.pluginPrime : pair.pluginMeridian },
+    args: p.custom
+      ? ['--resume', title, '--dangerously-skip-permissions', ...pair.extra]
+      : ['--resume', title, '--dangerously-skip-permissions', '--plugin-dir', MODS, ...pair.extra],
+    env: p.custom ? {} : { SP_SESSION_NAME: role === 'prime' ? pair.pluginPrime : pair.pluginMeridian },
   };
 }
 
 function soloTemplate(p: ProjectDef): Template {
   return {
     id: `${p.id}.claude`, title: p.name, kind: 'claude', project: p.id, projectName: p.name, role: 'solo', cwd: p.folder,
-    confirm: `This continues the most recent Claude session in ${p.name}. If it is open in another terminal, close it there first.`,
+    confirm: null,
     command: resolveClaude,
     args: ['--continue', '--dangerously-skip-permissions'],
     env: {},
@@ -95,3 +99,21 @@ export function leadTemplate(projectId: string): Template | undefined {
 
 export const PROJECT_FOLDERS: Record<string, { name: string; folder: string; repo: string | null; tier: 'main' | 'side' }> =
   Object.fromEntries(PROJECTS.map((p) => [p.id, { name: p.name, folder: p.folder, repo: p.repo, tier: p.tier }]));
+
+/** Adds a project at runtime (one made or cloned in the app). Everything reads these tables live. */
+export function registerProject(p: ProjectDef): void {
+  if (PROJECT_FOLDERS[p.id]) return;
+  PROJECTS.push(p);
+  templates.push(...(p.tier === 'main' ? [pairTemplate(p, 'prime'), pairTemplate(p, 'meridian')] : [soloTemplate(p)]));
+  PROJECT_FOLDERS[p.id] = { name: p.name, folder: p.folder, repo: p.repo, tier: p.tier };
+}
+
+/** Takes an added project out of the app. Its folder and history are left alone. */
+export function unregisterProject(id: string): boolean {
+  const i = PROJECTS.findIndex((x) => x.id === id && x.custom);
+  if (i < 0) return false;
+  PROJECTS.splice(i, 1);
+  for (let j = templates.length - 1; j >= 0; j -= 1) if (templates[j].project === id) templates.splice(j, 1);
+  delete PROJECT_FOLDERS[id];
+  return true;
+}

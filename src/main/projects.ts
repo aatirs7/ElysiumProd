@@ -7,6 +7,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GitInfo, ProjectInfo, RelayInfo, TaskInfo } from '@shared/ipc';
 import { PROJECT_FOLDERS } from './templates';
+import { isCustom } from './newproject';
 
 function run(cmd: string, args: string[], cwd?: string, timeout = 15000): Promise<{ ok: boolean; out: string; err: string }> {
   return new Promise((resolve) => {
@@ -44,7 +45,7 @@ function mods(folder: string, projectId?: string): Mods {
 export function listProjects(): ProjectInfo[] {
   return Object.entries(PROJECT_FOLDERS).map(([id, p]) => {
     const m = mods(p.folder, id);
-    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder) };
+    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id) };
   });
 }
 

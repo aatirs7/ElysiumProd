@@ -108,11 +108,31 @@ export const Channels = {
   chatWatchGet: 'chatwatch:get',
   chatWatchSet: 'chatwatch:set',
   notifyOs: 'notify:os',
+  projectCreate: 'project:create',
+  projectRemove: 'project:remove',
+  folderPick: 'folder:pick',
+  projectsChanged: 'projects:changed',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
 
-export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean }
+export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean }
+
+export interface NewProjectRequest {
+  mode: 'clone' | 'new' | 'existing';
+  name: string;
+  /** clone: a repository address or owner/repo. */
+  url?: string;
+  /** clone and new: the folder the project folder goes in. */
+  parent?: string;
+  folderName?: string;
+  /** existing: the folder itself. */
+  folder?: string;
+  sessions: 'pair' | 'solo';
+  /** new: also make a repository on GitHub. */
+  github?: 'none' | 'private' | 'public';
+}
+export interface NewProjectResult { ok: boolean; reason: string | null; projectId?: string }
 export interface RelayInfo { ok: boolean; error: string | null; text: string; updatedAt: string | null; source: string; waitingHeading: string }
 export interface TaskInfo { number: number; title: string; labels: string[]; updatedAt: string; url: string; comments: number; needsOwner: boolean }
 export interface GitInfo { ok: boolean; error: string | null; branch: string | null; ahead: number; behind: number; dirty: number; commits: { hash: string; when: string; subject: string }[] }
@@ -199,6 +219,11 @@ export interface ElysiumApi {
   setChatWatch(projectId: string, on: boolean): Promise<{ ok: boolean; reason: string | null }>;
   /** A Windows notification that opens the session when clicked. */
   notifyOs(sessionId: string, title: string, body: string): void;
+  createProject(req: NewProjectRequest): Promise<NewProjectResult>;
+  /** Takes a project made in the app out of the list; its folder is left alone. */
+  removeProject(id: string): Promise<boolean>;
+  pickFolder(): Promise<string | null>;
+  onProjectsChanged(cb: () => void): () => void;
 }
 
 export interface AccountLimits { accountId: string; fiveHourPercent: number | null; sevenDayPercent: number | null; fiveHourResetsAt: number | null; sevenDayResetsAt: number | null; at: string }

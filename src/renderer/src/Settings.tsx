@@ -108,6 +108,12 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
                   <button className={`ghost-icon ${pinned ? '' : 'muted'}`} onClick={() => togglePin(p.id)} title={pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} aria-label={pinned ? `Unpin ${p.name}` : `Pin ${p.name}`}>
                     {pinned ? <Pin size={15} /> : <PinOff size={15} />}
                   </button>
+                  {p.custom && (
+                    <button className="ghost-icon" title="Remove from ElysiumProd. The folder and its history stay on disk." aria-label={`Remove ${p.name}`}
+                      onClick={() => void window.elysium.removeProject(p.id).then((ok) => { if (ok && pinned) togglePin(p.id); })}>
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               </div>
             );

@@ -55,6 +55,12 @@ export function LiveProvider({ children }: { children: ReactNode }) {
       window.elysium.onSession((s) => setSessions((m) => new Map(m).set(s.id, s))),
       window.elysium.onTelemetry((t) => setTelemetry((m) => ({ ...m, [t.sessionId]: t }))),
       window.elysium.onWatcher((w) => setWatchers((m) => ({ ...m, [w.projectId]: w }))),
+      // A project made or removed in the app: its sessions and its card appear at once.
+      window.elysium.onProjectsChanged(() => {
+        void window.elysium.templates().then(setTemplates);
+        void window.elysium.projects().then(setProjects);
+        setStatsTick((x) => x + 1);
+      }),
       window.elysium.onLimits((l) => setLimits((m) => ({ ...m, [l.accountId]: l }))),
       window.elysium.onCompact((c) => setCompacting((m) => {
         const next = { ...m, [c.sessionId]: c };

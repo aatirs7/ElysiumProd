@@ -12,7 +12,8 @@ import { ProjectLogo } from './ProjectLogo';
 import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
-import { Workspace, addPanel } from './workspace/Workspace';
+import { Workspace, addPanel, ensureProjectSessions } from './workspace/Workspace';
+import { NewProject } from './NewProject';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
 import { AccountUsage, ChatWatchSwitch, NoticeStack, useNotices, type Notice } from './TopBarExtras';
@@ -52,20 +53,10 @@ function WithWorkspace() {
         return;
       }
     }
-    const attaching = Boolean(req.params && 'sessionId' in req.params);
+    // Sessions just open: no resume question. A pair opens Meridian below Prime.
     const pair = req.pairTemplateId ? templatesRef.current.find((x) => x.id === req.pairTemplateId) : undefined;
-    if (t && pair) {
-      // One question for the pair; Meridian then opens below Prime.
-      setConfirm({
-        title: `Resume ${t.title} and ${pair.title}?`,
-        body: `This resumes both sessions, exactly as cs does. If either is open in another terminal, close it there first so two copies do not run at once.`,
-        yes: 'Resume both',
-        run: () => { addPanel(api, { ...req, pairTemplateId: undefined }); addPanel(api, { kind: 'terminal', templateId: pair.id, title: pair.title }); },
-      });
-      return;
-    }
-    if (t?.confirm && !attaching) setConfirm({ title: `Resume ${t.title}?`, body: t.confirm, yes: 'Resume it', run: () => addPanel(api, req) });
-    else addPanel(api, req);
+    addPanel(api, { ...req, pairTemplateId: undefined });
+    if (pair) addPanel(api, { kind: 'terminal', templateId: pair.id, title: pair.title });
   }, []);
 
   const onOpenRef = useRef(onOpen);
@@ -83,6 +74,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [name, setName] = useState('');
   const [page, setPage] = useState<Page>('home');
   const [palette, setPalette] = useState(false);
+  const [newProject, setNewProject] = useState(false);
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const { templates, sessions, telemetry, compacting } = useLive();
@@ -94,11 +86,34 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   useEffect(() => { void window.elysium.info().then((i) => setName(i.userName)); }, []);
 
   // Native web views draw above everything, so they hide while an overlay or another page shows.
-  const overlayUp = palette || memory || Boolean(confirm) || page !== 'workspace' || !doc.onboarded;
+  const overlayUp = palette || memory || newProject || Boolean(confirm) || page !== 'workspace' || !doc.onboarded;
   useEffect(() => { if (!overlayUp) return; overlayOpened(); return () => overlayClosed(); }, [overlayUp]);
 
   const go = useCallback((p: Page) => setPage(p), []);
-  const goProject = useCallback((id: string, projectName: string) => { openProject(id, projectName); setPage('workspace'); }, [openProject]);
+  // Opening a project shows its Claude pane and its sessions, starting any that are not running.
+  const docRef = useRef(doc);
+  docRef.current = doc;
+  const goProject = useCallback((id: string, projectName: string) => {
+    const existed = docRef.current.views.some((v) => v.projectId === id);
+    openProject(id, projectName);
+    setPage('workspace');
+    if (!existed) return; // a new view is laid out with its sessions already
+    setTimeout(() => {
+      const v = docRef.current.views.find((x) => x.projectId === id);
+      const api = v ? apiFor(v.id) : undefined;
+      if (api) ensureProjectSessions(api, id, templatesRef2.current);
+    }, 60);
+  }, [openProject, apiFor]);
+  const templatesRef2 = useRef(templates);
+  templatesRef2.current = templates;
+
+  // New project: once main has added it, open it as soon as its sessions are listed here.
+  const [toOpen, setToOpen] = useState<{ id: string; name: string } | null>(null);
+  useEffect(() => {
+    if (!toOpen || !templates.some((t) => t.project === toOpen.id)) return;
+    setToOpen(null);
+    goProject(toOpen.id, toOpen.name);
+  }, [toOpen, templates, goProject]);
 
   const launch = useCallback((templateId: string) => {
     const t = templates.find((x) => x.id === templateId);
@@ -271,7 +286,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
 
   return (
     <div className="shell">
-      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} />
+      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} />
       <div className="stage">
         <div className="topbar">
           {crumb}
@@ -302,14 +317,15 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
               : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
           )}
         </div>
-        {page === 'home' && <Home name={name || 'there'} onOpen={goProject} onFocus={focusSession} />}
+        {page === 'home' && <Home name={name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
         {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={restart} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={restart} onNewProject={() => setNewProject(true)} />}
+      {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
 

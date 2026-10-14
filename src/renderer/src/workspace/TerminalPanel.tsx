@@ -197,11 +197,23 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
     setGone(false);
     setError(null);
     setPending(false);
-    props.api.updateParameters({ templateId: props.params.templateId });
+    const keep = props.params as { tint?: string; reader?: boolean };
+    props.api.updateParameters({ templateId: props.params.templateId, ...(keep.tint ? { tint: keep.tint } : {}), ...(keep.reader ? { reader: true } : {}) });
     setAttempt((a) => a + 1);
   };
+
+  // Opening a project asks its sessions to be running: a pane that has ended or was never started starts now.
+  const startRef = useRef(startAgain);
+  startRef.current = startAgain;
+  const idleRef = useRef(false);
+  idleRef.current = gone || pending || Boolean(error) || session?.status === 'exited';
+  useEffect(() => {
+    const on = (e: Event) => { if ((e as CustomEvent<string>).detail === props.params.templateId && idleRef.current) startRef.current(); };
+    window.addEventListener('ep:ensure-session', on);
+    return () => window.removeEventListener('ep:ensure-session', on);
+  }, [props.params.templateId]);
   const setReader = (on: boolean) => props.api.updateParameters({ ...props.params, reader: on });
-  const verb = isClaude ? `Resume ${template?.title ?? 'session'}` : `Start ${template?.title ?? 'shell'}`;
+  const verb = `Start ${template?.title ?? (isClaude ? 'session' : 'shell')}`;
 
   const exited = session?.status === 'exited';
   return (
@@ -222,7 +234,6 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
           <div className="overlay-card">
             <strong>{error ? 'Could not start' : pending ? (template?.title ?? 'Terminal') : 'This session has ended'}</strong>
             <p>{error ?? (pending ? 'Saved in this layout, not started yet.' : 'It stopped when ElysiumProd last closed. Its scrollback is kept on disk.')}</p>
-            {isClaude && !error && <p className="warn-text">{template?.confirm}</p>}
             <button className="btn primary" onClick={startAgain}><RotateCcw size={14} />{verb}</button>
           </div>
         </div>

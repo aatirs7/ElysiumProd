@@ -8,7 +8,7 @@ import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go, onProject, onRestart }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void }) {
+export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onNewProject(): void }) {
   const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
@@ -19,6 +19,7 @@ export function Palette({ onClose, go, onProject, onRestart }: { onClose(): void
   const actions = useMemo<Action[]>(() => {
     const toWs = (f: () => void) => () => { go('workspace'); f(); };
     return [
+      { id: 'newproject', label: 'New project', hint: 'Clone a repository or start one', icon: <Plus size={15} />, run: onNewProject },
       ...projects.map((p) => ({ id: `p-open-${p.id}`, label: `Open ${p.name}`, hint: p.tier === 'main' ? 'Project' : 'Side project', icon: <ProjectLogo projectId={p.id} />, run: () => onProject(p.id, p.name) })),
       ...templates.map((t) => ({ id: `t-${t.id}`, label: `Start ${t.title}`, hint: t.kind === 'claude' ? 'Session' : 'Shell', icon: t.kind === 'claude' ? <Sparkles size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),
       ...WIDGETS.map((w) => ({ id: `w-${w.kind}`, label: `Add ${w.title}`, hint: w.blurb, icon: <w.icon size={15} />, run: toWs(() => open({ kind: w.kind })) })),
@@ -34,7 +35,7 @@ export function Palette({ onClose, go, onProject, onRestart }: { onClose(): void
       { id: 'restart', label: 'Restart ElysiumProd', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onNewProject]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

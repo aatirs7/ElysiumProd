@@ -57,6 +57,22 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Settings'))?.click()`);
     await sleep(1200);
     await shot('7-settings');
+    // New project: the dialog, then a from scratch project made and removed through the same calls.
+    await js(`document.querySelector('[aria-label="New or pin a project"]')?.click()`);
+    await sleep(400);
+    await js(`[...document.querySelectorAll('.pin-picker button')].find((b) => b.textContent.includes('New project'))?.click()`);
+    await sleep(700);
+    await shot('8-new-project');
+    r.newProjectDialog = await js(`Boolean(document.querySelector('.dialog.np'))`);
+    await js(`document.querySelector('.dialog.np .btn')?.click()`);
+    const parent = join(process.env.ELYSIUM_DATA_DIR || out, 'np-parent');
+    mkdirSync(parent, { recursive: true });
+    const made = await js(`window.elysium.createProject({ mode: 'new', name: 'Smoke Project', parent: ${JSON.stringify(parent)}, sessions: 'pair' })`) as { ok: boolean; projectId?: string; reason: string | null };
+    r.newProject = made;
+    r.newProjectGit = existsSync(join(parent, 'Smoke-Project', '.git'));
+    await sleep(500);
+    r.newProjectTemplates = (await js(`window.elysium.templates()`) as { id: string }[]).filter((t) => t.id.startsWith(`${made.projectId}.`)).map((t) => t.id);
+    if (made.projectId) r.newProjectRemoved = await js(`window.elysium.removeProject(${JSON.stringify(made.projectId)})`);
   } catch (e) {
     r.error = e instanceof Error ? e.stack : String(e);
   }

@@ -22,6 +22,8 @@ import { usageStats } from './usage';
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
+import { createProject, loadCustomProjects, removeProject } from './newproject';
+import { dialog } from 'electron';
 import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
@@ -231,6 +233,21 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.projectCreate, async (_e, req: unknown) => {
+    const r = await createProject((req ?? {}) as Parameters<typeof createProject>[0]);
+    if (r.ok) send(Channels.projectsChanged);
+    return r;
+  });
+  ipcMain.handle(Channels.projectRemove, (_e, id: unknown) => {
+    if (typeof id !== 'string' || sessions.list().some((s) => s.status === 'running' && s.templateId.startsWith(`${id}.`))) return false;
+    const ok = removeProject(id);
+    if (ok) send(Channels.projectsChanged);
+    return ok;
+  });
+  ipcMain.handle(Channels.folderPick, async () => {
+    const r = win ? await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] }) : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
+    return r.canceled ? null : r.filePaths[0] ?? null;
+  });
   ipcMain.handle(Channels.compact, (_e, ids: unknown) => (Array.isArray(ids) && tasks ? tasks.compact(ids.filter((x): x is string => typeof x === 'string')) : []));
   ipcMain.handle(Channels.chatWatchGet, (_e, projectId: unknown) => chatWatch(String(projectId)));
   ipcMain.handle(Channels.chatWatchSet, async (_e, projectId: unknown, on: unknown) => {
@@ -317,6 +334,9 @@ app.on('second-instance', (_e, argv, _cwd, data) => {
 
 // With the tray, closing the window does not quit; only Quit from the tray or the app does.
 app.on('window-all-closed', () => { if (SMOKE) app.quit(); });
+
+// Projects made in the app join the table before anything reads it.
+loadCustomProjects();
 
 app.whenReady().then(async () => {
   try { enforceCaps(scrollbackDir()); } catch { /* never block startup on cleanup */ }

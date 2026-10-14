@@ -13,10 +13,13 @@ interface Props {
   onPalette(): void;
   onMemory(): void;
   onDeleteView(id: string): void;
+  onNewProject(): void;
+  /** Opens a project with its Claude pane and sessions. */
+  onProject(id: string, name: string): void;
 }
 
-export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) {
-  const { doc, activeView, openProject, setActiveView, renameView, addView, togglePin } = useWorkspace();
+export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject }: Props) {
+  const { doc, activeView, setActiveView, renameView, addView, togglePin } = useWorkspace();
   const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry } = useLive();
   const { res } = useMachine();
@@ -52,12 +55,16 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) 
       <div className="side-scroll">
         <div className="side-label">
           <span>Projects</span>
-          {unpinned.length > 0 && <button className="ghost-icon tiny" onClick={() => setAdding((a) => !a)} title="Pin a project" aria-label="Pin a project" aria-expanded={adding}><Plus size={14} /></button>}
+          <button className="ghost-icon tiny" onClick={() => setAdding((a) => !a)} title="New or pin a project" aria-label="New or pin a project" aria-expanded={adding}><Plus size={14} /></button>
         </div>
         {adding && (
           <div className="pin-picker" role="menu">
+            <button className="nav new-project" role="menuitem" onClick={() => { setAdding(false); onNewProject(); }}>
+              <span className="plogo new"><Plus size={13} /></span><span className="grow">New project</span>
+            </button>
+            {unpinned.length > 0 && <div className="pin-picker-label">Pin one you have</div>}
             {unpinned.map((p) => (
-              <button key={p.id} className="nav" role="menuitem" onClick={() => { togglePin(p.id); if (unpinned.length === 1) setAdding(false); }} title={p.folder}>
+              <button key={p.id} className="nav" role="menuitem" onClick={() => togglePin(p.id)} title={p.folder}>
                 <ProjectLogo projectId={p.id} /><span className="grow">{p.name}</span><Plus size={14} className="muted" />
               </button>
             ))}
@@ -67,8 +74,8 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView }: Props) 
           const st = status(p.id);
           const active = page === 'workspace' && activeView?.projectId === p.id;
           return (
-            <div key={p.id} className={`nav view-item ${active ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => { openProject(p.id, p.name); go('workspace'); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { openProject(p.id, p.name); go('workspace'); } }} title={p.folder}>
+            <div key={p.id} className={`nav view-item ${active ? 'active' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, p.name)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, p.name); }} title={p.folder}>
               <ProjectLogo projectId={p.id} />
               <span className="grow">{p.name}</span>
               {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}

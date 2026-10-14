@@ -13,6 +13,7 @@ import {
   Activity, BookOpen, Check, Eye, FoldVertical, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
+import type { TemplateInfo } from '@shared/ipc';
 import { useLive } from './live';
 import { useWorkspace, type OpenRequest, type PanelKind, type View } from './store';
 import { TerminalPanel } from './TerminalPanel';
@@ -96,8 +97,16 @@ export function stackTerminals(api: DockviewApi): number {
  * account on the right, and the board (relay and tasks, or git) tabbed with it.
  * Terminals open between them. A plain view starts with Launch and Claude.
  */
-function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string) {
-  api.addPanel({ id: `launcher-${uid()}`, component: 'launcher', title: 'Launch' });
+function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = []) {
+  // A project with sessions opens on them, one above the other; anything else starts with Launch.
+  if (sessions.length) {
+    api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
+    for (const t of sessions.slice(1)) {
+      api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: t.title, params: { templateId: t.id }, position: { referenceGroup: api.groups[api.groups.length - 1].id, direction: 'below' } });
+    }
+  } else {
+    api.addPanel({ id: `launcher-${uid()}`, component: 'launcher', title: 'Launch' });
+  }
   api.addPanel({ id: `claude-${uid()}`, component: 'claude', title: 'Claude', params: { accountId, projectId: view.projectId }, position: { direction: 'right' } });
   const right = api.groups[api.groups.length - 1];
   if (view.projectId) {
@@ -109,7 +118,28 @@ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, acco
     }
   }
   const left = api.groups[0];
-  setTimeout(() => { try { left.api.setSize({ width: 260 }); } catch { /* sizes are a nicety */ } }, 60);
+  // Terminals get a little over half the width; the launcher stays narrow.
+  setTimeout(() => { try { left.api.setSize({ width: sessions.length ? Math.round(api.width * 0.56) : 260 }); } catch { /* sizes are a nicety */ } }, 60);
+}
+
+/** The Claude sessions a project opens with: Prime then Meridian, or its single session. */
+export function projectSessions(templates: TemplateInfo[], projectId: string | undefined): TemplateInfo[] {
+  if (!projectId) return [];
+  const mine = templates.filter((t) => t.kind === 'claude' && t.project === projectId);
+  const rank = (t: TemplateInfo) => (t.role === 'prime' ? 0 : t.role === 'meridian' ? 1 : 2);
+  return mine.sort((a, b) => rank(a) - rank(b));
+}
+
+/**
+ * Opening a project: each of its sessions gets a pane, and a pane whose session
+ * has ended starts again. Nothing asks first.
+ */
+export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[]): void {
+  for (const t of projectSessions(templates, projectId)) {
+    const pane = api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
+    if (!pane) addPanel(api, { kind: 'terminal', templateId: t.id, title: t.title });
+    else window.dispatchEvent(new CustomEvent('ep:ensure-session', { detail: t.id }));
+  }
 }
 
 /** Pane colours: a soft tint on the tab bar and a ring around the pane, so sessions are easy to tell apart. */
@@ -282,7 +312,7 @@ function Watermark(_p: IWatermarkPanelProps) {
 
 function ViewDock({ view, active, theme }: { view: View; active: boolean; theme: DockviewTheme }) {
   const { registerApi, setLayout, takeQueued, open, accountFor } = useWorkspace();
-  const { projects } = useLive();
+  const { projects, templates } = useLive();
   const apiRef = useRef<DockviewApi | null>(null);
   const openRef = useRef(open);
   openRef.current = open;
@@ -313,7 +343,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
           if (view.layout) {
             try { api.fromJSON(view.layout); restored = true; } catch { api.clear(); }
           }
-          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId));
+          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), projectSessions(templates, view.projectId));
           // Closing a terminal pane ends its session. Moving, floating and
           // switching views do not, because every view stays mounted.
           api.onDidRemovePanel((p) => {
