@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import * as pdfjs from 'pdfjs-dist';
 import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import { FileText, FolderOpen, Minus, Plus, RefreshCw } from 'lucide-react';
 import type { DocFile } from '@shared/ipc';
 import { md, onLinkClick } from './project-widgets';
 
-pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
 export interface DocParams { path?: string; zoom?: number }
 
@@ -31,8 +29,8 @@ export function DocumentPanel(props: IDockviewPanelProps<DocParams>) {
   const setZoom = (z: number) => props.api.updateParameters({ ...props.params, zoom: Math.min(3, Math.max(0.5, Math.round(z * 10) / 10)) });
 
   return (
-    <div className="widget glass-widget">
-      <div className="glass-toolbar">
+    <div className="widget column">
+      <div className="bar">
         <button className="ghost-btn" onClick={pick}><FolderOpen size={14} />{path ? 'Open another' : 'Open a file'}</button>
         {path && <span className="muted small ellipsis" title={path}>{base(path)}</span>}
         <span className="spacer" />
@@ -45,7 +43,7 @@ export function DocumentPanel(props: IDockviewPanelProps<DocParams>) {
         )}
         {path && <button className="ghost-icon" onClick={() => path && void load(path)} title="Reload" aria-label="Reload"><RefreshCw size={14} /></button>}
       </div>
-      <div className="glass-scroll doc-scroll" onClick={onLinkClick}>
+      <div className="scroll" onClick={onLinkClick}>
         {!path && (
           <div className="empty-state doc-empty">
             <FileText size={28} strokeWidth={1.5} />
@@ -54,8 +52,8 @@ export function DocumentPanel(props: IDockviewPanelProps<DocParams>) {
           </div>
         )}
         {doc && !doc.ok && <div className="empty-state error-text">{doc.error}</div>}
-        {doc?.ok && doc.kind === 'markdown' && <article className="glass-card prose doc" dangerouslySetInnerHTML={{ __html: md(doc.text ?? '') }} />}
-        {doc?.ok && doc.kind === 'text' && <pre className="glass-card doc-text">{doc.text}</pre>}
+        {doc?.ok && doc.kind === 'markdown' && <article className="prose doc" dangerouslySetInnerHTML={{ __html: md(doc.text ?? '') }} />}
+        {doc?.ok && doc.kind === 'text' && <pre className="doc-text">{doc.text}</pre>}
         {doc?.ok && doc.kind === 'pdf' && doc.bytes && <PdfView bytes={doc.bytes} zoom={zoom} />}
       </div>
     </div>
@@ -70,9 +68,16 @@ function PdfView({ bytes, zoom }: { bytes: Uint8Array; zoom: number }) {
     let cancelled = false;
     const el = host.current!;
     el.innerHTML = '';
-    // pdf.js takes ownership of the buffer, so give it a copy.
-    const task = pdfjs.getDocument({ data: bytes.slice() });
-    void task.promise.then(async (pdf) => {
+    let task: { promise: Promise<any>; destroy(): Promise<void> } | null = null;
+    // pdf.js loads only when a PDF is opened, so it never slows the app's start.
+    void import('pdfjs-dist').then((pdfjs) => {
+      if (cancelled) return;
+      pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
+      // pdf.js takes ownership of the buffer, so give it a copy.
+      task = pdfjs.getDocument({ data: bytes.slice() });
+      return task.promise;
+    }).then(async (pdf) => {
+      if (!pdf || cancelled) return;
       const pages = Math.min(pdf.numPages, 300);
       setInfo(`${pdf.numPages} page${pdf.numPages === 1 ? '' : 's'}`);
       const width = Math.max(320, el.clientWidth - 32);
@@ -90,7 +95,7 @@ function PdfView({ bytes, zoom }: { bytes: Uint8Array; zoom: number }) {
         await page.render({ canvas, viewport: vp }).promise;
       }
     }).catch((e: unknown) => setInfo(`Could not render: ${e instanceof Error ? e.message : String(e)}`));
-    return () => { cancelled = true; void task.destroy(); };
+    return () => { cancelled = true; void task?.destroy(); };
   }, [bytes, zoom]);
 
   return (

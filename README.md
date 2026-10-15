@@ -1,34 +1,40 @@
-# ElysiumProd
+# Elysium Development
 
-A personal multi-agent development cockpit for Claude Code on Windows ARM64. Read `SPEC.md` for the design, `AUDIT-SUMMARY.md` for why it looks the way it does, and `PHASE0.md` for what was proven on this machine.
+One calm place to run all your projects with Claude Code, on Windows.
 
-Status: Phase 1, one terminal.
+- **Every project, side by side.** Each project opens with its Claude sessions, terminals, dashboard, Git and any web pages you pin.
+- **Hand off work, get told when it is done.** Tell a project what to do from Home, or press Alt Space anywhere in Windows.
+- **See what your agents are doing.** Live status, context use, a step by step flow, usage against your plan's limits, and costs per project.
+- **Plan without getting in the way.** A planning chat per project that stays current with the code and sends tasks to the builder in one click.
+- **PC Helper.** A Claude chat for the computer itself: slow PC, Wi-Fi, disk space, startup apps, battery, security.
+- **It changes itself.** Ask Customize Elysium for a theme, a button or a fix, and it edits your copy of the app.
 
-## Run
+Everything runs on your Claude plan. Elysium never uses API keys.
+
+## Install
+
+You need Windows 10 or 11 and a Claude plan (Pro or Max).
+
+1. Download [`Install Elysium.cmd`](setup/Install%20Elysium.cmd) and double click it. Or paste this into PowerShell:
+
+   ```
+   irm https://raw.githubusercontent.com/aatirs7/ElysiumProd/main/setup/install.ps1 | iex
+   ```
+
+2. It installs Git, Node.js and Claude Code if you do not have them, puts your own copy of Elysium in `%LOCALAPPDATA%\Elysium\app`, builds it, and adds Elysium to the Start menu and desktop.
+3. Elysium opens on a short setup: pick a look, sign in to Claude (and GitHub, Vercel or Neon if you use them), and choose your projects.
+
+## Updates
+
+Settings, Updates, **Get updates**. Your own changes are kept: they are saved first and the new version is merged in. If the two clash, nothing is changed and Customize Elysium can combine them for you.
+
+## For developers
 
 ```
-npm install
-node node_modules/electron/install.js   # only if the Electron binary did not download
-npm run dev                             # development, with hot reload
-npm run build && npm start              # production build
+npm ci
+npm run dev                 # hot reload
+npx tsc --noEmit -p tsconfig.json
+npx electron-vite build
 ```
 
-## Check
-
-```
-npm run typecheck
-npm test                                # scrollback rotation, age and size caps
-npm run smoke                           # builds, opens a PowerShell pane through the UI, echoes,
-                                        # checks xterm and scrollback, saves smoke-out/window.png, quits
-```
-
-The smoke test only uses the PowerShell template. It never starts or resumes a Claude session.
-
-## Where things live
-
-- `src/main`: sessions, scrollback, resources and the spawn gate, child env scrubbing, finding `claude.exe`.
-- `src/preload`: the typed IPC bridge, and nothing else.
-- `src/renderer`: React UI.
-- `src/shared/ipc.ts`: the IPC contract.
-- `%APPDATA%\elysiumprod\scrollback`: session logs in 10 MB segments, newest two kept per session, 30 days, 1 GB total.
-- `spike/`: the Phase 0 harness, kept for reference.
+See `CLAUDE.md` for how the code is laid out and the rules for changes.

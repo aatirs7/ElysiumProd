@@ -2,3 +2,6 @@ node_modules/
 /out/
 /dist/
 /smoke-out/
+
+# Kept on the owner's PC only
+spike/

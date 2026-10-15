@@ -2,12 +2,14 @@
 // (claude.cmd), which node-pty cannot spawn directly (Phase 0, step 6).
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
-let cached: string | null | undefined;
+let cached: string | null = null;
 
-export function resolveClaude(): string | null {
-  if (cached !== undefined) return cached;
+/** `fresh` looks again; a miss is never remembered, so installing Claude Code later is noticed. */
+export function resolveClaude(fresh = false): string | null {
+  if (cached && !fresh) return cached;
   cached = find();
   return cached;
 }
@@ -31,6 +33,10 @@ function find(): string | null {
       if (existsSync(exe)) return exe;
     }
   }
-  const fallback = join(process.env.APPDATA ?? '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe');
-  return existsSync(fallback) ? fallback : null;
+  // The npm global folder, then where claude.ai's own installer puts it.
+  const fallbacks = [
+    join(process.env.APPDATA ?? '', 'npm', 'node_modules', '@anthropic-ai', 'claude-code', 'bin', 'claude.exe'),
+    join(homedir(), '.local', 'bin', 'claude.exe'),
+  ];
+  return fallbacks.find((f) => existsSync(f)) ?? null;
 }

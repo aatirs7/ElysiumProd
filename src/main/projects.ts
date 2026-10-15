@@ -6,7 +6,8 @@ import { execFile } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { GitInfo, ProjectInfo, RelayInfo, TaskInfo } from '@shared/ipc';
-import { PROJECT_FOLDERS } from './templates';
+import { projectDef, PROJECT_FOLDERS } from './templates';
+import { isCustom } from './newproject';
 
 function run(cmd: string, args: string[], cwd?: string, timeout = 15000): Promise<{ ok: boolean; out: string; err: string }> {
   return new Promise((resolve) => {
@@ -27,28 +28,33 @@ async function cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Prom
 
 interface Mods { relayRepo?: string; relayFile?: string; relayIssue?: string; waitingHeading?: string; nowHeading?: string }
 
-/** The plugin's defaults, used where a repo has no .claude/mods.json (SecurITPosture). */
-const PLUGIN_DEFAULTS: Mods = { relayRepo: 'SecurITPosture-01/securitposture_2026', relayIssue: '105', waitingHeading: 'Waiting on Aatir', nowHeading: 'Now' };
 
-function mods(folder: string): Mods {
+/** Relay settings from the repo's .claude/mods.json, or the project's own defaults from the profile. */
+function mods(folder: string, projectId?: string): Mods {
   const f = join(folder, '.claude', 'mods.json');
-  try { return existsSync(f) ? { ...PLUGIN_DEFAULTS, relayIssue: undefined, ...JSON.parse(readFileSync(f, 'utf8')) } : PLUGIN_DEFAULTS; } catch { return PLUGIN_DEFAULTS; }
+  const repo = projectId ? PROJECT_FOLDERS[projectId]?.repo ?? undefined : undefined;
+  try {
+    if (existsSync(f)) return { relayRepo: repo, ...JSON.parse(readFileSync(f, 'utf8')) };
+    const own = projectId ? projectDef(projectId)?.mods : undefined;
+    if (own) return { relayRepo: repo, ...own };
+    return { relayRepo: repo };
+  } catch { return { relayRepo: repo }; }
 }
 
 export function listProjects(): ProjectInfo[] {
   return Object.entries(PROJECT_FOLDERS).map(([id, p]) => {
-    const m = mods(p.folder);
-    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder) };
+    const m = mods(p.folder, id);
+    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id), extras: projectDef(id)?.extras ?? null, builtin: projectDef(id)?.source === 'builtin' };
   });
 }
 
 export function readRelay(projectId: string): Promise<RelayInfo> {
   const p = PROJECT_FOLDERS[projectId];
   if (!p) return Promise.resolve({ ok: false, error: 'Unknown project', text: '', updatedAt: null, source: '', waitingHeading: '' });
-  const m = mods(p.folder);
+  const m = mods(p.folder, projectId);
   const waitingHeading = m.waitingHeading ?? 'Blocked on the owner';
   return cached(`relay:${projectId}`, 60000, async () => {
-    if (!m.relayRepo) return { ok: false, error: 'No relay configured in .claude/mods.json', text: '', updatedAt: null, source: '', waitingHeading };
+    if (!m.relayRepo || (!m.relayFile && !m.relayIssue)) return { ok: false, error: 'This project has no relay', text: '', updatedAt: null, source: '', waitingHeading };
     if (m.relayFile) {
       const r = await run('gh', ['api', `repos/${m.relayRepo}/contents/${m.relayFile}`, '-H', 'Accept: application/vnd.github.raw']);
       const c = await run('gh', ['api', `repos/${m.relayRepo}/commits?path=${encodeURIComponent(m.relayFile)}&per_page=1`, '--jq', '.[0].commit.committer.date']);
@@ -63,7 +69,7 @@ export function readRelay(projectId: string): Promise<RelayInfo> {
 
 export function readTasks(projectId: string): Promise<{ ok: boolean; error: string | null; tasks: TaskInfo[] }> {
   const p = PROJECT_FOLDERS[projectId];
-  const m = p ? mods(p.folder) : {};
+  const m = p ? mods(p.folder, projectId) : {};
   return cached(`tasks:${projectId}`, 60000, async () => {
     if (!m.relayRepo) return { ok: false, error: 'No repository configured', tasks: [] };
     const r = await run('gh', ['issue', 'list', '-R', m.relayRepo, '--state', 'open', '--limit', '60', '--json', 'number,title,labels,updatedAt,url,comments']);
@@ -71,7 +77,7 @@ export function readTasks(projectId: string): Promise<{ ok: boolean; error: stri
     const raw = JSON.parse(r.out) as { number: number; title: string; labels: { name: string }[]; updatedAt: string; url: string; comments: unknown[] }[];
     const tasks = raw.map((i) => {
       const labels = i.labels.map((l) => l.name);
-      const needsOwner = labels.some((l) => /needs:owner|to:aatir|blocked/i.test(l)) || /^Decide/i.test(i.title);
+      const needsOwner = labels.some((l) => /needs:owner|to:owner|blocked/i.test(l)) || /^Decide/i.test(i.title);
       return { number: i.number, title: i.title, labels, updatedAt: i.updatedAt, url: i.url, comments: i.comments?.length ?? 0, needsOwner };
     });
     return { ok: true, error: null, tasks };
@@ -95,4 +101,27 @@ export function readGit(projectId: string): Promise<GitInfo> {
     const commits = log.out.split(/\r?\n/).filter(Boolean).map((l) => { const [hash, when, ...s] = l.split('\t'); return { hash, when, subject: s.join('\t') }; });
     return { ok: true, error: null, branch, ahead, behind, dirty: lines.length - 1, commits };
   });
+}
+
+/** What the plugin's line used to show, for the project top bar: AWS spend and items waiting on the owner. */
+export async function projectGlance(projectId: string): Promise<{ awsTotal: number | null; awsCap: number | null; waiting: number | null }> {
+  const p = PROJECT_FOLDERS[projectId];
+  if (!p) return { awsTotal: null, awsCap: null, waiting: null };
+  let awsTotal: number | null = null;
+  try {
+    const f = join(p.folder, '.claude', 'mods-cost.json');
+    if (existsSync(f)) { const c = JSON.parse(readFileSync(f, 'utf8')) as { status?: string; total?: number }; if (c.status === 'ok' && typeof c.total === 'number') awsTotal = c.total; }
+  } catch { /* no cost file */ }
+  let waiting: number | null = null;
+  const r = await readRelay(projectId);
+  if (r.ok) {
+    const lines = r.text.split(/\r?\n/);
+    const start = lines.findIndex((l) => /^#{2,3}\s/.test(l) && l.replace(/^#+\s*/, '').trim().toLowerCase() === r.waitingHeading.toLowerCase());
+    if (start >= 0) {
+      waiting = 0;
+      for (let i = start + 1; i < lines.length && !/^#{1,3}\s/.test(lines[i]); i++) if (/^[-*]\s/.test(lines[i])) waiting++;
+    }
+  }
+  // The plugin's own budget line for this repository is 70 dollars a month.
+  return { awsTotal, awsCap: awsTotal === null ? null : 70, waiting };
 }
