@@ -18,6 +18,8 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
   const shot = async (name: string) => writeFileSync(join(out, `${name}.png`), (await ctx.win.webContents.capturePage()).toPNG());
   const click = (text: string) => js(`(() => { const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith(${JSON.stringify(text)})); if (b) { b.click(); return true; } return false; })()`);
   const finish = async () => {
+    // Every session this run started, to show no Claude session was among them.
+    r.startedTemplates = ctx.sessions.list().map((s) => s.templateId);
     r.finishedAt = new Date().toISOString();
     writeFileSync(join(out, 'result.json'), JSON.stringify(r, null, 2));
     app.quit();
@@ -72,15 +74,17 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       r.echoSeenInXterm = String(await js(`window.__smoke.screen()`)).includes('smoke-42');
       r.echoSeenInScrollback = existsSync(s.scrollbackPath) && readFileSync(s.scrollbackPath, 'utf8').includes('smoke-42');
     }
-    // Codex, when it is installed: it opens in a project pane and draws its screen. It is ended right away.
+    // Codex, when it is installed: it starts in a project's folder and draws its screen. It is ended right away.
     r.agentTemplates = (await js(`window.elysium.templates()`) as { id: string; kind: string }[]).filter((t) => t.kind === 'agent').map((t) => t.id);
-    if ((r.agentTemplates as string[]).includes('elysiumprod.codex')) {
-      r.codexLaunch = await js(`window.__smoke && window.__smoke.launch('elysiumprod.codex')`);
+    const codexId = (r.agentTemplates as string[]).find((id) => id.endsWith('.codex'));
+    if (codexId) {
+      // Started here, not through the UI: opening a project in the UI starts its Claude sessions, which the smoke test never does.
+      const made = ctx.sessions.create(codexId, 120, 30);
+      r.codexLaunch = made.ok ? true : made.reason;
       await sleep(7000);
-      const c = ctx.sessions.list().find((x) => x.templateId === 'elysiumprod.codex');
+      const c = made.ok ? ctx.sessions.list().find((x) => x.id === made.session.id) : undefined;
       const text = c ? (ctx.sessions.replay(c.id)?.data ?? '').replace(/[[0-9;?]*[ -/]*[@-~]/g, '').replace(/][^]*/g, '') : '';
       r.codex = c ? { status: c.status, resumed: c.resumed, saw: text.replace(/s+/g, ' ').trim().slice(0, 300) } : null;
-      await shot('4a-codex');
       if (c) ctx.sessions.kill(c.id);
       await sleep(800);
     }
