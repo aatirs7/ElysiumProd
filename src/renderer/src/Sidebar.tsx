@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { BarChart3, BookMarked, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -7,7 +7,7 @@ import { CHECKS, TOOL_INFO } from './tools';
 import { TINTS } from './workspace/Workspace';
 import { useWorkspace } from './workspace/store';
 
-export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs' | 'usage' | 'memory';
+export type Page = 'home' | 'workspace' | 'settings' | 'help' | 'stats' | 'costs' | 'usage' | 'memory' | 'playbook';
 
 interface Props {
   page: Page;
@@ -87,6 +87,9 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
       </button>
       <button className={`nav ${page === 'costs' ? 'active' : ''}`} onClick={() => go('costs')}>
         <CircleDollarSign size={17} strokeWidth={1.75} /><span className="grow">Costs</span>
+      </button>
+      <button className={`nav ${page === 'playbook' ? 'active' : ''}`} onClick={() => go('playbook')}>
+        <BookMarked size={17} strokeWidth={1.75} /><span className="grow">Playbook</span>
       </button>
 
       <div className="side-scroll">

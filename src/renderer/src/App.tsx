@@ -18,6 +18,7 @@ import { Workspace, addPanel, ensureProjectSessions, openChat, shortModel } from
 import { NewProject } from './NewProject';
 import { Tour } from './Tour';
 import { ThemeBuilder } from './ThemeBuilder';
+import { Playbook } from './Playbook';
 import { CHECKS, TOOL_INFO } from './tools';
 import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
@@ -73,7 +74,7 @@ function WithWorkspace() {
   );
 }
 
-const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs', usage: 'Usage', memory: 'Memory' };
+const PAGE_TITLES: Record<Page, string> = { home: 'Home', workspace: '', settings: 'Settings', help: 'Help', stats: 'Your stats', costs: 'Costs', usage: 'Usage', memory: 'Memory', playbook: 'Playbook' };
 
 function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c: Confirm | null): void }) {
   const [name, setName] = useState('');
@@ -412,6 +413,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
         {page === 'usage' && <Usage />}
+        {page === 'playbook' && <Playbook />}
         {page === 'memory' && <div className="page page-enter"><div className="page-inner mem-page"><h1 className="page-title">Memory and disk</h1><p className="page-sub">What this PC is busy with, and what would help.</p><MachineWidget full /></div></div>}
         {page === 'costs' && <Costs />}
         {ready && <Workspace visible={page === 'workspace'} />}

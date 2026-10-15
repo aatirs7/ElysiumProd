@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal, type ITheme } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { BookOpenText, RotateCcw, SendHorizontal, SquareTerminal } from 'lucide-react';
+import { BookOpenText, CornerDownRight, RotateCcw, SendHorizontal, SquareTerminal } from 'lucide-react';
 import type { ReaderEntry } from '@shared/ipc';
 import { useWorkspace } from './store';
 import { useLive } from './live';
@@ -304,25 +304,41 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
  * Claude Code reports at the end of each turn; kept in memory only.
  */
 /** Questions and the replies that came after each one, in order. */
-function turns(entries: ReaderEntry[]): { q: ReaderEntry | null; replies: ReaderEntry[] }[] {
-  const out: { q: ReaderEntry | null; replies: ReaderEntry[] }[] = [];
+// Messages sent while it was still working are answered together, so they belong
+// to one turn, and its reply quotes each of them.
+type TurnT = { qs: ReaderEntry[]; replies: ReaderEntry[] };
+function turns(entries: ReaderEntry[]): TurnT[] {
+  const out: TurnT[] = [];
   for (const e of entries) {
-    if (e.role === 'you') out.push({ q: e, replies: [] });
-    else if (out.length) out[out.length - 1].replies.push(e);
-    else out.push({ q: null, replies: [e] });
+    const cur = out[out.length - 1];
+    if (e.role === 'you') { if (cur && !cur.replies.length) cur.qs.push(e); else out.push({ qs: [e], replies: [] }); }
+    else if (cur) cur.replies.push(e);
+    else out.push({ qs: [], replies: [e] });
   }
   return out;
 }
+const firstLine = (s: string) => { const l = s.trim().split(/\n/)[0]; return l.length > 110 ? `${l.slice(0, 108)}...` : l; };
 
-function Turn({ t, last, busy }: { t: { q: ReaderEntry | null; replies: ReaderEntry[] }; last: boolean; busy: boolean }) {
+function Turn({ t, last, busy, idx }: { t: TurnT; last: boolean; busy: boolean; idx: number }) {
   const [more, setMore] = useState(false);
   const answer = t.replies[t.replies.length - 1];
   const earlier = t.replies.slice(0, -1);
+  const qid = (i: number) => `rq-${idx}-${i}`;
+  const jump = (i: number) => { const el = document.getElementById(qid(i)); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.classList.add('flash'); setTimeout(() => el?.classList.remove('flash'), 1200); };
   return (
     <section className="reader-turn">
-      {t.q && <div className="reader-q"><span className="reader-q-label">You asked</span><p>{t.q.text}</p></div>}
+      {t.qs.map((q, i) => <div key={i} id={qid(i)} className="reader-q"><span className="reader-q-label">{i === 0 ? 'You asked' : 'Then you added'}</span><p>{q.text}</p></div>)}
       {answer
-        ? <article className="reader-a" dangerouslySetInnerHTML={{ __html: md(answer.text) }} />
+        ? (
+          <div className="reader-reply">
+            {t.qs.length > 0 && (
+              <div className="reader-reply-to" aria-label="Replying to">
+                {t.qs.map((q, i) => <button key={i} onClick={() => jump(i)} title="Show this message"><CornerDownRight size={12} /><span>{firstLine(q.text)}</span></button>)}
+              </div>
+            )}
+            <article className="reader-a" dangerouslySetInnerHTML={{ __html: md(answer.text) }} />
+          </div>
+        )
         : last && busy ? <div className="reader-pending"><span className="dot busy" />Working on it. The answer shows here when it is ready.</div> : null}
       {earlier.length > 0 && (
         <div className="reader-earlier">
@@ -365,7 +381,7 @@ function ReaderView({ sessionId, title }: { sessionId: string; title: string }) 
         <div className="reader-page">
           <h1 className="reader-title">{title}</h1>
           {!entries.length && <p className="reader-empty">Replies appear here as the session works. Anything from before Elysium opened it is in the Terminal view.</p>}
-          {turns(entries).map((t, i, all) => <Turn key={i} t={t} last={i === all.length - 1} busy={state === 'busy'} />)}
+          {turns(entries).map((t, i, all) => <Turn key={i} idx={i} t={t} last={i === all.length - 1} busy={state === 'busy'} />)}
           {state === 'busy' && !(entries.length && entries[entries.length - 1].role === 'you') && <div className="reader-working"><span className="dot busy" /> Working</div>}
           {state === 'waiting' && <div className="reader-working warn"><span className="dot waiting" /> Waiting for you in the Terminal view</div>}
         </div>

@@ -2,7 +2,7 @@
 // telemetry, watchers, background tasks, and everything they read.
 import { app, BrowserWindow, ipcMain, net, Notification, protocol, shell } from 'electron';
 import { pathToFileURL } from 'node:url';
-import { appendFileSync, existsSync, unlinkSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { homedir as userHome, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Channels, type ConnectService, type ResourceSample, type SessionInfo } from '@shared/ipc';
@@ -44,6 +44,8 @@ import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick
 import { flushWebSessions } from './webviews';
 import { resumeRunning, saveRunning } from './resume';
 import { findAgents } from './agents';
+import { Bridge } from './bridge';
+import { PLAYBOOK_DIR, PLAYBOOK_HINT, playbookList } from './playbook';
 import { addAgents } from './templates';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
@@ -67,7 +69,7 @@ function sendRequest(argv: string[]): { templateId: string; message: string } | 
   const rest = argv.slice(i + 1).filter((x) => !x.startsWith('--'));
   return rest.length >= 2 ? { templateId: rest[0], message: rest.slice(1).join(' ') } : null;
 }
-if (!SMOKE && !app.requestSingleInstanceLock({ send: sendRequest(process.argv) })) app.quit();
+if (!SMOKE && !app.requestSingleInstanceLock({ send: sendRequest(process.argv), restart: process.argv.includes('--restart') })) app.quit();
 
 let win: BrowserWindow | null = null;
 const send = (channel: string, ...args: unknown[]) => {
@@ -90,8 +92,13 @@ const sessions = new SessionManager(
     update: (s: SessionInfo) => send(Channels.sessionUpdate, s),
   },
   () => resources.latest()?.refuseReason ?? null,
-  (id) => ingest.register(id),
+  // Every Claude session gets telemetry hooks, and the Elysium tool for delegating to other sessions.
+  (id) => { const t = ingest.register(id); return { env: t.env, args: [...t.args, ...(bridge ? [...bridge.claudeArgs(id), '--append-system-prompt', PLAYBOOK_HINT] : [])] }; },
+  (id, agent) => (bridge && agent === 'codex' ? bridge.codexArgs(id) : []),
 );
+
+/** Delegation: sessions see each other and hand each other tasks (src/main/bridge.ts). */
+let bridge: Bridge | null = null;
 
 /** Chats: Claude Code shown as messages (Customize Elysium, PC Helper, planning). */
 const chats = new Chats(
@@ -245,6 +252,16 @@ function registerIpc(): void {
     return { userName: raw.charAt(0).toUpperCase() + raw.slice(1), version: app.getVersion() };
   });
   ipcMain.handle(Channels.templatesList, () => templates.map(templateInfo));
+  ipcMain.handle(Channels.playbookList, () => playbookList());
+  ipcMain.handle(Channels.playbookOpenFolder, async () => { mkdirSync(PLAYBOOK_DIR, { recursive: true }); await shell.openPath(PLAYBOOK_DIR); });
+  ipcMain.handle(Channels.playbookRecord, (_e, sessionId: string, what: string) => {
+    const s = sessions.list().find((x) => x.id === sessionId);
+    const t = s ? findTemplate(s.templateId) : undefined;
+    if (!s || !t || !tasks) return { ok: false, reason: 'That session is not running.' };
+    const topic = what.trim() || 'what you just built';
+    const r = tasks.runTemplate(t.id, `Explain how you built ${topic}, as a how-to another project could follow: what it is for, the steps in order, the files, commands and settings involved, and the pitfalls you hit. Leave out secrets. Save it with the elysium_playbook_add tool, then tell me its name.`);
+    return { ok: r.ok, reason: r.reason };
+  });
   ipcMain.handle(Channels.sessionsList, () => sessions.list());
   ipcMain.handle(Channels.sessionCreate, (_e, templateId: unknown, cols: unknown, rows: unknown, opts: unknown) =>
     sessions.create(String(templateId), Number(cols) || 120, Number(rows) || 30, { accountId: typeof (opts as { accountId?: unknown })?.accountId === 'string' ? (opts as { accountId: string }).accountId : null, override: (opts as { override?: unknown })?.override === true }));
@@ -414,6 +431,7 @@ app.on('before-quit', (e) => {
  * anything else just shows the window.
  */
 app.on('second-instance', (_e, argv, _cwd, data) => {
+  if ((data as { restart?: boolean } | undefined)?.restart) { restartApp(); return; }
   const req = (data as { send?: { templateId: string; message: string } | null } | undefined)?.send ?? sendRequest(argv);
   if (req && tasks) {
     const r = tasks.runTemplate(req.templateId, req.message);
@@ -438,6 +456,17 @@ app.whenReady().then(async () => {
   registerIpc();
   await resources.start();
   await ingest.start();
+  if (!DEMO) {
+    const b = new Bridge({
+      sessions,
+      telemetry: (id) => ingest.get(id) ?? undefined,
+      reader: (id) => ingest.reader(id),
+      runClaude: (templateId, text) => tasks ? tasks.runTemplate(templateId, text) : { ok: false, reason: 'Elysium is still starting.' },
+      accountFor: (projectId) => accountForProject(projectId),
+      note: (text) => { try { new Notification({ title: 'Elysium Development', body: text, silent: true }).show(); } catch { /* notifications are optional */ } },
+    });
+    try { await b.start(); bridge = b; } catch { /* delegation is optional; sessions still start without it */ }
+  }
   if (!SMOKE && !DEMO) ensureStartMenuShortcut();
   win = createWindow();
   tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); }, (c) => send(Channels.compactUpdate, c));

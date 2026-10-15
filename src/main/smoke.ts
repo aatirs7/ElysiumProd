@@ -10,6 +10,36 @@ import { captureWeb, webStates } from './webviews';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+/** Runs resources/elysium-mcp.cjs as a session would, and makes three calls through it. */
+async function mcpCheck(fromSessionId: string): Promise<Record<string, unknown>> {
+  const { spawn } = await import('node:child_process');
+  const child = spawn(process.execPath, [join(app.getAppPath(), 'resources', 'elysium-mcp.cjs')], {
+    env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ELYSIUM_BRIDGE: join(app.getPath('userData'), 'bridge.json'), ELYSIUM_FROM: fromSessionId }, stdio: ['pipe', 'pipe', 'ignore'],
+  });
+  let buf = '';
+  const waiting = new Map<number, (v: unknown) => void>();
+  child.stdout.setEncoding('utf8');
+  child.stdout.on('data', (c: string) => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); try { const m = JSON.parse(line); waiting.get(m.id)?.(m); } catch { /* skip */ } } });
+  let n = 0;
+  const rpc = (method: string, params: unknown) => new Promise<{ result?: { tools?: { name: string }[]; content?: { text: string }[] } }>((res) => { const id = ++n; waiting.set(id, res as (v: unknown) => void); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); setTimeout(() => res({}), 90000); });
+  try {
+    await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } });
+    const tools = (await rpc('tools/list', {})).result?.tools?.map((t) => t.name);
+    const list = (await rpc('tools/call', { name: 'elysium_sessions', arguments: {} })).result?.content?.[0]?.text ?? '';
+    const sent = (await rpc('tools/call', { name: 'elysium_send', arguments: { to: 'local.shell', message: 'echo delegated-$((6*7))' } })).result?.content?.[0]?.text ?? '';
+    const waited = (await rpc('tools/call', { name: 'elysium_wait', arguments: { to: 'local.shell', timeout_seconds: 40 } })).result?.content?.[0]?.text ?? '';
+    // The playbook, only when this run has its own folder for it.
+    let playbook: unknown = 'skipped: no ELYSIUM_PLAYBOOK_DIR';
+    if (process.env.ELYSIUM_PLAYBOOK_DIR) {
+      const body = '## What it is for\n\nLets one session hand another a task and wait for the answer.\n\n## Steps\n\n1. Start a local server on 127.0.0.1 with a token in bridge.json.\n2. Give each session an MCP server that forwards calls to it.\n3. Type the task into the target once it is idle; wait for its next reply.\n\n## Pitfalls\n\n- A session must not send to itself.';
+      const added = (await rpc('tools/call', { name: 'elysium_playbook_add', arguments: { title: 'Session delegation', summary: 'How sessions hand each other tasks.', body, tags: ['elysium', 'mcp'] } })).result?.content?.[0]?.text ?? '';
+      const found = (await rpc('tools/call', { name: 'elysium_playbook_search', arguments: { query: 'delegation' } })).result?.content?.[0]?.text ?? '';
+      playbook = { added: added.slice(0, 80), found: found.includes('session-delegation') };
+    }
+    return { tools, listed: list.split('\n').length - 1, sent, sawAnswer: waited.includes('delegated-42'), playbook };
+  } finally { child.kill(); }
+}
+
 export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManager; resources: Resources }): Promise<void> {
   const out = join(process.cwd(), 'smoke-out');
   mkdirSync(out, { recursive: true });
@@ -74,6 +104,16 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       r.echoSeenInXterm = String(await js(`window.__smoke.screen()`)).includes('smoke-42');
       r.echoSeenInScrollback = existsSync(s.scrollbackPath) && readFileSync(s.scrollbackPath, 'utf8').includes('smoke-42');
     }
+    // Delegation: the Elysium tool a session would load, driven by hand. It lists the
+    // sessions, then hands the PowerShell session a command and waits for it.
+    r.delegation = await mcpCheck('smoke');
+    // The Playbook page, and one entry open.
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Playbook')?.click()`);
+    await sleep(1200); await shot('24-playbook');
+    await js(`[...document.querySelectorAll('.pb-card')].find((x) => x.textContent.includes('Stripe'))?.click()`);
+    await sleep(800); await shot('24b-playbook-entry');
+    await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+    await sleep(600);
     // Codex, when it is installed: it starts in a project's folder and draws its screen. It is ended right away.
     r.agentTemplates = (await js(`window.elysium.templates()`) as { id: string; kind: string }[]).filter((t) => t.kind === 'agent').map((t) => t.id);
     const codexId = (r.agentTemplates as string[]).find((id) => id.endsWith('.codex'));

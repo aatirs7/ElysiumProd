@@ -44,6 +44,8 @@ export class SessionManager {
     private gate: () => string | null,
     /** Telemetry registration for Claude sessions: extra env and --settings args. */
     private telemetry: (sessionId: string) => { env: Record<string, string>; args: string[] },
+    /** Extra arguments for another agent's session (the delegation tool for Codex). */
+    private agentArgs: (sessionId: string, agent: string) => string[] = () => [],
   ) {}
 
   list(): SessionInfo[] {
@@ -69,11 +71,12 @@ export class SessionManager {
       }
     }
 
-    const id = randomUUID();
     const accountId = t.kind === 'claude' ? (opts.accountId || 'main') : 'main';
+    const id = randomUUID();
     let args = [...(t.prefix?.() ?? []), ...t.args];
     let resumed = false;
     if (t.kind === 'agent') {
+      if (t.agent) args = [...args, ...this.agentArgs(id, t.agent)];
       const a = t.agent ? agentDef(t.agent) : undefined;
       if (a?.resume && a.hasHistory?.(t.cwd)) { args = [...args, ...a.resume]; resumed = true; }
     }

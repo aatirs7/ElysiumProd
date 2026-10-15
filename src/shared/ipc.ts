@@ -53,6 +53,9 @@ export type CreateResult = { ok: true; session: SessionInfo } | { ok: false; rea
 
 export const Channels = {
   templatesList: 'templates:list',
+  playbookList: 'playbook:list',
+  playbookOpenFolder: 'playbook:open-folder',
+  playbookRecord: 'playbook:record',
   sessionsList: 'sessions:list',
   sessionCreate: 'session:create',
   sessionWrite: 'session:write',
@@ -161,6 +164,8 @@ export interface ConnectStatus {
   group?: 'core' | 'more' | 'custom';
   accounts?: { id: string; configDir: string; signedIn: boolean }[];
 }
+/** One how-to in the shared playbook (~/Elysium Playbook). */
+export interface PlaybookEntry { slug: string; title: string; summary: string; project: string; tags: string[]; updatedAt: string; body: string }
 export interface FileEntry { name: string; path: string; dir: boolean; dim: boolean }
 export interface FileText { ok: boolean; error: string | null; text: string; size: number; binary: boolean }
 export interface NewsItem { title: string; url: string; source: string; at: string | null; points?: number }
@@ -204,6 +209,11 @@ export interface AppInfo {
 export interface ElysiumApi {
   info(): Promise<AppInfo>;
   templates(): Promise<TemplateInfo[]>;
+  /** The shared playbook, newest first. */
+  playbook(): Promise<PlaybookEntry[]>;
+  openPlaybookFolder(): Promise<void>;
+  /** Asks a running session to write up how it built what it just did. */
+  recordPlaybook(sessionId: string, what: string): Promise<{ ok: boolean; reason: string | null }>;
   sessions(): Promise<SessionInfo[]>;
   create(templateId: string, cols: number, rows: number, opts?: CreateOptions): Promise<CreateResult>;
   write(sessionId: string, data: string): void;
