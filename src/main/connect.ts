@@ -74,7 +74,7 @@ async function check(): Promise<ConnectStatus[]> {
   return [
     { id: 'claude', name: 'Claude Code', what: 'Runs every session. Add more accounts to run more at once.', installed: Boolean(claude), signedIn: accounts.some((a) => a.loggedIn), who: null, required: true,
       accounts: accounts.map((a) => ({ id: a.id, configDir: a.configDir, signedIn: a.loggedIn })) },
-    ...(await Promise.all(AGENTS.map(async (a) => ({ id: a.id, name: a.name, what: a.what, installed: Boolean(await which(a.bin)), signedIn: a.authFiles.some((f) => existsSync(f)), who: null, required: false })))),
+    ...(await Promise.all(AGENTS.map(async (a) => ({ id: a.id, name: a.name, what: a.what, installed: Boolean(await which(a.bin)), signedIn: a.signedIn ? a.signedIn() : a.authFiles.some((f) => existsSync(f)), who: null, required: false })))),
     { id: 'git', name: 'Git', what: 'Tracks changes in your projects.', installed: Boolean(git), signedIn: Boolean(git), who: null, required: true },
     { id: 'github', name: 'GitHub', what: 'Clone repositories, see issues and pull requests.', installed: Boolean(gh), signedIn: Boolean(ghAuth?.ok), who: ghAuth?.ok ? ghUser : null, required: false },
     { id: 'vercel', name: 'Vercel', what: 'Deploys and what each project costs to host.', installed: Boolean(vercelBin && node), signedIn: vercelSignedIn, who: null, required: false },

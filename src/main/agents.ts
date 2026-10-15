@@ -18,6 +18,8 @@ export interface AgentDef {
   hasHistory?: (cwd: string) => boolean;
   /** A file its sign in leaves behind. */
   authFiles: string[];
+  /** A closer look than the file being there, when the tool records how fresh its sign in is. */
+  signedIn?: () => boolean;
   signin: string;
   install: string;
   what: string;
@@ -28,7 +30,7 @@ const H = homedir();
 export const AGENTS: AgentDef[] = [
   {
     id: 'codex', name: 'Codex', bin: 'codex', args: ['-c', 'check_for_update_on_startup=false'], resume: ['resume', '--last'], hasHistory: codexHistory,
-    authFiles: [join(H, '.codex', 'auth.json')], signin: 'codex login', install: 'npm install -g @openai/codex',
+    authFiles: [join(H, '.codex', 'auth.json')], signedIn: codexSignedIn, signin: 'codex login', install: 'npm install -g @openai/codex',
     what: 'OpenAI\'s coding agent. Runs in a project like a Claude session.',
   },
   {
@@ -77,6 +79,19 @@ function launchFor(hits: string[], node: string | null): Launch | null {
     } catch { /* unreadable shim: try the next */ }
   }
   return null;
+}
+
+/**
+ * Codex refreshes its sign in every few days while it is used, and notes when.
+ * A sign in untouched for a month has usually lapsed, so it asks to sign in again.
+ * Only the date is read; the tokens are never looked at.
+ */
+function codexSignedIn(): boolean {
+  try {
+    const a = JSON.parse(readFileSync(join(H, '.codex', 'auth.json'), 'utf8')) as { last_refresh?: string; OPENAI_API_KEY?: string | null };
+    if (!a.last_refresh) return Boolean(a.OPENAI_API_KEY);
+    return Date.now() - Date.parse(a.last_refresh) < 30 * 86400_000;
+  } catch { return false; }
 }
 
 /** Codex keeps each conversation as a file under ~/.codex/sessions; the first line says its folder. */
