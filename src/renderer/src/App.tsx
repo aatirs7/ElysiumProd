@@ -91,7 +91,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const { templates, sessions, telemetry, compacting } = useLive();
   const { res } = useMachine();
   const [wrapping, setWrapping] = useState<string[]>([]);
-  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding, setSettings } = useWorkspace();
+  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding, setSettings, addView } = useWorkspace();
 
   useAppearance(doc.settings);
   useEffect(() => { void window.elysium.info().then((i) => setName(i.userName)); }, []);
@@ -153,11 +153,14 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const launch = useCallback((templateId: string) => {
     const t = templates.find((x) => x.id === templateId);
     if (!t) return false;
-    if (t.project) openProject(t.project, t.projectName ?? t.project);
+    if (t.project) openProject(t.project, t.projectName ?? t.project, { bare: t.kind === 'agent' });
     setTimeout(() => open({ kind: 'terminal', templateId: t.id, title: t.title }), 0);
     setPage('workspace');
     return true;
   }, [templates, open, openProject]);
+
+  // A new empty view, from anywhere (the Layouts plus, Ctrl K, the smoke test).
+  useEffect(() => { const on = () => { addView(); setPage('workspace'); }; window.addEventListener('ep:new-view', on); return () => window.removeEventListener('ep:new-view', on); }, [addView]);
 
   // The sidebar's "Start Codex" and the like: open the project and that session's pane.
   useEffect(() => { const on = (e: Event) => void launch((e as CustomEvent<string>).detail); window.addEventListener('ep:launch', on); return () => window.removeEventListener('ep:launch', on); }, [launch]);

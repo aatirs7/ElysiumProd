@@ -45,6 +45,7 @@ import { flushWebSessions } from './webviews';
 import { resumeRunning, saveRunning } from './resume';
 import { findAgents } from './agents';
 import { Bridge } from './bridge';
+import { CodexWatch } from './codexwatch';
 import { PLAYBOOK_DIR, PLAYBOOK_HINT, playbookList } from './playbook';
 import { addAgents } from './templates';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
@@ -89,13 +90,24 @@ const sessions = new SessionManager(
   scrollbackDir(),
   {
     data: (id, d, end) => send(Channels.sessionData, id, d, end),
-    update: (s: SessionInfo) => send(Channels.sessionUpdate, s),
+    update: (s: SessionInfo) => {
+      send(Channels.sessionUpdate, s);
+      // Codex sessions get a status and a Reader from their conversation files.
+      const t = findTemplate(s.templateId);
+      if (t?.kind === 'agent' && t.agent === 'codex') {
+        if (s.status === 'running' && !codexSeen.has(s.id)) { codexSeen.add(s.id); ingest.registerAgent(s.id); codex.add(s.id, t.cwd); }
+        if (s.status === 'exited' || s.status === 'error') { codex.remove(s.id); ingest.agentState(s.id, 'ended'); }
+      }
+    },
   },
   () => resources.latest()?.refuseReason ?? null,
   // Every Claude session gets telemetry hooks, and the Elysium tool for delegating to other sessions.
   (id) => { const t = ingest.register(id); return { env: t.env, args: [...t.args, ...(bridge ? [...bridge.claudeArgs(id), '--append-system-prompt', PLAYBOOK_HINT] : [])] }; },
   (id, agent) => (bridge && agent === 'codex' ? bridge.codexArgs(id) : []),
 );
+
+const codexSeen = new Set<string>();
+const codex = new CodexWatch({ state: (id, st) => ingest.agentState(id, st), said: (id, e) => ingest.agentSaid(id, e) });
 
 /** Delegation: sessions see each other and hand each other tasks (src/main/bridge.ts). */
 let bridge: Bridge | null = null;

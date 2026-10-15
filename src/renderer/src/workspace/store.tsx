@@ -73,6 +73,8 @@ export interface View {
   projectId?: string;
   /** Bumped to rebuild the view from scratch. */
   rev?: number;
+  /** Laid out without the project's Claude sessions (opened to run another agent). */
+  bare?: boolean;
 }
 
 export interface Preset {
@@ -273,7 +275,7 @@ interface Ctx {
   finishOnboarding(): void;
   restartOnboarding(): void;
   /** Opens (or switches to) the project's own view. */
-  openProject(projectId: string, name: string): void;
+  openProject(projectId: string, name: string, opts?: { bare?: boolean }): void;
   registerApi(viewId: string, api: DockviewApi | null): void;
   apiFor(viewId: string): DockviewApi | undefined;
   /** Opens a panel in the active view, creating a view if there is none. */
@@ -362,12 +364,12 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
   const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'projectNames' | 'projectColors' | 'pinned'>>) => setDoc((d) => ({ ...d, ...p })), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true, onboardVersion: 2 })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
-  const openProject = useCallback((projectId: string, name: string) => {
+  const openProject = useCallback((projectId: string, name: string, opts?: { bare?: boolean }) => {
     const existing = docRef.current.views.find((v) => v.projectId === projectId);
     if (existing) setDoc((d) => ({ ...d, activeViewId: existing.id, lastProjectId: projectId }));
     else {
       const id = uid();
-      setDoc((d) => ({ ...d, views: [...d.views, { id, name, layout: null, projectId }], activeViewId: id, lastProjectId: projectId }));
+      setDoc((d) => ({ ...d, views: [...d.views, { id, name, layout: null, projectId, ...(opts?.bare ? { bare: true } : {}) }], activeViewId: id, lastProjectId: projectId }));
     }
   }, []);
   const registerApi = useCallback((viewId: string, api: DockviewApi | null) => {

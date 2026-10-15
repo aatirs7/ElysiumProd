@@ -97,9 +97,11 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const sessionId = props.params.sessionId;
   const session = sessions.find((s) => s.id === sessionId);
   const isClaude = template?.kind === 'claude';
+  // Codex has a Reader too, fed from its own conversation files.
+  const hasReader = isClaude || template?.agent === 'codex';
   const isClaudeRef = useRef(isClaude);
   isClaudeRef.current = isClaude;
-  const reader = Boolean(props.params.reader) && isClaude;
+  const reader = Boolean(props.params.reader) && (isClaude || template?.agent === 'codex');
   const [, setRepaint] = useState(0);
   const theme = termTheme(doc.settings.termStyle ?? 'theme');
 
@@ -265,7 +267,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const exited = session?.status === 'exited';
   return (
     <div className={`term-panel ${doc.settings.termStyle === 'paper' ? 'paper' : ''}`} style={{ background: theme.panel }}>
-      {isClaude && (
+      {hasReader && (
         <div className="term-mode">
           <div className="seg">
             <button className={!reader ? 'on' : ''} onClick={() => setReader(false)} title="The live terminal"><SquareTerminal size={13} /> Terminal</button>

@@ -100,7 +100,7 @@ function agentTemplate(p: ProjectDef, a: AgentDef): Template {
     confirm: null,
     command: () => agentLaunch(a.id)?.file ?? null,
     prefix: () => agentLaunch(a.id)?.prefix ?? [],
-    args: [],
+    args: [...(a.args ?? [])],
     env: {},
   };
 }

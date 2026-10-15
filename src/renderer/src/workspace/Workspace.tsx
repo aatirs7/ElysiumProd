@@ -420,7 +420,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
           if (view.layout) {
             try { api.fromJSON(view.layout); restored = true; } catch { api.clear(); }
           }
-          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), projectSessions(templates, view.projectId));
+          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), view.bare ? [] : projectSessions(templates, view.projectId));
           // Closing a terminal pane ends its session. Moving, floating and
           // switching views do not, because every view stays mounted.
           api.onDidRemovePanel((p) => {

@@ -164,7 +164,7 @@ export class Bridge {
     while (Date.now() < end) {
       const s = this.d.sessions.runningFor(t.id);
       if (!s) return `${t.title} is not running.`;
-      if (t.kind === 'claude') {
+      if (t.kind === 'claude' || (t.agent === 'codex' && this.d.telemetry(s.id))) {
         const tel = this.d.telemetry(s.id);
         const answer = this.d.reader(s.id).filter((e) => e.role === 'claude' && Date.parse(e.at) > since).pop();
         if (tel?.state === 'waiting') return `${t.title} is waiting on the owner: ${tel.waitingMessage ?? 'a question or a permission'}.${answer ? `\n\nLast thing it said:\n${answer.text}` : ''}`;
@@ -183,7 +183,7 @@ export class Bridge {
   private read(t: Template, count: number): string {
     const s = this.d.sessions.runningFor(t.id);
     if (!s) return `${t.title} is not running.`;
-    if (t.kind !== 'claude') return this.screen(s);
+    if (t.kind !== 'claude' && !(t.agent === 'codex' && this.d.reader(s.id).length)) return this.screen(s);
     const said = this.d.reader(s.id).filter((e) => e.role === 'claude').slice(-count);
     const st = this.d.telemetry(s.id)?.state ?? 'running';
     return said.length ? `${t.title} (${st === 'busy' ? 'working' : st}):\n\n${said.map((e) => e.text).join('\n\n---\n\n')}` : `${t.title} has not said anything yet (${st}).`;

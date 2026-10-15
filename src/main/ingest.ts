@@ -148,6 +148,27 @@ export class Ingest {
   }
 
   get(sessionId: string): Telemetry | null { return this.sessions.get(sessionId)?.t ?? null; }
+
+  /** Another agent's session (Codex): no hooks, but the same status and Reader, fed from its own files. */
+  registerAgent(sessionId: string): void {
+    this.sessions.set(sessionId, { secret: '', reader: [], flow: [], t: {
+      sessionId, state: 'starting', model: null, contextPercent: null, contextTokens: null, windowSize: null,
+      sessionName: null, fiveHourPercent: null, sevenDayPercent: null, fiveHourResetsAt: null, sevenDayResetsAt: null, costUsd: null,
+      compactions: 0, lastEventAt: null, waitingMessage: null,
+    } });
+  }
+
+  agentState(sessionId: string, state: Telemetry['state']): void {
+    const r = this.sessions.get(sessionId);
+    if (!r) return;
+    r.t = { ...r.t, state, lastEventAt: new Date().toISOString() };
+    this.emit(r.t);
+  }
+
+  agentSaid(sessionId: string, e: ReaderEntry): void {
+    const r = this.sessions.get(sessionId);
+    if (r) this.addReader(r, sessionId, e);
+  }
   all(): Telemetry[] { return [...this.sessions.values()].map((r) => r.t); }
 
   private accept(m: { sid?: string; secret?: string; kind?: string; event?: string | null; payload?: string }): void {

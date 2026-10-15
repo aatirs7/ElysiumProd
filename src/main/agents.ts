@@ -10,6 +10,8 @@ export interface AgentDef {
   id: string;
   name: string;
   bin: string;
+  /** Arguments every session of it starts with. */
+  args?: string[];
   /** Arguments that continue the last conversation in this folder, when there is one. */
   resume?: string[];
   /** Whether a conversation was had in this folder before, so resuming means something. */
@@ -25,7 +27,7 @@ const H = homedir();
 
 export const AGENTS: AgentDef[] = [
   {
-    id: 'codex', name: 'Codex', bin: 'codex', resume: ['resume', '--last'], hasHistory: codexHistory,
+    id: 'codex', name: 'Codex', bin: 'codex', args: ['-c', 'check_for_update_on_startup=false'], resume: ['resume', '--last'], hasHistory: codexHistory,
     authFiles: [join(H, '.codex', 'auth.json')], signin: 'codex login', install: 'npm install -g @openai/codex',
     what: 'OpenAI\'s coding agent. Runs in a project like a Claude session.',
   },

@@ -11,7 +11,7 @@ import { captureWeb, webStates } from './webviews';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Runs resources/elysium-mcp.cjs as a session would, and makes three calls through it. */
-async function mcpCheck(fromSessionId: string): Promise<Record<string, unknown>> {
+async function mcpCheck(fromSessionId: string, codexTo?: string): Promise<Record<string, unknown>> {
   const { spawn } = await import('node:child_process');
   const child = spawn(process.execPath, [join(app.getAppPath(), 'resources', 'elysium-mcp.cjs')], {
     env: { ...process.env, ELECTRON_RUN_AS_NODE: '1', ELYSIUM_BRIDGE: join(app.getPath('userData'), 'bridge.json'), ELYSIUM_FROM: fromSessionId }, stdio: ['pipe', 'pipe', 'ignore'],
@@ -21,11 +21,16 @@ async function mcpCheck(fromSessionId: string): Promise<Record<string, unknown>>
   child.stdout.setEncoding('utf8');
   child.stdout.on('data', (c: string) => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); try { const m = JSON.parse(line); waiting.get(m.id)?.(m); } catch { /* skip */ } } });
   let n = 0;
-  const rpc = (method: string, params: unknown) => new Promise<{ result?: { tools?: { name: string }[]; content?: { text: string }[] } }>((res) => { const id = ++n; waiting.set(id, res as (v: unknown) => void); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); setTimeout(() => res({}), 90000); });
+  const rpc = (method: string, params: unknown) => new Promise<{ result?: { tools?: { name: string }[]; content?: { text: string }[] } }>((res) => { const id = ++n; waiting.set(id, res as (v: unknown) => void); child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id, method, params }) + '\n'); setTimeout(() => res({}), 150000); });
   try {
     await rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'smoke', version: '1' } });
     const tools = (await rpc('tools/list', {})).result?.tools?.map((t) => t.name);
     const list = (await rpc('tools/call', { name: 'elysium_sessions', arguments: {} })).result?.content?.[0]?.text ?? '';
+    if (codexTo) {
+      const sentC = (await rpc('tools/call', { name: 'elysium_send', arguments: { to: codexTo, message: 'Reply with only the word ready. Do not run any commands or read any files.' } })).result?.content?.[0]?.text ?? '';
+      const waitedC = (await rpc('tools/call', { name: 'elysium_wait', arguments: { to: codexTo, timeout_seconds: 120 } })).result?.content?.[0]?.text ?? '';
+      return { sent: sentC.slice(0, 120), answer: waitedC.slice(0, 300) };
+    }
     const sent = (await rpc('tools/call', { name: 'elysium_send', arguments: { to: 'local.shell', message: 'echo delegated-$((6*7))' } })).result?.content?.[0]?.text ?? '';
     const waited = (await rpc('tools/call', { name: 'elysium_wait', arguments: { to: 'local.shell', timeout_seconds: 40 } })).result?.content?.[0]?.text ?? '';
     // The playbook, only when this run has its own folder for it.
@@ -92,6 +97,12 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     for (let i = 0; i < 60; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string }[]; error: string | null }; if (!st.running) { r.chatReply = st.messages[st.messages.length - 1]?.text; r.chatError = st.error; break; } }
     await sleep(800);
     await shot('3b-pc-helper-reply');
+    // The planning chat on a real project, when this profile has one: one tiny message.
+    const planFor = ((await js(`window.elysium.projects()`)) as { id: string; builtin?: boolean }[]).find((x) => !x.builtin)?.id;
+    if (planFor) {
+      r.planSend = await js(`window.elysium.chatSend('plan:${planFor}', 'Reply with only the word ready. Do not read any files.')`);
+      for (let i = 0; i < 60; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('plan:${planFor}')`) as { running: boolean; messages: { text: string }[]; error: string | null }; if (!st.running) { r.planReply = st.messages[st.messages.length - 1]?.text; r.planError = st.error; break; } }
+    }
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
     await sleep(1000);
     r.launch = await js(`window.__smoke && window.__smoke.launch('local.shell')`);
@@ -123,8 +134,9 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       r.codexLaunch = made.ok ? true : made.reason;
       await sleep(7000);
       const c = made.ok ? ctx.sessions.list().find((x) => x.id === made.session.id) : undefined;
-      const text = c ? (ctx.sessions.replay(c.id)?.data ?? '').replace(/[[0-9;?]*[ -/]*[@-~]/g, '').replace(/][^]*/g, '') : '';
-      r.codex = c ? { status: c.status, resumed: c.resumed, saw: text.replace(/s+/g, ' ').trim().slice(0, 300) } : null;
+      const text = c ? (ctx.sessions.replay(c.id)?.data ?? '').replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, '').replace(/\x1b\][^\x07]*\x07/g, '') : '';
+      r.codex = c ? { status: c.status, resumed: c.resumed, saw: text.replace(/\s+/g, ' ').trim().slice(0, 300) } : null;
+      if (c) r.codexDelegation = await mcpCheck('smoke', codexId);
       if (c) ctx.sessions.kill(c.id);
       await sleep(800);
     }
@@ -180,8 +192,10 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(1200); await shot('15-help');
     await js(`document.querySelector('.help-card')?.click()`);
     await sleep(800); await shot('15b-help-topic');
-    await js(`document.querySelector('[title="New view"]')?.click()`);
-    await sleep(1500); await shot('22-empty-view');
+    await js(`window.dispatchEvent(new Event('ep:new-view'))`);
+    await sleep(1200); await js(`document.querySelectorAll('.ep-tab-close').forEach((b) => b.click())`);
+    await sleep(1800); await shot('22-empty-view');
+    r.emptyView = await js(`Boolean(document.querySelector('.wm-walker'))`);
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
@@ -206,10 +220,9 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     const logs: string[] = [];
     ctx.win.webContents.on('console-message', (e) => { const m = (e as unknown as { message?: string }).message; if (m) logs.push(m.slice(0, 300)); });
     const before = BrowserWindow.getAllWindows().length;
-    await js(`(() => { const t = document.querySelector('.dv-tab'); const b = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 10, clientY: b.top + 10 })); })()`);
+    await js(`(() => { const t = document.querySelector('.ep-tab'); const b = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: b.left + 10, clientY: b.top + 10 })); })()`);
     await sleep(400);
-    await js(`document.querySelector('.menu-backdrop')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
-    r.popoutResult = await js(`window.__smoke.popout()`);
+    r.popoutResult = await js(`(() => { const b = [...document.querySelectorAll('.tab-menu-item')].find((x) => x.textContent.includes('Open in new window')); if (b) { b.click(); return 'clicked'; } return 'no menu item'; })()`);
     await sleep(2500);
     r.popout = { before, after: BrowserWindow.getAllWindows().length, menu: await js(`[...document.querySelectorAll('.tab-menu-item')].map((x) => x.textContent)`), logs };
     const pop = BrowserWindow.getAllWindows().find((w) => w !== ctx.win && w.webContents.getURL().includes('popout'));
