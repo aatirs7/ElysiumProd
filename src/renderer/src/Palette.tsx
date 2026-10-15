@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, RotateCw, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal } from 'lucide-react';
+import { BarChart3, RotateCw, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal, Bot } from 'lucide-react';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 import { WIDGETS, stackTerminals } from './workspace/Workspace';
@@ -21,7 +21,7 @@ export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { o
     return [
       { id: 'newproject', label: 'New project', hint: 'Clone a repository or start one', icon: <Plus size={15} />, run: onNewProject },
       ...projects.map((p) => ({ id: `p-open-${p.id}`, label: `Open ${p.name}`, hint: p.tier === 'main' ? 'Project' : 'Side project', icon: <ProjectLogo projectId={p.id} />, run: () => onProject(p.id, p.name) })),
-      ...templates.map((t) => ({ id: `t-${t.id}`, label: `Start ${t.title}`, hint: t.kind === 'claude' ? 'Session' : 'Shell', icon: t.kind === 'claude' ? <Sparkles size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),
+      ...templates.map((t) => ({ id: `t-${t.id}`, label: t.kind === 'agent' ? `Start ${t.title} in ${t.projectName}` : `Start ${t.title}`, hint: t.kind === 'shell' ? 'Shell' : 'Session', icon: t.kind === 'claude' ? <Sparkles size={15} /> : t.kind === 'agent' ? <Bot size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),
       ...WIDGETS.map((w) => ({ id: `w-${w.kind}`, label: `Add ${w.title}`, hint: w.blurb, icon: <w.icon size={15} />, run: toWs(() => open({ kind: w.kind })) })),
       { id: 'doc', label: 'Open a document', hint: 'Markdown or PDF', icon: <FileText size={15} />, run: toWs(async () => { const p = await window.elysium.pickDocument(); if (p) open({ kind: 'document', params: { path: p } }); }) },
       ...doc.views.map((v) => ({ id: `v-${v.id}`, label: `Go to ${v.name}`, hint: 'View', icon: <Layers size={15} />, run: toWs(() => setActiveView(v.id)) })),

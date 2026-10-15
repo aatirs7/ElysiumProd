@@ -6,10 +6,13 @@ export type SessionStatus = 'starting' | 'running' | 'exited' | 'error';
 export interface TemplateInfo {
   id: string; // stable, ElysiumProd owned (spec 8.3.2)
   title: string;
-  kind: 'shell' | 'claude';
+  /** agent: another coding agent's CLI (Codex, Gemini CLI), run in a terminal like a shell. */
+  kind: 'shell' | 'claude' | 'agent';
   project: string | null;
   projectName: string | null;
-  role: 'prime' | 'meridian' | 'solo';
+  role: 'prime' | 'meridian' | 'solo' | 'agent';
+  /** Which agent, for kind agent. */
+  agent?: string;
   cwd: string;
   /** Plain words shown before launch, when launching has a side effect worth knowing. */
   confirm: string | null;

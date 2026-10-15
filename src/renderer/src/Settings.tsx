@@ -62,7 +62,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
             <input type="range" min={11} max={20} step={0.5} value={s.termFontSize} onChange={(e) => setSettings({ termFontSize: Number(e.target.value) })} />
           </Row>
           <Row label="Terminal style" hint={s.termStyle === 'paper' ? 'Dark ink on warm paper, like Notion' : s.termStyle === 'theme' ? 'Matches the app theme' : 'A softer, warmer dark'}>
-            <Seg value={s.termStyle ?? 'soft'} options={[['soft', 'Soft dark'], ['paper', 'Paper'], ['theme', 'App theme']]} onChange={(v) => setSettings({ termStyle: v as 'soft' | 'paper' | 'theme' })} />
+            <Seg value={s.termStyle ?? 'theme'} options={[['theme', 'App theme'], ['soft', 'Soft dark'], ['paper', 'Paper']]} onChange={(v) => setSettings({ termStyle: v as 'soft' | 'paper' | 'theme', termStyleSet: true })} />
           </Row>
           <Row label="Density" hint="Tab height and spacing">
             <Seg value={s.density} options={[['comfortable', 'Comfortable'], ['compact', 'Compact']]} onChange={(v) => setSettings({ density: v as Density })} />

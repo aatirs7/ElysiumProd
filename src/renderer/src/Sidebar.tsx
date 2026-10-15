@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { BarChart3, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -140,7 +140,8 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
             {/* Its sessions, right under it, while any run or the project is open. */}
             {(() => {
               const mine = templates.filter((t) => t.kind === 'claude' && t.project === p.id);
-              const live = mine.map((t) => ({ t, s: sessions.find((x) => x.templateId === t.id && x.status === 'running') }));
+              // Other agents show while they run.
+              const live = [...mine, ...templates.filter((t) => t.kind === 'agent' && t.project === p.id)].map((t) => ({ t, s: sessions.find((x) => x.templateId === t.id && x.status === 'running') })).filter((x) => x.t.kind !== 'agent' || x.s);
               if (!live.some((x) => x.s) && !active) return null;
               return (
                 <div className="side-sessions">
@@ -179,12 +180,16 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                 <div className="tab-menu-label">{menu.name}</div>
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onProject(menu.id, menu.name); }}><Layers size={14} />Open</button>
                 <button className="tab-menu-item" role="menuitem" onClick={() => void act('start')}><Play size={14} />{running ? 'Start any that are off' : 'Start sessions'}</button>
+                {templates.filter((t) => t.kind === 'agent' && t.project === menu.id).map((t) => (
+                  <button key={t.id} className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); window.dispatchEvent(new CustomEvent('ep:launch', { detail: t.id })); }}><Bot size={14} />Start {t.title}</button>
+                ))}
                 {running && <button className="tab-menu-item" role="menuitem" onClick={() => void act('compact')}><FoldVertical size={14} />Compact</button>}
                 {running && <button className="tab-menu-item" role="menuitem" onClick={() => void act('stop')}><Moon size={14} />Wrap up and end</button>}
                 {running && <button className="tab-menu-item danger" role="menuitem" onClick={() => void act('kill')}><Square size={14} />End now</button>}
                 <div className="tab-menu-sep" />
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onDashboard(menu.id, menu.name); }}><LayoutGrid size={14} />Dashboard</button>
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); window.elysium.openFolder(menu.id); }}><FolderOpen size={14} />Open folder</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); doc.groups.some((g) => g.ids.includes(menu.id)) && moveTo(menu.id, null); togglePin(menu.id); }}><PinOff size={14} />Unpin from the sidebar</button>
                 {others.length > 0 && <div className="tab-menu-label">Add its sessions to</div>}
                 {others.map((v) => (
                   <button key={v.id} className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onAddToView(menu.id, v.id); }}><Plus size={14} />{v.name}</button>
@@ -210,8 +215,6 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                   : <form className="tab-menu-item" onSubmit={(e) => { e.preventDefault(); const n = newGroup.trim(); if (!n) return; const id = `g${Date.now().toString(36)}`; const next = [...doc.groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== menu.id) })), { id, name: n, ids: [menu.id] }]; patchDoc({ groups: next, pinned: doc.pinned.includes(menu.id) ? doc.pinned : [...doc.pinned, menu.id] }); setNewGroup(null); setMenu(null); }}>
                       <FolderPlus size={14} /><input className="rename" autoFocus placeholder="Group name" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNewGroup(null); }} />
                     </form>}
-                <div className="tab-menu-sep" />
-                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); doc.groups.some((g) => g.ids.includes(menu.id)) && moveTo(menu.id, null); togglePin(menu.id); }}><PinOff size={14} />Unpin</button>
               </div>
             </div>
           );

@@ -30,7 +30,13 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     r.onboardingShown = await js(`Boolean(document.querySelector('.ob'))`);
     if (r.onboardingShown) {
       await sleep(1200); await shot('ob-1-welcome');
-      await click('Get started'); await sleep(1200); await shot('ob-2-yours');
+      // How much each frame of the sky costs, and how quickly the next step paints.
+      r.sky = await js(`new Promise((res) => { window.__skyProbe = []; setTimeout(() => { const p = window.__skyProbe.sort((a, b) => a - b); delete window.__skyProbe; res({ frames: p.length, medianMs: +p[p.length >> 1].toFixed(2), p95Ms: +p[Math.floor(p.length * 0.95)].toFixed(2) }); }, 3000); })`);
+      const root = await js(`document.documentElement.dataset.theme`);
+      await js(`document.documentElement.dataset.theme = 'claude-light'`); await sleep(900); await shot('ob-1-welcome-light');
+      await js(`document.documentElement.dataset.theme = ${JSON.stringify(root)}`); await sleep(300);
+      r.stepSwitch = await js(`new Promise((res) => { const lt = []; const o = new PerformanceObserver((l) => lt.push(...l.getEntries().map((e) => Math.round(e.duration)))); o.observe({ type: 'longtask' }); const t0 = performance.now(); [...document.querySelectorAll('button')].find((x) => x.textContent.includes('Get started')).click(); requestAnimationFrame(() => requestAnimationFrame(() => { const ms = performance.now() - t0; setTimeout(() => { o.disconnect(); res({ paintMs: Math.round(ms), longTasks: lt }); }, 800); })); })`);
+      await sleep(400); await shot('ob-2-yours');
       await click('Continue'); await sleep(6000); await shot('ob-3-connect');
       r.connections = await js(`window.elysium.connections()`);
       await click('Continue'); await sleep(2500); await shot('ob-4-projects');
@@ -65,6 +71,18 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       await sleep(2500);
       r.echoSeenInXterm = String(await js(`window.__smoke.screen()`)).includes('smoke-42');
       r.echoSeenInScrollback = existsSync(s.scrollbackPath) && readFileSync(s.scrollbackPath, 'utf8').includes('smoke-42');
+    }
+    // Codex, when it is installed: it opens in a project pane and draws its screen. It is ended right away.
+    r.agentTemplates = (await js(`window.elysium.templates()`) as { id: string; kind: string }[]).filter((t) => t.kind === 'agent').map((t) => t.id);
+    if ((r.agentTemplates as string[]).includes('elysiumprod.codex')) {
+      r.codexLaunch = await js(`window.__smoke && window.__smoke.launch('elysiumprod.codex')`);
+      await sleep(7000);
+      const c = ctx.sessions.list().find((x) => x.templateId === 'elysiumprod.codex');
+      const text = c ? (ctx.sessions.replay(c.id)?.data ?? '').replace(/[[0-9;?]*[ -/]*[@-~]/g, '').replace(/][^]*/g, '') : '';
+      r.codex = c ? { status: c.status, resumed: c.resumed, saw: text.replace(/s+/g, ' ').trim().slice(0, 300) } : null;
+      await shot('4a-codex');
+      if (c) ctx.sessions.kill(c.id);
+      await sleep(800);
     }
     await sleep(6000); // let claude.ai load in the Claude pane
     await shot('4-workspace');

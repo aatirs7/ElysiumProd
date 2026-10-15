@@ -158,6 +158,9 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     return true;
   }, [templates, open, openProject]);
 
+  // The sidebar's "Start Codex" and the like: open the project and that session's pane.
+  useEffect(() => { const on = (e: Event) => void launch((e as CustomEvent<string>).detail); window.addEventListener('ep:launch', on); return () => window.removeEventListener('ep:launch', on); }, [launch]);
+
   // A notification click: show that session, opening its pane if it has none.
   const focusSession = useCallback((sessionId: string, templateId: string) => {
     for (const v of doc.views) {

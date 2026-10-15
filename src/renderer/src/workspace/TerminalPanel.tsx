@@ -34,8 +34,10 @@ function termTheme(style: 'soft' | 'paper' | 'theme'): ITheme & { panel: string 
   };
   if (style === 'theme') {
     const bg = cssVar('--term', '#1C1B1A');
+    // A theme of your own may give the terminal a light background: then the paper colours read better.
+    if (isLight(bg)) return { ...termTheme('paper'), panel: bg, background: bg, foreground: cssVar('--term-fg', '#37352F'), cursor: cssVar('--accent', '#37352F'), cursorAccent: bg, selectionBackground: withAlpha(cssVar('--accent', '#2383E2'), 0.2) };
     return {
-      panel: bg, background: bg, foreground: cssVar('--term-fg', '#ECEAE3'), cursor: cssVar('--accent', '#D97757'), cursorAccent: bg, selectionBackground: 'rgba(217,119,87,0.30)',
+      panel: bg, background: bg, foreground: cssVar('--term-fg', '#ECEAE3'), cursor: cssVar('--accent', '#D97757'), cursorAccent: bg, selectionBackground: withAlpha(cssVar('--accent', '#D97757'), 0.3),
       scrollbarSliderBackground: 'rgba(222,220,209,0.14)', scrollbarSliderHoverBackground: 'rgba(222,220,209,0.24)', scrollbarSliderActiveBackground: 'rgba(222,220,209,0.32)',
       black: '#2A2927', red: '#E5776F', green: '#7DBE8F', yellow: '#E0AE5E', blue: '#7FA8E0', magenta: '#C49AD9', cyan: '#71BFC9', white: '#D9D7CF',
       brightBlack: '#6E6C67', brightRed: '#EE968F', brightGreen: '#9BD0AA', brightYellow: '#E9C483', brightBlue: '#A0BFEA', brightMagenta: '#D5B6E5', brightCyan: '#97D1D8', brightWhite: '#F2F1EC',
@@ -48,6 +50,15 @@ function termTheme(style: 'soft' | 'paper' | 'theme'): ITheme & { panel: string 
     brightBlack: '#86837C', brightRed: '#E2A099', brightGreen: '#A9CDB3', brightYellow: '#DEC292', brightBlue: '#A9C0E0', brightMagenta: '#CDB5DB', brightCyan: '#A4CCD0', brightWhite: '#E6E2D9',
   };
 }
+
+function rgbOf(c: string): [number, number, number] | null {
+  const h = /^#([0-9a-f]{6})$/i.exec(c.trim());
+  if (h) { const n = parseInt(h[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  const m = /rgba?\(([\d.]+)[ ,]+([\d.]+)[ ,]+([\d.]+)/.exec(c);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+}
+const isLight = (c: string) => { const v = rgbOf(c); return Boolean(v && v[0] * 0.3 + v[1] * 0.59 + v[2] * 0.11 > 150); };
+const withAlpha = (c: string, a: number) => { const v = rgbOf(c); return v ? `rgba(${v[0]},${v[1]},${v[2]},${a})` : c; };
 
 // Lets the smoke test type into, and read, the most recent terminal.
 const registry = new Map<string, Terminal>();
@@ -89,14 +100,17 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const isClaudeRef = useRef(isClaude);
   isClaudeRef.current = isClaude;
   const reader = Boolean(props.params.reader) && isClaude;
-  const theme = termTheme(doc.settings.termStyle ?? 'soft');
+  const [, setRepaint] = useState(0);
+  const theme = termTheme(doc.settings.termStyle ?? 'theme');
 
   useEffect(() => {
     const t = termRef.current;
     if (!t) return;
     t.options.fontSize = doc.settings.termFontSize;
-    t.options.theme = termTheme(doc.settings.termStyle ?? 'soft');
-  }, [doc.settings.termFontSize, doc.settings.termStyle, doc.settings.theme]);
+    // The new theme's colours land on the page in a parent effect, after this one: read them a frame later.
+    const f = requestAnimationFrame(() => { t.options.theme = termTheme(doc.settings.termStyle ?? 'theme'); setRepaint((n) => n + 1); });
+    return () => cancelAnimationFrame(f);
+  }, [doc.settings.termFontSize, doc.settings.termStyle, doc.settings.theme, doc.settings.accent, doc.settings.customTheme]);
 
   useEffect(() => {
     const el = host.current!;
@@ -114,7 +128,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
       cursorBlink: true,
       cursorStyle: 'bar',
       scrollback: 10000,
-      theme: termTheme(doc.settings.termStyle ?? 'soft'),
+      theme: termTheme(doc.settings.termStyle ?? 'theme'),
     });
     termRef.current = term;
     const fit = new FitAddon();

@@ -9,7 +9,7 @@ import {
   type IDockviewPanelProps,
   type IWatermarkPanelProps,
 } from 'dockview-react';
-import { AppWindow, FolderTree,
+import { AppWindow, Bot, FolderTree,
   Activity, BookOpen, Check, Eye, FoldVertical, Workflow, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
@@ -340,7 +340,7 @@ function GroupActions(props: IDockviewHeaderActionsProps) {
             <div className="menu-label">Sessions</div>
             {sessionTemplates.map((t) => (
               <button key={t.id} className="menu-item" role="menuitem" onClick={() => add({ kind: 'terminal', templateId: t.id, title: t.title })}>
-                {t.kind === 'claude' ? <Sparkles size={16} /> : <SquareTerminal size={16} />}<span className="grow">{t.title}</span>
+                {t.kind === 'claude' ? <Sparkles size={16} /> : t.kind === 'agent' ? <Bot size={16} /> : <SquareTerminal size={16} />}<span className="grow">{t.title}</span>
               </button>
             ))}
             <div className="menu-label">Panes</div>

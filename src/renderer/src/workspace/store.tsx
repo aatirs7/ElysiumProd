@@ -40,6 +40,8 @@ export interface Settings {
   termFontSize: number;
   /** Terminal colours: a softer dark, a light Notion-like paper, or the app theme's own. */
   termStyle: 'soft' | 'paper' | 'theme';
+  /** Set once the person picks a terminal style themselves; before that it follows the theme. */
+  termStyleSet?: boolean;
   gap: number;
   /** Opt in. Above the threshold, ElysiumProd ends only the programs listed here. */
   autoEnd: { enabled: boolean; thresholdPercent: number; programs: string[] };
@@ -162,7 +164,7 @@ export const DEFAULT_SETTINGS: Settings = {
   density: 'comfortable',
   textSize: 15,
   termFontSize: 14,
-  termStyle: 'soft',
+  termStyle: 'theme',
   gap: 8,
   autoEnd: { enabled: false, thresholdPercent: 90, programs: [] },
   autoCompact: { enabled: true, percent: 80 },
@@ -203,7 +205,7 @@ function parse(json: string | null): WorkspaceDoc {
     const theme = THEMES.some((t) => t.id === d.settings?.theme) || (d.settings?.theme === 'custom' && d.settings?.customTheme) ? (d.settings!.theme as ThemeId) : 'system';
     return {
       version: 1,
-      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) }, autoCompact: { ...DEFAULT_SETTINGS.autoCompact, ...(d.settings?.autoCompact ?? {}) } },
+      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, termStyle: d.settings?.termStyleSet ? (d.settings.termStyle ?? 'theme') : 'theme', autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) }, autoCompact: { ...DEFAULT_SETTINGS.autoCompact, ...(d.settings?.autoCompact ?? {}) } },
       views,
       activeViewId: views.some((v) => v.id === d.activeViewId) ? d.activeViewId! : views[0]?.id ?? null,
       notes: d.notes ?? {},

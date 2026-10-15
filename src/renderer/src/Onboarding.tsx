@@ -37,34 +37,44 @@ function Sky() {
   useEffect(() => {
     const cv = ref.current; if (!cv) return;
     const ctx = cv.getContext('2d'); if (!ctx) return;
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const rgba = (c: number[], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
     // Colours follow the theme and accent: the aurora is the accent and two neighbours of its hue.
-    let accent: number[] = [217, 119, 87], ink: number[] = [240, 236, 228], pal: number[][] = [accent, accent, accent];
+    // On a light theme light cannot add up, so everything is painted, darker and stronger.
+    let accent: number[] = [217, 119, 87], ink: number[] = [240, 236, 228], pal: number[][] = [accent, accent, accent], light = false;
     const readColors = () => {
       const css = getComputedStyle(document.documentElement);
       accent = toRgb(css.getPropertyValue('--accent').trim()) ?? accent;
       ink = toRgb(css.getPropertyValue('--text').trim()) ?? ink;
-      pal = [shiftHue(accent, 38, 1.1), accent, shiftHue(accent, -46, 1.2)];
+      const bg = toRgb(css.getPropertyValue('--bg').trim()) ?? [20, 20, 20];
+      light = (bg[0] * 0.3 + bg[1] * 0.59 + bg[2] * 0.11) > 140;
+      pal = light ? [shiftHue(accent, 38, 1.5), shiftHue(accent, 0, 1.4), shiftHue(accent, -46, 1.6)] : [shiftHue(accent, 38, 1.1), accent, shiftHue(accent, -46, 1.2)];
     };
     readColors();
-    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const rgba = (c: number[], a: number) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
-    let w = 0, h = 0, raf = 0, last = 0;
-    type Star = { x: number; y: number; s: number; a: number; tw: number; sp: number; warm: boolean };
-    type Glint = { x: number; y: number; r: number; age: number; life: number };
-    const glints: Glint[] = [];
-    let stars: Star[] = [];
+    let w = 0, h = 0, raf = 0, last = 0, lastAurora = 0;
+    // Stars are drawn once onto four layers; each layer twinkles as a whole, which costs four draws a frame.
+    const layers = Array.from({ length: 4 }, () => document.createElement('canvas'));
     const band = document.createElement('canvas');
     const aur = document.createElement('canvas');
     const actx = aur.getContext('2d')!;
+    type Glint = { x: number; y: number; r: number; age: number; life: number };
+    const glints: Glint[] = [];
 
     const size = () => {
       const r = cv.getBoundingClientRect(); const d = Math.min(2, devicePixelRatio || 1);
       w = r.width; h = r.height; cv.width = w * d; cv.height = h * d; ctx.setTransform(d, 0, 0, d, 0, 0);
-      // Stars thin out toward the horizon.
-      stars = Array.from({ length: Math.round((w * h) / 1100) }, () => {
-        const y = Math.pow(Math.random(), 1.4) * h * 0.8;
-        return { x: Math.random() * w, y, s: Math.random() < 0.06 ? 1.8 : 0.6 + Math.random() * 0.9, a: (0.25 + Math.random() * 0.6) * (1 - y / (h * 0.85)), tw: Math.random() * 6.28, sp: 0.4 + Math.random() * 1.4, warm: Math.random() < 0.25 };
-      });
+      for (const c of layers) {
+        c.width = Math.max(1, Math.round(w * d)); c.height = Math.max(1, Math.round(h * d));
+        const x = c.getContext('2d')!; x.setTransform(d, 0, 0, d, 0, 0);
+        const n = Math.round((w * h) / 1100 / layers.length);
+        for (let i = 0; i < n; i++) {
+          const y = Math.pow(Math.random(), 1.4) * h * 0.8;
+          const s = Math.random() < 0.06 ? 1.8 : 0.6 + Math.random() * 0.9;
+          const a = (0.25 + Math.random() * 0.6) * (1 - y / (h * 0.85)) * (light ? 0.55 : 1);
+          x.fillStyle = rgba(Math.random() < 0.25 ? accent : ink, a);
+          x.fillRect(Math.random() * w, y, s, s);
+        }
+      }
       // The galaxy band: drawn once, a soft diagonal haze dusted with tiny stars.
       band.width = w; band.height = h;
       const b = band.getContext('2d')!;
@@ -72,19 +82,19 @@ function Sky() {
       for (let i = 0; i < 26; i++) {
         const x = (i / 25 - 0.5) * w * 1.3, y = Math.sin(i * 1.7) * h * 0.03, r = h * (0.08 + Math.random() * 0.1);
         const g = b.createRadialGradient(x, y, 0, x, y, r);
-        g.addColorStop(0, rgba(i % 3 ? ink : accent, 0.05)); g.addColorStop(1, rgba(ink, 0));
+        g.addColorStop(0, rgba(i % 3 ? (light ? pal[1] : ink) : accent, light ? 0.07 : 0.05)); g.addColorStop(1, rgba(ink, 0));
         b.fillStyle = g; b.fillRect(x - r, y - r, r * 2, r * 2);
       }
       for (let i = 0; i < 900; i++) {
         const x = (Math.random() - 0.5) * w * 1.3, y = (Math.random() + Math.random() + Math.random() - 1.5) * h * 0.09;
-        b.fillStyle = rgba(ink, 0.12 + Math.random() * 0.3); b.fillRect(x, y, 0.8, 0.8);
+        b.fillStyle = rgba(ink, (0.12 + Math.random() * 0.3) * (light ? 0.5 : 1)); b.fillRect(x, y, 0.8, 0.8);
       }
       b.restore();
       // Aurora is drawn small and scaled up, which blurs it for free.
-      aur.width = Math.max(1, Math.round(w / 6)); aur.height = Math.max(1, Math.round(h / 6));
+      aur.width = Math.max(1, Math.round(w / 8)); aur.height = Math.max(1, Math.round(h / 8));
     };
     size(); window.addEventListener('resize', size);
-    const watch = new MutationObserver(() => { readColors(); size(); });
+    const watch = new MutationObserver(() => { readColors(); size(); lastAurora = 0; });
     watch.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style', 'class'] });
 
     const curtains = [
@@ -92,6 +102,27 @@ function Sky() {
       { c: 1, base: 0.28, amp: 0.05, f: 2.3, sp: -0.035, len: 0.18, cycle: 23, off: 8 },
       { c: 2, base: 0.46, amp: 0.04, f: 3.1, sp: 0.06, len: 0.14, cycle: 17, off: 13 },
     ];
+    const drawAurora = (t: number) => {
+      const aw = aur.width, ah = aur.height;
+      actx.clearRect(0, 0, aw, ah);
+      actx.globalCompositeOperation = light ? 'source-over' : 'lighter';
+      const strength = light ? 0.5 : 0.3;
+      for (const k of curtains) {
+        const phase = ((t + k.off) % k.cycle) / k.cycle;
+        const life = Math.pow(Math.sin(phase * Math.PI), 2);
+        if (life < 0.01) continue;
+        const kc = pal[k.c];
+        for (let x = 0; x < aw; x++) {
+          const u = x / aw;
+          const y = (k.base + k.amp * Math.sin(u * k.f * 6.28 + t * k.sp * 6.28) + k.amp * 0.5 * Math.sin(u * k.f * 13 - t * 0.4)) * ah;
+          const len = k.len * ah * (0.6 + 0.4 * Math.sin(u * 9 + t * 0.7));
+          const a = strength * life * Math.sin(u * Math.PI) * (0.6 + 0.4 * Math.sin(u * 23 + t * 1.3));
+          const g = actx.createLinearGradient(0, y - len, 0, y + len * 0.15);
+          g.addColorStop(0, rgba(kc, 0)); g.addColorStop(0.75, rgba(kc, a)); g.addColorStop(1, rgba(kc, 0));
+          actx.fillStyle = g; actx.fillRect(x, y - len, 1, len * 1.15);
+        }
+      }
+    };
     type Shoot = { x: number; y: number; vx: number; vy: number; life: number; c: number[] };
     const shoots: Shoot[] = [];
     let nextShoot = 1.5, nextGlint = 0.3;
@@ -101,42 +132,24 @@ function Sky() {
       if (now - last < 33 && !still) return; // about 30 frames a second is plenty for a sky
       const dt = last ? Math.min(0.1, (now - last) / 1000) : 0; last = now;
       const t = still ? 6 : now / 1000;
+      const add = light ? 'source-over' : 'lighter';
+      // The aurora moves slowly, so it is redrawn about eight times a second.
+      if (now - lastAurora > 120 || still) { drawAurora(t); lastAurora = now; }
       ctx.clearRect(0, 0, w, h);
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalCompositeOperation = add;
       ctx.globalAlpha = 0.75 + 0.25 * Math.sin(t * 0.15);
       ctx.drawImage(band, 0, 0, w, h);
       ctx.globalAlpha = 1;
-
-      // Aurora: each curtain breathes in and out on its own slow cycle.
-      const aw = aur.width, ah = aur.height;
-      actx.clearRect(0, 0, aw, ah);
-      actx.globalCompositeOperation = 'lighter';
-      for (const k of curtains) {
-        const phase = ((t + k.off) % k.cycle) / k.cycle;
-        const life = Math.pow(Math.sin(phase * Math.PI), 2);
-        if (life < 0.01) continue;
-        for (let x = 0; x < aw; x++) {
-          const u = x / aw;
-          const y = (k.base + k.amp * Math.sin(u * k.f * 6.28 + t * k.sp * 6.28) + k.amp * 0.5 * Math.sin(u * k.f * 13 - t * 0.4)) * ah;
-          const len = k.len * ah * (0.6 + 0.4 * Math.sin(u * 9 + t * 0.7));
-          const edge = Math.sin(Math.min(1, Math.max(0, u)) * Math.PI);
-          const a = 0.3 * life * edge * (0.6 + 0.4 * Math.sin(u * 23 + t * 1.3));
-          const g = actx.createLinearGradient(0, y - len, 0, y + len * 0.15);
-          const kc = pal[k.c]; g.addColorStop(0, rgba(kc, 0)); g.addColorStop(0.75, rgba(kc, a)); g.addColorStop(1, rgba(kc, 0));
-          actx.fillStyle = g; actx.fillRect(x, y - len, 1, len * 1.15);
-        }
-      }
-      ctx.imageSmoothingEnabled = true;
       ctx.drawImage(aur, 0, 0, w, h);
-
-      for (const s of stars) {
-        const tw = 0.55 + 0.45 * Math.sin(t * s.sp + s.tw);
-        ctx.fillStyle = rgba(s.warm ? accent : ink, s.a * tw);
-        ctx.fillRect(s.x, s.y, s.s, s.s);
+      for (const [i, c] of layers.entries()) {
+        ctx.globalAlpha = 0.55 + 0.45 * Math.sin(t * (0.6 + i * 0.37) + i * 1.9);
+        ctx.drawImage(c, 0, 0, w, h);
       }
+      ctx.globalAlpha = 1;
 
       if (!still) {
         // Glitter: a star here and there flares into a four-point sparkle and fades.
+        const spark = light ? pal[1] : ink;
         nextGlint -= dt;
         if (nextGlint <= 0 && glints.length < 7) {
           glints.push({ x: Math.random() * w, y: Math.pow(Math.random(), 1.3) * h * 0.7, r: 4 + Math.random() * 7, age: 0, life: 1.1 + Math.random() * 1.2 });
@@ -146,11 +159,11 @@ function Sky() {
           const g = glints[i]; g.age += dt;
           const p = g.age / g.life; if (p >= 1) { glints.splice(i, 1); continue; }
           const k = Math.sin(p * Math.PI), r = g.r * (0.4 + 0.6 * k);
-          const c = i % 2 ? accent : ink;
+          const c = i % 2 ? accent : spark;
           ctx.strokeStyle = rgba(c, 0.75 * k); ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(g.x - r, g.y); ctx.lineTo(g.x + r, g.y); ctx.moveTo(g.x, g.y - r); ctx.lineTo(g.x, g.y + r); ctx.stroke();
           const halo = ctx.createRadialGradient(g.x, g.y, 0, g.x, g.y, r * 0.7);
-          halo.addColorStop(0, rgba(ink, 0.9 * k)); halo.addColorStop(1, rgba(c, 0));
+          halo.addColorStop(0, rgba(spark, 0.9 * k)); halo.addColorStop(1, rgba(c, 0));
           ctx.fillStyle = halo; ctx.fillRect(g.x - r, g.y - r, r * 2, r * 2);
         }
         // Shooting stars: every few seconds, now and then two together, in the theme's colours.
@@ -159,7 +172,7 @@ function Sky() {
           const n = Math.random() < 0.25 ? 2 : 1, dir = Math.random() < 0.5 ? 1 : -1;
           for (let j = 0; j < n; j++) {
             const speed = 0.45 + Math.random() * 0.35;
-            shoots.push({ x: w * (0.15 + Math.random() * 0.7) + j * 60, y: h * (0.04 + Math.random() * 0.3) + j * 30, vx: dir * w * speed, vy: h * (0.12 + Math.random() * 0.14), life: 1, c: Math.random() < 0.5 ? ink : pal[Math.floor(Math.random() * 3)] });
+            shoots.push({ x: w * (0.15 + Math.random() * 0.7) + j * 60, y: h * (0.04 + Math.random() * 0.3) + j * 30, vx: dir * w * speed, vy: h * (0.12 + Math.random() * 0.14), life: 1, c: Math.random() < 0.5 ? spark : pal[Math.floor(Math.random() * 3)] });
           }
           nextShoot = 2.5 + Math.random() * 4;
         }
@@ -169,14 +182,16 @@ function Sky() {
           if (s.life <= 0) { shoots.splice(i, 1); continue; }
           const a = Math.min(1, s.life * 2.2), tail = 0.16, tx = s.x - s.vx * tail, ty = s.y - s.vy * tail;
           const g = ctx.createLinearGradient(s.x, s.y, tx, ty);
-          g.addColorStop(0, rgba(ink, 0.9 * a)); g.addColorStop(0.25, rgba(s.c, 0.5 * a)); g.addColorStop(1, rgba(s.c, 0));
+          g.addColorStop(0, rgba(spark, 0.9 * a)); g.addColorStop(0.25, rgba(s.c, 0.5 * a)); g.addColorStop(1, rgba(s.c, 0));
           ctx.strokeStyle = g; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(tx, ty); ctx.stroke();
           const head = ctx.createRadialGradient(s.x, s.y, 0, s.x, s.y, 6);
-          head.addColorStop(0, rgba(ink, 0.9 * a)); head.addColorStop(1, rgba(s.c, 0));
+          head.addColorStop(0, rgba(spark, 0.9 * a)); head.addColorStop(1, rgba(s.c, 0));
           ctx.fillStyle = head; ctx.fillRect(s.x - 6, s.y - 6, 12, 12);
         }
       }
       ctx.globalCompositeOperation = 'source-over';
+      // The smoke test sets this to time each frame.
+      const probe = (window as { __skyProbe?: number[] }).__skyProbe; if (probe) probe.push(performance.now() - now);
     };
     raf = requestAnimationFrame(frame);
     return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', size); watch.disconnect(); };

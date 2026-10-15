@@ -11,6 +11,7 @@ import { accountEnv, hasConversation, hasHistory } from './accounts';
 import { childEnv } from './env';
 import { Scrollback } from './scrollback';
 import { findTemplate } from './templates';
+import { agentDef } from './agents';
 
 interface Live {
   info: SessionInfo;
@@ -56,7 +57,7 @@ export class SessionManager {
     const refused = opts.override ? null : this.gate();
     if (refused) return { ok: false, reason: refused, lowResources: true };
     const command = t.command();
-    if (!command) return { ok: false, reason: 'Claude Code was not found on PATH or in the npm global folder.' };
+    if (!command) return { ok: false, reason: t.kind === 'agent' ? `${t.title} was not found. Install it from Connect in Settings, then try again.` : 'Claude Code was not found on PATH or in the npm global folder.' };
     if (!existsSync(t.cwd)) return { ok: false, reason: `The folder ${t.cwd} does not exist.` };
     // A Claude template resumes one named session; two copies of it would fight.
     // Shells are independent, so any number may run.
@@ -70,8 +71,12 @@ export class SessionManager {
 
     const id = randomUUID();
     const accountId = t.kind === 'claude' ? (opts.accountId || 'main') : 'main';
-    let args = [...t.args];
+    let args = [...(t.prefix?.() ?? []), ...t.args];
     let resumed = false;
+    if (t.kind === 'agent') {
+      const a = t.agent ? agentDef(t.agent) : undefined;
+      if (a?.resume && a.hasHistory?.(t.cwd)) { args = [...args, ...a.resume]; resumed = true; }
+    }
     const env: Record<string, string> = { ...t.env };
     if (t.kind === 'claude' && !resumeId) {
       // The conversation this pane last ran, if its transcript is still there.
@@ -122,7 +127,8 @@ export class SessionManager {
         cols: Math.max(20, cols),
         rows: Math.max(5, rows),
         cwd: t.cwd,
-        env: childEnv(env),
+        // Agents run on their own plan sign in too, so an API key in the environment never takes over.
+        env: childEnv(env, t.kind === 'agent'),
         useConpty: true,
       });
       l.pty = p;

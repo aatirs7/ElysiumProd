@@ -1,5 +1,5 @@
 // Onboarding's Connect step: what is installed and signed in (Claude Code and its
-// accounts, Git, GitHub, Vercel, Neon), and a way to fix each. Signing in always
+// accounts, Codex and other agents, Git, GitHub, Vercel, Neon), and a way to fix each. Signing in always
 // happens in the tool's own login, in a window the person can see; Elysium never
 // handles a password or token, it only checks whether the sign in is there.
 import { execFile, spawn } from 'node:child_process';
@@ -13,6 +13,7 @@ import { appSetting } from './settings';
 import { DEMO, demoAddAccount, demoConnect, demoConnections, demoRepos } from './demo';
 import { resolveClaude } from './claude';
 import { PROJECT_FOLDERS } from './templates';
+import { AGENTS } from './agents';
 
 const APPDATA = process.env.APPDATA ?? join(homedir(), 'AppData', 'Roaming');
 const VERCEL_JS = join(APPDATA, 'npm', 'node_modules', 'vercel', 'dist', 'vc.js');
@@ -28,7 +29,7 @@ function run(cmd: string, args: string[], timeout = 10000): Promise<{ ok: boolea
 
 async function which(name: string): Promise<string | null> {
   if (found[name]) return found[name];
-  if (Object.keys(found).length && ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az'].includes(name)) return null;
+  if (Object.keys(found).length && ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az', ...AGENTS.map((a) => a.bin)].includes(name)) return null;
   const r = await run('where.exe', [name], 5000);
   return r.ok ? r.out.split(/\r?\n/).map((x) => x.trim()).find(Boolean) ?? null : null;
 }
@@ -52,7 +53,7 @@ export async function connections(): Promise<ConnectStatus[]> {
 /** Every program the page asks about, found with one where.exe instead of one each. */
 let found: Record<string, string> = {};
 async function findAll(): Promise<void> {
-  const names = ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az'];
+  const names = ['git', 'gh', 'node', 'vercel', 'aws', 'stripe', 'az', ...AGENTS.map((a) => a.bin)];
   const r = await run('where.exe', names, 6000);
   const map: Record<string, string> = {};
   for (const line of r.out.split(/\r?\n/).map((x) => x.trim()).filter((x) => /^[a-z]:\\/i.test(x))) {
@@ -73,6 +74,7 @@ async function check(): Promise<ConnectStatus[]> {
   return [
     { id: 'claude', name: 'Claude Code', what: 'Runs every session. Add more accounts to run more at once.', installed: Boolean(claude), signedIn: accounts.some((a) => a.loggedIn), who: null, required: true,
       accounts: accounts.map((a) => ({ id: a.id, configDir: a.configDir, signedIn: a.loggedIn })) },
+    ...(await Promise.all(AGENTS.map(async (a) => ({ id: a.id, name: a.name, what: a.what, installed: Boolean(await which(a.bin)), signedIn: a.authFiles.some((f) => existsSync(f)), who: null, required: false })))),
     { id: 'git', name: 'Git', what: 'Tracks changes in your projects.', installed: Boolean(git), signedIn: Boolean(git), who: null, required: true },
     { id: 'github', name: 'GitHub', what: 'Clone repositories, see issues and pull requests.', installed: Boolean(gh), signedIn: Boolean(ghAuth?.ok), who: ghAuth?.ok ? ghUser : null, required: false },
     { id: 'vercel', name: 'Vercel', what: 'Deploys and what each project costs to host.', installed: Boolean(vercelBin && node), signedIn: vercelSignedIn, who: null, required: false },
@@ -148,6 +150,11 @@ export async function connect(service: ConnectService, action: 'install' | 'sign
     case 'neon':
       openWindow('Sign in to Neon', ['npx -y neonctl@latest auth']);
       return { ok: true, reason: null };
+  }
+  const agent = AGENTS.find((x) => x.id === service);
+  if (agent) {
+    openWindow(action === 'install' ? `Install ${agent.name}` : `Sign in to ${agent.name}`, action === 'install' ? [agent.install, agent.signin] : [agent.signin]);
+    return { ok: true, reason: null };
   }
   const extra = EXTRAS.find((x) => x.id === service);
   if (extra) {

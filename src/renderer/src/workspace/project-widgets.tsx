@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { visual } from './visuals';
 import { ArrowUpRight, ChevronDown, ChevronRight, CircleCheck, GitBranch, RefreshCw } from 'lucide-react';
 import type { GitInfo, RelayInfo, TaskInfo } from '@shared/ipc';
 import { ago, useLive } from './live';
@@ -10,6 +11,9 @@ import { SkeletonRows } from './widgets';
 
 export interface ProjectParams { projectId?: string }
 export { ago };
+
+// Fenced stats, bars and status blocks draw as small visuals (see visuals.ts).
+marked.use({ renderer: { code(token) { return visual(token.lang, token.text) ?? false; } } });
 
 /** Markdown to sanitised HTML. Links open in the system browser through onLinkClick. */
 export function md(text: string): string {

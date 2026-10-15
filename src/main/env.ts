@@ -8,10 +8,12 @@
 
 const DROP = /^(CLAUDE|ANTHROPIC_API_KEY$|ANTHROPIC_AUTH_TOKEN$|OTEL_)/i;
 
-export function childEnv(extra: Record<string, string> = {}): Record<string, string> {
+const AGENT_KEYS = /^(OPENAI_API_KEY|CODEX_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY)$/i;
+
+export function childEnv(extra: Record<string, string> = {}, agent = false): Record<string, string> {
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) {
-    if (v === undefined || DROP.test(k)) continue;
+    if (v === undefined || DROP.test(k) || (agent && AGENT_KEYS.test(k))) continue;
     env[k] = v;
   }
   return { ...env, ...extra };

@@ -1808,3 +1808,50 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 /* An odd last row of checks sits in the middle. */
 .tool-checks { display: flex; flex-wrap: wrap; justify-content: center; }
 .tool-check { flex: 0 1 15.5rem; }
+
+/* ---- Chat answers: clear sections, airy lists, tidy tables ---- */
+.msg-text p { margin: 0 0 .75rem; }
+.msg-text h1, .msg-text h2, .msg-text h3, .msg-text h4, .msg-text p > strong:only-child { display: block; margin: 1.4rem 0 .5rem; font: 600 .78rem var(--font); letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); }
+.msg-text h1:first-child, .msg-text h2:first-child, .msg-text h3:first-child { margin-top: 0; }
+.msg-text > p:first-child { font-size: 1.02rem; color: var(--text); }
+.msg-text ul, .msg-text ol { margin: 0 0 .9rem; padding-left: 1.2rem; display: flex; flex-direction: column; gap: .4rem; }
+.msg-text li { padding-left: .2rem; }
+.msg-text li::marker { color: var(--text-3); }
+.msg-text ol > li::marker { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.msg-text li > strong:first-child { color: var(--text); }
+.msg-text li p { margin: 0; }
+.msg-text table { width: 100%; border-collapse: collapse; margin: .2rem 0 1rem; font-size: .88rem; }
+.msg-text th { text-align: left; font-weight: 600; color: var(--text-3); font-size: .76rem; letter-spacing: .03em; padding: .4rem .6rem; border-bottom: 1px solid var(--line-strong); }
+.msg-text td { padding: .45rem .6rem; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.msg-text tr:last-child td { border-bottom: 0; }
+.msg-text code { font: .84em var(--mono); padding: .1em .35em; border-radius: 5px; background: var(--surface-2); }
+.msg-text pre { margin: 0 0 .9rem; padding: .8rem 1rem; border-radius: 10px; background: var(--term); color: var(--term-fg); overflow: auto; }
+.msg-text pre code { padding: 0; background: none; }
+.msg-text hr { border: 0; border-top: 1px solid var(--line); margin: 1.2rem 0; }
+.msg-text blockquote { margin: 0 0 .9rem; padding: .1rem 0 .1rem .9rem; border-left: 2px solid var(--accent); color: var(--text-2); }
+
+/* ---- Visuals in answers: stat tiles, bars, status ---- */
+.vz-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .55rem; margin: .3rem 0 1rem; }
+.vz-stat { display: flex; flex-direction: column; gap: .15rem; padding: .75rem .85rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.vz-stat-label { font-size: .74rem; color: var(--text-3); }
+.vz-stat strong { font: 600 1.25rem var(--font-display); letter-spacing: -.01em; color: var(--text); font-variant-numeric: tabular-nums; }
+.vz-stat-sub { font-size: .74rem; color: var(--text-3); }
+.vz-meter { display: block; height: 4px; margin-top: .45rem; border-radius: 99px; background: var(--line); overflow: hidden; }
+.vz-meter i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.vz-bars { display: flex; flex-direction: column; gap: .45rem; margin: .3rem 0 1rem; padding: .8rem .9rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
+.vz-bar { display: grid; grid-template-columns: minmax(6rem, 30%) 1fr auto; align-items: center; gap: .7rem; font-size: .84rem; }
+.vz-bar-label { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vz-bar-track { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.vz-bar-track i { display: block; height: 100%; border-radius: 4px; background: color-mix(in srgb, var(--accent) 80%, var(--text)); }
+.vz-bar-value { color: var(--text-2); font-variant-numeric: tabular-nums; font-size: .8rem; min-width: 4rem; text-align: right; }
+.msg-text ul.vz-status { list-style: none; padding: 0; margin: .3rem 0 1rem; gap: .35rem; }
+.vz-status li { display: flex; align-items: flex-start; gap: .6rem; padding: .5rem .7rem; border-radius: 10px; background: var(--surface); border: 1px solid var(--line); font-size: .88rem; }
+.vz-badge { flex: none; display: grid; place-items: center; width: 1.25rem; height: 1.25rem; margin-top: .05rem; border-radius: 50%; }
+.vz-ok .vz-badge { color: var(--ok); background: color-mix(in srgb, var(--ok) 16%, transparent); }
+.vz-warn .vz-badge { color: var(--warn); background: color-mix(in srgb, var(--warn) 18%, transparent); }
+.vz-bad .vz-badge { color: var(--bad); background: color-mix(in srgb, var(--bad) 16%, transparent); }
+.vz-info .vz-badge { color: var(--text-2); background: var(--surface-2); }
+/* Lists keep their numbers and dots: spacing by margin, not flex. */
+.msg-text ul:not(.vz-status), .msg-text ol { display: block; }
+.msg-text li + li { margin-top: .4rem; }
+.msg-text ul.vz-status { display: flex; }

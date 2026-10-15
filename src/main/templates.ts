@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { app } from 'electron';
 import type { TemplateInfo } from '@shared/ipc';
 import { resolveClaude } from './claude';
+import { agentLaunch, type AgentDef } from './agents';
 
 export interface Template extends TemplateInfo {
   /** Resolved at launch, so a missing CLI is reported, not crashed on. */
@@ -17,6 +18,8 @@ export interface Template extends TemplateInfo {
   env: Record<string, string>;
   /** Resume by name only once ElysiumProd has started that name on the account (see sessions.ts). */
   named?: boolean;
+  /** Arguments that go before the template's own (an agent's script, when it runs under node). */
+  prefix?(): string[];
 }
 
 function shell(): string {
@@ -88,14 +91,37 @@ function soloTemplate(p: ProjectDef): Template {
   };
 }
 
+/** Agents found on this PC; each project gets a session for each. Filled in after launch. */
+const agentsHere: AgentDef[] = [];
+
+function agentTemplate(p: ProjectDef, a: AgentDef): Template {
+  return {
+    id: `${p.id}.${a.id}`, title: a.name, kind: 'agent', agent: a.id, project: p.id, projectName: p.name, role: 'agent', cwd: p.folder,
+    confirm: null,
+    command: () => agentLaunch(a.id)?.file ?? null,
+    prefix: () => agentLaunch(a.id)?.prefix ?? [],
+    args: [],
+    env: {},
+  };
+}
+
+/** Called once the background search for agents is done. */
+export function addAgents(found: AgentDef[]): void {
+  for (const a of found) {
+    if (agentsHere.some((x) => x.id === a.id)) continue;
+    agentsHere.push(a);
+    for (const p of PROJECTS) if (p.source !== 'builtin') templates.push(agentTemplate(p, a));
+  }
+}
+
 export const templates: Template[] = [
   { id: 'local.shell', title: 'PowerShell', kind: 'shell', project: null, projectName: null, role: 'solo', cwd: homedir(), confirm: null, command: shell, args: ['-NoLogo'], env: {} },
   ...PROJECTS.flatMap((p) => (p.tier === 'main' ? [pairTemplate(p, 'prime'), pairTemplate(p, 'meridian')] : [soloTemplate(p)])),
 ];
 
 export function templateInfo(t: Template): TemplateInfo {
-  const { id, title, kind, cwd, confirm, project, projectName, role } = t;
-  return { id, title, kind, cwd, confirm, project, projectName, role };
+  const { id, title, kind, cwd, confirm, project, projectName, role, agent } = t;
+  return { id, title, kind, cwd, confirm, project, projectName, role, ...(agent ? { agent } : {}) };
 }
 
 export function findTemplate(id: string): Template | undefined {
@@ -119,7 +145,7 @@ export function projectDef(id: string): ProjectDef | undefined {
 export function registerProject(p: ProjectDef): void {
   if (PROJECT_FOLDERS[p.id]) return;
   PROJECTS.push(p);
-  templates.push(...(p.tier === 'main' ? [pairTemplate(p, 'prime'), pairTemplate(p, 'meridian')] : [soloTemplate(p)]));
+  templates.push(...(p.tier === 'main' ? [pairTemplate(p, 'prime'), pairTemplate(p, 'meridian')] : [soloTemplate(p)]), ...agentsHere.map((a) => agentTemplate(p, a)));
   PROJECT_FOLDERS[p.id] = { name: p.name, folder: p.folder, repo: p.repo, tier: p.tier };
 }
 

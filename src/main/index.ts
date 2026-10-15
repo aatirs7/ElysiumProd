@@ -43,6 +43,8 @@ import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
 import { resumeRunning, saveRunning } from './resume';
+import { findAgents } from './agents';
+import { addAgents } from './templates';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
 const SMOKE = process.argv.includes('--smoke');
@@ -445,6 +447,8 @@ app.whenReady().then(async () => {
     createTray(showMain, () => app.quit(), restartApp);
   }
   if (!SMOKE && !DEMO) resumeRunning(sessions);
+  // Codex and other agents: found in the background, then every project offers them.
+  if (!DEMO) findAgents((found) => { if (found.length) { addAgents(found); send(Channels.projectsChanged); } });
   if (!SMOKE) setTimeout(warmCosts, 4000);
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });

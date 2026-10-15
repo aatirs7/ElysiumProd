@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { Eye, Sparkles, SquareTerminal } from 'lucide-react';
+import { Bot, Eye, Sparkles, SquareTerminal } from 'lucide-react';
 import type { ProcGroup, Telemetry } from '@shared/ipc';
 import { ago, useLive, useMachine } from './live';
 import { useWorkspace } from './store';
@@ -160,7 +160,7 @@ export function SessionsWidget() {
         const tel = telemetry[s.id];
         return (
           <button key={s.id} className="list-row tall" onClick={() => focus(s.id)} title={t?.cwd}>
-            {t?.kind === 'claude' ? <Sparkles size={16} /> : <SquareTerminal size={16} />}
+            {t?.kind === 'claude' ? <Sparkles size={16} /> : t?.kind === 'agent' ? <Bot size={16} /> : <SquareTerminal size={16} />}
             <span className="grow">
               <span className="row-title">{s.title}</span>
               <span className="row-sub">{tel?.state === 'waiting' ? 'waiting on you' : tel?.state ?? 'running'} · {since(s.startedAt)}</span>
@@ -191,7 +191,7 @@ export function LauncherWidget(props: IDockviewPanelProps) {
   // A project view lists that project's sessions; a plain view lists a shell and each pinned project's lead.
   const list = project
     ? templates.filter((t) => t.project === project || t.kind === 'shell')
-    : templates.filter((t) => t.kind === 'shell' || (t.project && doc.pinned.includes(t.project) && t.role !== 'meridian'));
+    : templates.filter((t) => t.kind === 'shell' || (t.project && doc.pinned.includes(t.project) && t.role !== 'meridian' && t.kind !== 'agent'));
   const prime = project ? templates.find((t) => t.project === project && t.role === 'prime') : undefined;
   const meridian = project ? templates.find((t) => t.project === project && t.role === 'meridian') : undefined;
   const isRunning = (id?: string) => Boolean(id && sessions.some((s) => s.templateId === id && s.status === 'running'));
@@ -208,10 +208,10 @@ export function LauncherWidget(props: IDockviewPanelProps) {
         return (
           <button key={t.id} className="list-row tall" disabled={Boolean(blocked)} title={blocked ?? t.cwd}
             onClick={() => open({ kind: 'terminal', templateId: t.id, title: t.title, referenceGroupId: props.api.group.id, besideLauncher: true })}>
-            <span className="row-icon">{t.kind === 'claude' ? <Sparkles size={16} /> : <SquareTerminal size={16} />}</span>
+            <span className="row-icon">{t.kind === 'claude' ? <Sparkles size={16} /> : t.kind === 'agent' ? <Bot size={16} /> : <SquareTerminal size={16} />}</span>
             <span className="grow">
               <span className="row-title">{t.title}</span>
-              <span className="row-sub">{t.kind !== 'claude' ? 'A plain shell' : t.role === 'prime' ? 'Leads the work' : t.role === 'meridian' ? 'Supports Prime' : 'Claude session'}</span>
+              <span className="row-sub">{t.kind === 'agent' ? `${t.title} in this project` : t.kind !== 'claude' ? 'A plain shell' : t.role === 'prime' ? 'Leads the work' : t.role === 'meridian' ? 'Supports Prime' : 'Claude session'}</span>
             </span>
             {running && <span className="dot running" title="Running" />}
           </button>
