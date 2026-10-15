@@ -1937,3 +1937,19 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .reader-reply-to button:hover { color: var(--text); }
 .reader-q { transition: box-shadow .4s var(--ease); }
 .reader-q.flash { box-shadow: 0 0 0 2px var(--accent); }
+
+/* ---- Dictate: speak, check the words, send them to a session ---- */
+.dictate { height: 100%; overflow: auto; display: flex; background: var(--bg); }
+.dictate-inner { margin: auto; width: min(46rem, calc(100% - 2rem)); padding: .9rem 0; display: flex; flex-direction: column; align-items: center; gap: .55rem; }
+.dictate-head { display: flex; align-items: center; justify-content: center; gap: .4rem; color: var(--text-2); font-size: .84rem; }
+.dictate-target { font: inherit; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: 8px; padding: .15rem .35rem; cursor: pointer; }
+.dictate-target:hover, .dictate-target:focus { border-color: var(--line-strong); outline: none; }
+.dictate-target option { background: var(--surface); color: var(--text); }
+.dictate-none { color: var(--text-3, var(--text-2)); }
+.dictate-box { width: 100%; display: flex; align-items: flex-end; gap: .5rem; padding: .55rem; border-radius: 22px; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow); transition: box-shadow .3s var(--ease); }
+.dictate-box:focus-within { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent), var(--shadow); }
+.dictate-box textarea { flex: 1; resize: none; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 1rem; line-height: 1.5; padding: .4rem .1rem; max-height: 240px; outline: none; }
+.dictate-mic { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; flex: none; border-radius: 50%; border: 1px solid var(--line-strong); background: transparent; color: var(--text-2); cursor: pointer; transition: color .15s var(--ease), border-color .15s var(--ease), background .15s var(--ease); }
+.dictate-mic:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.dictate-foot { min-height: 1.2em; color: var(--text-2); font-size: .8rem; text-align: center; }
+.wm-card.own { color: var(--text); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }

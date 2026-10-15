@@ -196,6 +196,25 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(1200); await js(`document.querySelectorAll('.ep-tab-close').forEach((b) => b.click())`);
     await sleep(1800); await shot('22-empty-view');
     r.emptyView = await js(`Boolean(document.querySelector('.wm-walker'))`);
+    // Dictate: words in the box go into a running shell when Enter is pressed. The shell is
+    // started directly, so no project opens.
+    {
+      const sh = ctx.sessions.runningFor('local.shell') ?? (() => { const c = ctx.sessions.create('local.shell', 100, 30); return c.ok ? c.session : null; })();
+      await sleep(2500);
+      await js(`window.__smoke.open({ kind: 'dictate', title: 'Dictate' })`);
+      await sleep(1200);
+      r.dictateTargets = await js(`[...document.querySelectorAll('.dictate-target option')].map((o) => o.value)`);
+      await js(`(() => { const sel = document.querySelector('.dictate-target'); if (!sel) return; const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(sel, 'local.shell'); sel.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+      await sleep(400);
+      await js(`(() => { const t = document.querySelector('.dictate-box textarea'); const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; set.call(t, 'echo dictated-$((6*7))'); t.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await sleep(400);
+      await shot('25-dictate');
+      await js(`document.querySelector('.dictate-box textarea').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+      await sleep(3000);
+      r.dictateNote = await js(`document.querySelector('.dictate-foot')?.textContent`);
+      r.dictateReached = Boolean(sh && existsSync(sh.scrollbackPath) && readFileSync(sh.scrollbackPath, 'utf8').includes('dictated-42'));
+      await shot('25b-dictate-sent');
+    }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
@@ -226,7 +245,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await sleep(2500);
     r.popout = { before, after: BrowserWindow.getAllWindows().length, menu: await js(`[...document.querySelectorAll('.tab-menu-item')].map((x) => x.textContent)`), logs };
     const pop = BrowserWindow.getAllWindows().find((w) => w !== ctx.win && w.webContents.getURL().includes('popout'));
-    if (pop) { const img = await pop.webContents.capturePage(); writeFileSync(join(out, '21-popout.png'), img.toPNG()); }
+    if (pop) { try { const img = await pop.webContents.capturePage(); writeFileSync(join(out, '21-popout.png'), img.toPNG()); } catch (e) { r.popoutShot = String(e); } }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim().startsWith('Usage'))?.click()`);
     await sleep(6000); await shot('17-usage-page');

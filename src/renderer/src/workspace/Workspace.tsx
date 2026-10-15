@@ -9,7 +9,7 @@ import {
   type IDockviewPanelProps,
   type IWatermarkPanelProps,
 } from 'dockview-react';
-import { AppWindow, Bot, FolderTree,
+import { AppWindow, Bot, FolderTree, Mic,
   Activity, BookOpen, Check, Eye, FoldVertical, Workflow, FileText, GitBranch, LayoutGrid, ListTodo, Maximize2, MemoryStick, MessageCircle, Minimize2,
   NotebookPen, PanelsTopLeft, PictureInPicture2, Plus, Radio, Rocket, Sparkles, SquareTerminal, TriangleAlert, X,
 } from 'lucide-react';
@@ -28,9 +28,11 @@ import { ChatPanel } from './ChatPanel';
 import { CodePanel, FilesPanel } from './FilesPanel';
 import { TOOL_INFO } from '../tools';
 import { FlowPanel } from './FlowPanel';
+import { DictatePanel } from './DictatePanel';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
   { kind: 'claude', title: 'Claude', blurb: 'Your planning chat, beside the terminals', icon: MessageCircle },
+  { kind: 'dictate', title: 'Dictate', blurb: 'Speak, check the words, send them to a session', icon: Mic },
   { kind: 'dashboard', title: 'Dashboard', blurb: 'Tasks, numbers, links and requests for this project', icon: LayoutGrid },
   { kind: 'flow', title: 'Live flow', blurb: 'What each session is doing, as it happens', icon: Workflow },
   { kind: 'relay', title: 'Relay', blurb: 'What waits on you, and what agents are doing', icon: Radio },
@@ -70,6 +72,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   files: FilesPanel as FunctionComponent<IDockviewPanelProps>,
   code: CodePanel as FunctionComponent<IDockviewPanelProps>,
   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
+  dictate: DictatePanel as FunctionComponent<IDockviewPanelProps>,
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
@@ -133,7 +136,20 @@ export function openChat(api: DockviewApi, chatId: string, projectId: string, ti
   api.addPanel({ id: `chat-${uid()}`, component: 'chat', title, params: { chatId, projectId }, position: claude ? { referenceGroup: claude.group.id } : undefined });
 }
 
-function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = []) {
+/** Customize Elysium opens on its Builder terminal, unless the person chose the chat only. */
+export const builderTerminal = (projectId: string | undefined, settings: { builderTerminal?: boolean }) => projectId === 'elysiumprod' && settings.builderTerminal !== false;
+
+function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = [], withBuilder = false) {
+  // Customize Elysium: the Builder terminal, Dictate under it, and the chat beside them.
+  if (withBuilder && view.projectId && sessions.length) {
+    api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
+    const term = api.groups[0];
+    api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId: view.projectId }, position: { referenceGroup: term.id, direction: 'below' } });
+    const pad = api.groups[api.groups.length - 1];
+    api.addPanel({ id: `chat-${uid()}`, component: 'chat', title: TOOL_INFO[view.projectId].title, params: { chatId: `tool:${view.projectId}`, projectId: view.projectId }, position: { direction: 'right' } });
+    setTimeout(() => { try { term.api.setSize({ width: Math.round(api.width * 0.62) }); pad.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
+    return;
+  }
   // A tool is one calm chat, nothing else.
   if (view.projectId && TOOL_INFO[view.projectId]) {
     api.addPanel({ id: `chat-${uid()}`, component: 'chat', title: TOOL_INFO[view.projectId].title, params: { chatId: `tool:${view.projectId}`, projectId: view.projectId } });
@@ -180,8 +196,23 @@ export function projectSessions(templates: TemplateInfo[], projectId: string | u
  * Opening a project: each of its sessions gets a pane, and a pane whose session
  * has ended starts again. Nothing asks first.
  */
-export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[]): void {
-  if (TOOL_INFO[projectId]) { openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title); return; }
+export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[], withBuilder = false): void {
+  if (TOOL_INFO[projectId] && !withBuilder) { openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title); return; }
+  if (withBuilder) {
+    // Customize Elysium from an older layout: the Builder terminal goes on the left, Dictate under it.
+    const t = projectSessions(templates, projectId)[0];
+    const pane = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
+    if (t && !pane) api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: t.title, params: { templateId: t.id }, position: { direction: 'left' } });
+    else if (t) window.dispatchEvent(new CustomEvent('ep:ensure-session', { detail: t.id }));
+    const term = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
+    if (term && !api.panels.some((p) => kindOf(p.id) === 'dictate')) {
+      api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId }, position: { referenceGroup: term.group.id, direction: 'below' }, inactive: true });
+      setTimeout(() => { try { api.panels.find((p) => kindOf(p.id) === 'dictate')?.group.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
+    }
+    if (!api.panels.some((p) => (p.params as { chatId?: string } | undefined)?.chatId === `tool:${projectId}`)) openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title);
+    term?.api.setActive();
+    return;
+  }
   for (const t of projectSessions(templates, projectId)) {
     const pane = api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
     if (!pane) addPanel(api, { kind: 'terminal', templateId: t.id, title: t.title });
@@ -356,8 +387,12 @@ function GroupActions(props: IDockviewHeaderActionsProps) {
   );
 }
 
-function Watermark(_p: IWatermarkPanelProps) {
-  const { open } = useWorkspace();
+function Watermark(p: IWatermarkPanelProps) {
+  const { open, activeView } = useWorkspace();
+  const { templates } = useLive();
+  const projectId = activeView?.projectId;
+  const own = projectId ? templates.filter((t) => t.project === projectId && t.kind !== 'shell') : [];
+  const tool = projectId ? TOOL_INFO[projectId] : undefined;
   return (
     <div className="watermark">
       <div className="wm-scene" aria-hidden="true">
@@ -379,15 +414,17 @@ function Watermark(_p: IWatermarkPanelProps) {
       <div className="watermark-title">An empty view</div>
       <div className="watermark-sub">Add anything. Drag tabs to split, float or stack them.</div>
       <div className="watermark-grid">
+        {own.map((t) => <button key={t.id} className="wm-card own" onClick={() => open({ kind: 'terminal', templateId: t.id, title: t.title })}>{t.kind === 'agent' ? <Bot size={17} /> : <Sparkles size={17} />}<span>{t.title}</span></button>)}
+        {tool && projectId && <button className="wm-card own" onClick={() => openChat(p.containerApi, `tool:${projectId}`, projectId, tool.title)}><tool.icon size={17} /><span>Ask {tool.title}</span></button>}
         <button className="wm-card" onClick={() => open({ kind: 'terminal', templateId: 'local.shell', title: 'PowerShell' })}><SquareTerminal size={17} /><span>PowerShell</span></button>
-        {WIDGETS.slice(0, 5).map((w) => <button key={w.kind} className="wm-card" onClick={() => open({ kind: w.kind })}><w.icon size={17} /><span>{w.title}</span></button>)}
+        {WIDGETS.slice(0, own.length ? 3 : 5).map((w) => <button key={w.kind} className="wm-card" onClick={() => open({ kind: w.kind })}><w.icon size={17} /><span>{w.title}</span></button>)}
       </div>
     </div>
   );
 }
 
 function ViewDock({ view, active, theme }: { view: View; active: boolean; theme: DockviewTheme }) {
-  const { registerApi, setLayout, takeQueued, open, accountFor } = useWorkspace();
+  const { registerApi, setLayout, takeQueued, open, accountFor, doc } = useWorkspace();
   const { projects, templates } = useLive();
   const apiRef = useRef<DockviewApi | null>(null);
   const openRef = useRef(open);
@@ -420,7 +457,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
           if (view.layout) {
             try { api.fromJSON(view.layout); restored = true; } catch { api.clear(); }
           }
-          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), view.bare ? [] : projectSessions(templates, view.projectId));
+          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), view.bare ? [] : projectSessions(templates, view.projectId), !view.bare && builderTerminal(view.projectId, doc.settings));
           // Closing a terminal pane ends its session. Moving, floating and
           // switching views do not, because every view stays mounted.
           api.onDidRemovePanel((p) => {

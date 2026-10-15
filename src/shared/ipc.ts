@@ -321,7 +321,7 @@ export interface ElysiumApi {
   addClaudeAccount(name: string): Promise<{ ok: boolean; reason: string | null; accountId?: string }>;
   scanRepos(): Promise<RepoCandidate[]>;
   /** Opens Windows voice typing (Win+H) for the focused text box. */
-  dictate(): void;
+  dictate(warmOnly?: boolean): void;
   clipboardHasImage(): Promise<boolean>;
 }
 

@@ -77,6 +77,9 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
           <Row label="Tell me when Claude replies" hint="A card in the corner when a session you are not looking at replies or needs you. With the window in the background, a Windows notification instead.">
             <Seg value={s.notifyReplies === false ? 'off' : 'on'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ notifyReplies: v === 'on' })} />
           </Row>
+          <Row label="Customize Elysium" hint={s.builderTerminal === false ? 'Opens as a chat only' : 'Opens with the Elysium Builder terminal and Dictate, with the chat beside them'}>
+            <Seg value={s.builderTerminal === false ? 'chat' : 'terminal'} options={[['terminal', 'Terminal'], ['chat', 'Chat only']]} onChange={(v) => setSettings({ builderTerminal: v === 'terminal' })} />
+          </Row>
           <Row label="Compact automatically" hint={s.autoCompact.enabled ? `At ${s.autoCompact.percent}% context, a session saves its notes at a clean stopping point, compacts, then carries on` : 'Off. Use Compact in the top bar, or right-click a tab.'}>
             <Seg value={s.autoCompact.enabled ? 'on' : 'off'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ autoCompact: { ...s.autoCompact, enabled: v === 'on' } })} />
           </Row>

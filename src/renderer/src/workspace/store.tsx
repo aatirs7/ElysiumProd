@@ -49,6 +49,8 @@ export interface Settings {
   autoCompact: { enabled: boolean; percent: number };
   /** A notice when Claude replies in a session you are not looking at. */
   notifyReplies: boolean;
+  /** Customize Elysium opens with its Builder terminal and Dictate, not only the chat. */
+  builderTerminal?: boolean;
   /** Live flow: a short Sonnet summary per session, at most every five minutes. */
   flowSummaries: boolean;
   /** What the app calls you; empty means your Windows name. */
@@ -234,7 +236,7 @@ function parse(json: string | null): WorkspaceDoc {
   }
 }
 
-export type PanelKind = 'files' | 'code' | 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
+export type PanelKind = 'dictate' | 'files' | 'code' | 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
 
 export interface OpenRequest {
   kind: PanelKind;

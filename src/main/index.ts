@@ -36,7 +36,7 @@ import { Chats } from './chat';
 import { accountForProject } from './tasks';
 import { PROJECT_FOLDERS } from './templates';
 import { clipboard } from 'electron';
-import { execFile } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { dialog } from 'electron';
 import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
@@ -341,9 +341,10 @@ function registerIpc(): void {
     try { return (await clipboard.read()).some((item) => item.types.some((t) => t.startsWith('image/'))); } catch { return false; }
   });
   // Windows voice typing types into whatever has focus; this presses Win+H for you. Fixed script, no input.
-  ipcMain.on(Channels.dictate, () => {
-    const ps = 'Add-Type -Namespace E -Name K -MemberDefinition \'[DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, System.UIntPtr e);\'; [E.K]::keybd_event(0x5B,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,2,[UIntPtr]::Zero); [E.K]::keybd_event(0x5B,0,2,[UIntPtr]::Zero)';
-    execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, timeout: 15000 }, () => { /* best effort */ });
+  // One PowerShell stays ready and presses on each line it reads: a new one each time took about half a second.
+  ipcMain.on(Channels.dictate, (_e, warmOnly: unknown) => {
+    const ps = dictateHelper();
+    if (!warmOnly) ps?.stdin?.write('h\n');
   });
   ipcMain.handle(Channels.flowGet, (_e, id: unknown) => (typeof id === 'string' ? { events: ingest.flow(id), summary: lastSummary(id) } : { events: [], summary: null }));
   ipcMain.handle(Channels.flowSummary, (_e, id: unknown) => {
@@ -425,6 +426,7 @@ function registerIpc(): void {
 
 let quitting = false;
 app.on('before-quit', (e) => {
+  dictater?.kill();
   if (quitting) return;
   e.preventDefault();
   quitting = true;
@@ -493,3 +495,17 @@ app.whenReady().then(async () => {
   if (!SMOKE) setTimeout(warmCosts, 4000);
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });
+
+let dictater: ChildProcess | null = null;
+/** The PowerShell that presses Win+H, started on first use and kept for the next press. */
+function dictateHelper(): ChildProcess | null {
+  if (dictater && dictater.exitCode === null && !dictater.killed) return dictater;
+  const press = '[E.K]::keybd_event(0x5B,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,2,[UIntPtr]::Zero); [E.K]::keybd_event(0x5B,0,2,[UIntPtr]::Zero)';
+  const ps = 'Add-Type -Namespace E -Name K -MemberDefinition \'[DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, System.UIntPtr e);\'; while ($null -ne [Console]::In.ReadLine()) { ' + press + ' }';
+  try {
+    dictater = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
+    dictater.on('exit', () => { dictater = null; });
+    dictater.on('error', () => { dictater = null; });
+  } catch { dictater = null; }
+  return dictater;
+}

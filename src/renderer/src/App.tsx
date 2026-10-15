@@ -14,7 +14,7 @@ import { ProjectLogo } from './ProjectLogo';
 import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
-import { Workspace, addPanel, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
+import { Workspace, addPanel, builderTerminal, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
 import { NewProject } from './NewProject';
 import { Tour } from './Tour';
 import { ThemeBuilder } from './ThemeBuilder';
@@ -112,7 +112,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     setTimeout(() => {
       const v = docRef.current.views.find((x) => x.projectId === id);
       const api = v ? apiFor(v.id) : undefined;
-      if (api) ensureProjectSessions(api, id, templatesRef2.current);
+      if (api) ensureProjectSessions(api, id, templatesRef2.current, builderTerminal(id, docRef.current.settings));
     }, 60);
   }, [openProject, apiFor]);
   const templatesRef2 = useRef(templates);
