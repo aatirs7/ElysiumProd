@@ -13,7 +13,7 @@ import { saverOn } from './settings';
 import { dataDir } from './paths';
 import type { SessionManager } from './sessions';
 import type { Tasks } from './tasks';
-import { PROJECT_FOLDERS, PROJECTS, templates } from './templates';
+import { leadTemplate, PROJECT_FOLDERS, PROJECTS, templates } from './templates';
 
 type Action =
   | { type: 'send'; target: string; text: string }
@@ -54,19 +54,49 @@ function findTarget(phrase: string): { t: Target; rest: string } | null {
   return null;
 }
 
+const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The longest project or session name at the very start of the text, matched on the original words. */
+function nameAt(s: string, all: { alias: string; t: Target }[]): { t: Target; len: number } | null {
+  for (const a of all) {
+    const m = s.match(new RegExp(`^(?:the\\s+|my\\s+)?${a.alias.split(' ').map(escape).join('[^a-z0-9]+')}(?![a-z0-9])`, 'i'));
+    if (m) return { t: a.t, len: m[0].length };
+  }
+  return null;
+}
+
+/**
+ * "tell Elysium Intern and SecurITPosture to add to the playbook": every name in
+ * the list before the task gets the same task. Names are matched longest first,
+ * so "Elysium Intern" is never read as the built in "Elysium".
+ */
+export function readTell(raw: string): { targets: Target[]; text: string } | null {
+  const tell = raw.trim().match(/^(?:tell|ask|have|get|message)\s+(?:both\s+|all\s+of\s+)?(.+)$/is);
+  if (!tell) return null;
+  const all = aliases();
+  let rest = tell[1];
+  const targets: Target[] = [];
+  for (;;) {
+    const n = nameAt(rest, all);
+    if (!n) break;
+    if (!targets.some((t) => t.id === n.t.id)) targets.push(n.t);
+    rest = rest.slice(n.len);
+    // Another name follows after a comma, "and", "&" or "+"; otherwise the task starts.
+    const sep = rest.match(/^\s*(?:,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s*\+\s*)/i);
+    if (!sep || !nameAt(rest.slice(sep[0].length), all)) break;
+    rest = rest.slice(sep[0].length);
+  }
+  if (!targets.length) return null;
+  const text = rest.replace(/^[\s,:]*(?:to\s+|that\s+)?/i, '').trim();
+  return text ? { targets, text } : null;
+}
+
 /** Plain rules for the common phrasings. */
 function byRules(text: string): Action[] | null {
   const raw = text.trim();
-  const tell = raw.match(/^(?:tell|ask|have|get|message)\s+(.+)$/i);
-  if (tell) {
-    // Find the name on the original text so the task keeps its own words and case.
-    const lower = tell[1];
-    for (const a of aliases()) {
-      const re = new RegExp(`^(?:the\\s+|my\\s+)?${a.alias.split(' ').map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('[^a-z0-9]+')}\\b[\\s,:]*(?:to\\s+|that\\s+)?`, 'i');
-      const m = lower.match(re);
-      if (m && lower.length > m[0].length) return [{ type: 'send', target: a.t.id, text: lower.slice(m[0].length).trim() }];
-    }
-    return null;
+  if (/^(?:tell|ask|have|get|message)\s/i.test(raw)) {
+    const r = readTell(raw);
+    return r ? r.targets.map((t) => ({ type: 'send', target: t.id, text: r.text })) : null;
   }
   const verbs: [RegExp, Action['type']][] = [
     [/^(?:force\s+stop|kill|end)\s+(.+)$/i, 'kill'],
@@ -150,7 +180,9 @@ function execute(actions: Action[], tasks: Tasks, sessions: SessionManager): { s
   for (const a of actions) {
     if (a.type === 'send') {
       const r = PROJECT_FOLDERS[a.target] ? tasks.run(a.target, a.text) : tasks.runTemplate(a.target, a.text);
-      steps.push({ label: `Sent to ${PROJECT_FOLDERS[a.target] ? `${nameOf(a.target)}'s lead session` : nameOf(a.target)}: ${a.text}`, ok: r.ok, reason: r.reason });
+      const who = PROJECT_FOLDERS[a.target] ? `${nameOf(a.target)} (${templates.find((t) => t.id === leadTemplate(a.target)?.id)?.title ?? 'its lead session'})` : nameOf(a.target);
+      const wasRunning = Boolean(r.ok && r.started === false);
+      steps.push({ label: r.ok ? (wasRunning ? `Sent to ${who}` : `Starting ${who}; it gets the task once it is ready`) : `Could not send to ${who}`, ok: r.ok, reason: r.reason });
     } else if (a.type === 'start') {
       for (const id of sessionsOf(a.target)) { const r = tasks.startTemplate(id); steps.push({ label: r.already ? `${nameOf(id)} is already running` : `Started ${nameOf(id)}`, ok: r.ok, reason: r.reason }); }
     } else if (a.type === 'stop') {
@@ -174,5 +206,7 @@ function execute(actions: Action[], tasks: Tasks, sessions: SessionManager): { s
   return { steps, open };
 }
 
+/** For tests: the rule reader alone, and the name list it reads with. */
+export const aliasList = aliases;
 /** For tests: the rule reader alone. */
 export const readByRules = byRules;

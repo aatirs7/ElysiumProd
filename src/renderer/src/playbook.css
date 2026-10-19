@@ -1,0 +1,103 @@
+/* ---- Playbook: an archive of the best work across every project ---- */
+.pbx { max-width: 66rem; padding-bottom: 3rem; }
+
+.pbx-hero { text-align: center; padding: 2.4rem 0 1.4rem; animation: rise .45s var(--ease) both; }
+.pbx-eyebrow { display: block; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); margin-bottom: .7rem; }
+.pbx-hero h1 { font: 560 2.9rem/1.05 var(--font-display); letter-spacing: -.035em; margin: 0 0 .8rem; color: var(--text); }
+.pbx-sub { max-width: 34rem; margin: 0 auto; color: var(--text-2); font-size: 1rem; line-height: 1.6; }
+.pbx-stats { display: flex; justify-content: center; gap: 1.1rem; margin: 1rem 0 0; font-size: .82rem; color: var(--text-3); }
+.pbx-stats b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.pbx-stats span + span::before { content: ''; display: inline-block; width: 3px; height: 3px; border-radius: 50%; background: var(--text-3); vertical-align: middle; margin-right: 1.1rem; opacity: .6; }
+
+.pbx-bar { display: flex; gap: .5rem; justify-content: center; max-width: 38rem; margin: 1.5rem auto 0; }
+.pbx-search { flex: 1; display: flex; align-items: center; gap: .6rem; padding: .7rem 1rem; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text-3); transition: box-shadow .3s var(--ease); }
+.pbx-search:focus-within { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent); }
+.pbx-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: .95rem; outline: none; }
+.pbx-clear { display: grid; place-items: center; border: 0; background: transparent; color: var(--text-3); cursor: pointer; padding: .1rem; border-radius: 6px; }
+.pbx-clear:hover { color: var(--text); background: var(--hover); }
+.pbx-write { display: inline-flex; align-items: center; gap: .45rem; padding: 0 1rem; border-radius: 14px; border: 1px solid var(--line-strong); background: var(--surface); color: var(--text); font: inherit; font-size: .9rem; cursor: pointer; white-space: nowrap; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.pbx-write:hover, .pbx-write.on { background: var(--surface-2); border-color: color-mix(in srgb, var(--accent) 40%, var(--line-strong)); }
+.pbx-write svg { color: var(--accent); }
+
+.pbx-ask { max-width: 38rem; margin: .7rem auto 0; padding: .9rem; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); animation: rise .25s var(--ease) both; }
+.pbx-kinds { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; margin-bottom: .7rem; }
+.pbx-kinds button { display: inline-flex; align-items: center; gap: .4rem; padding: .3rem .75rem; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font: inherit; font-size: .82rem; cursor: pointer; }
+.pbx-kinds button.on { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
+.pbx-ask-row { display: flex; gap: .45rem; }
+.pbx-who { max-width: 12rem; font: inherit; font-size: .86rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 0 .5rem; }
+.pbx-who option { background: var(--surface); color: var(--text); }
+.pbx-ask-row input { flex: 1; min-width: 0; font: inherit; font-size: .9rem; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: .55rem .75rem; outline: none; }
+.pbx-ask-row input:focus { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.pbx-ask-note { margin: .6rem 0 0; font-size: .82rem; color: var(--text-2); text-align: center; }
+
+/* The kind of an entry is a shape, not a colour: status colours stay reserved. */
+.pbx-mark { display: inline-block; flex: none; width: 7px; height: 7px; background: var(--accent); border-radius: 50%; }
+.pbx-mark.strategy { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
+.pbx-mark.showcase { border-radius: 1px; transform: rotate(45deg) scale(.9); }
+.pbx-mark.lesson { border-radius: 1px; height: 2px; width: 9px; }
+
+.pbx-filters { display: flex; flex-direction: column; align-items: center; gap: .5rem; margin: .4rem 0 1.6rem; }
+.pbx-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; }
+.pbx-chips button { display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .8rem; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font: inherit; font-size: .84rem; cursor: pointer; transition: background .15s var(--ease), color .15s var(--ease); }
+.pbx-chips button:hover:not(:disabled) { color: var(--text); background: var(--hover); }
+.pbx-chips button.on { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
+.pbx-chips button:disabled { opacity: .4; cursor: default; }
+.pbx-chips em { font-style: normal; font-size: .74rem; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.pbx-chips.quiet button { border-color: transparent; font-size: .8rem; padding: .25rem .65rem; }
+.pbx-chips.quiet button.on { border-color: var(--line); }
+
+/* Cards */
+.pbx-card { position: relative; display: flex; flex-direction: column; align-items: stretch; gap: .45rem; width: 100%; padding: 1.1rem 1.2rem 1rem; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; overflow: hidden;
+  animation: rise .4s var(--ease) both; transition: transform .2s var(--ease), border-color .2s var(--ease), box-shadow .2s var(--ease); }
+.pbx-card:hover { transform: translateY(-2px); border-color: var(--line-strong); box-shadow: var(--shadow); }
+.pbx-kind { display: inline-flex; align-items: center; gap: .5rem; font-size: .68rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-3); }
+.pbx-title { font: 600 1.08rem/1.3 var(--font-display); letter-spacing: -.012em; color: var(--text); }
+.pbx-sum { color: var(--text-2); font-size: .88rem; line-height: 1.5; }
+.pbx-peek-line { margin-top: .2rem; padding-left: .8rem; border-left: 2px solid color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--text); font: 450 .95rem/1.5 var(--font-display); letter-spacing: -.005em; }
+.pbx-peek-steps { list-style: none; margin: .25rem 0 0; padding: .65rem .75rem; border-radius: 10px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); display: flex; flex-direction: column; gap: .4rem; }
+.pbx-peek-steps li { display: flex; align-items: baseline; gap: .6rem; font-size: .84rem; line-height: 1.4; color: var(--text-2); }
+.pbx-peek-steps li span { flex: none; display: inline-grid; place-items: center; width: 1.25rem; height: 1.25rem; border-radius: 50%; border: 1px solid var(--line-strong); color: var(--text); font-size: .7rem; font-variant-numeric: tabular-nums; }
+.pbx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; margin-top: .35rem; padding-top: .7rem; border-top: 1px solid var(--line); font-size: .78rem; color: var(--text-2); }
+.pbx-meta i, .pbx-tags i { font-style: normal; font-size: .72rem; padding: .08rem .45rem; border-radius: 5px; background: var(--surface-2); color: var(--text-2); }
+.pbx-meta em { font-style: normal; color: var(--text-3); margin-left: auto; }
+.pbx-go { color: var(--text-3); transition: transform .2s var(--ease), color .2s var(--ease); }
+.pbx-card:hover .pbx-go { color: var(--accent); transform: translate(2px, -2px); }
+
+/* The newest entry, set large like a feature story. */
+.pbx-card.big { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); grid-template-rows: auto auto 1fr auto; column-gap: 2rem; row-gap: .55rem; padding: 1.6rem 1.7rem 1.3rem; margin-bottom: 1.6rem; }
+.pbx-card.big .pbx-kind, .pbx-card.big .pbx-title, .pbx-card.big .pbx-sum { grid-column: 1; }
+.pbx-card.big .pbx-title { font-size: 1.95rem; line-height: 1.12; letter-spacing: -.03em; font-weight: 600; }
+.pbx-card.big .pbx-sum { font-size: 1rem; }
+.pbx-card.big .pbx-peek-steps, .pbx-card.big .pbx-peek-line { grid-column: 2; grid-row: 1 / 4; align-self: center; margin: 0; }
+.pbx-card.big .pbx-peek-steps { padding: 1rem 1.1rem; gap: .65rem; }
+.pbx-card.big .pbx-peek-steps li { font-size: .9rem; }
+.pbx-card.big .pbx-peek-line { font-size: 1.15rem; padding-left: 1rem; }
+.pbx-card.big .pbx-meta { grid-column: 1 / -1; margin-top: .8rem; }
+@media (max-width: 760px) { .pbx-card.big { display: flex; } .pbx-card.big .pbx-title { font-size: 1.5rem; } }
+
+.pbx-rule { display: flex; align-items: center; gap: .8rem; margin: 0 0 1rem; font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--text-3); }
+.pbx-rule::before, .pbx-rule::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.pbx-grid { columns: 18rem; column-gap: .9rem; }
+.pbx-grid > .pbx-card { break-inside: avoid; margin-bottom: .9rem; }
+
+.pbx-none { text-align: center; color: var(--text-2); font-size: .9rem; margin: 2rem 0; }
+.pbx-foot { display: flex; flex-direction: column; align-items: center; gap: .3rem; margin-top: 2.4rem; font-size: .78rem; color: var(--text-3); }
+.pbx-foot .link-btn { display: inline-flex; align-items: center; gap: .4rem; }
+
+/* Empty: what would live here, faint, with one clear way to start. */
+.pbx-empty { position: relative; margin-top: 1.2rem; }
+.pbx-grid.ghost { columns: 4 13rem; pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); mask-image: linear-gradient(to bottom, #000 35%, transparent 100%); }
+.pbx-card.ghost { cursor: default; background: transparent; border-style: dashed; border-color: var(--line-strong); opacity: .8; }
+.pbx-card.ghost:hover { transform: none; box-shadow: none; }
+.pbx-empty-say { position: relative; max-width: 30rem; margin: -2.2rem auto 0; text-align: center; }
+.pbx-empty-say h2 { font: 560 1.45rem/1.25 var(--font-display); letter-spacing: -.02em; margin: 0 0 .5rem; color: var(--text); }
+.pbx-empty-say p { color: var(--text-2); font-size: .92rem; line-height: 1.6; margin: 0 0 1.1rem; }
+.pbx-empty-say .btn { display: inline-flex; align-items: center; gap: .45rem; }
+
+/* The entry page */
+.pbx-doc .pb-crumb { margin-bottom: 2.4rem; }
+.pbx-doc > .pbx-kind { margin-bottom: .8rem; }
+.pbx-doc .pb-doc-title { font-size: 2.7rem; font-weight: 600; letter-spacing: -.035em; }
+.pbx-doc .pb-doc-lede { font-family: var(--font-display); font-size: 1.18rem; }
+.pbx-tags { display: flex; flex-wrap: wrap; gap: .3rem; }
+.pbx-doc .pb-doc-body blockquote { margin: 1.2rem 0; padding: .2rem 0 .2rem 1.1rem; border-left: 2px solid color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--text); font-family: var(--font-display); font-size: 1.1rem; }

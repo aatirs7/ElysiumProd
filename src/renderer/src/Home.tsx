@@ -1,14 +1,25 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import type { NewsItem, ReaderEntry, UsageStats } from '@shared/ipc';
-import { ArrowDown, ArrowUp, ArrowUpRight, Plus, X } from 'lucide-react';
+import type { ReaderEntry, UsageStats } from '@shared/ipc';
+import { ArrowDown, ArrowUp, Plus, X } from 'lucide-react';
+import { Constellation, type StarNode } from './home/Constellation';
+import { Rhythm } from './home/Rhythm';
+import { Shipped } from './home/Shipped';
+import './home.css';
 import { CHECKS } from './tools';
 import { Meter, effectiveLimits } from './TopBarExtras';
 import { monthlyOf, useWorkspace } from './workspace/store';
 
 const HOME_WIDGETS = [
-  { id: 'live', name: 'Right now' }, { id: 'week', name: 'This week' }, { id: 'recent', name: 'Pick up where you left off' },
-  { id: 'news', name: 'What is new' }, { id: 'limits', name: 'Plan limits' }, { id: 'costs', name: 'This month' }, { id: 'checks', name: 'PC check-ups' },
+  { id: 'live', name: 'Right now' }, { id: 'week', name: 'This week' }, { id: 'map', name: 'Mission control' },
+  { id: 'rhythm', name: 'Your rhythm' }, { id: 'shipped', name: 'Just shipped' }, { id: 'limits', name: 'Plan limits' }, { id: 'costs', name: 'This month' }, { id: 'checks', name: 'PC check-ups' },
 ];
+const DEFAULT_WIDGETS = ['live', 'week', 'map', 'rhythm', 'shipped'];
+/** Saved layouts from before: the project list became the map, the news became rhythm and shipped. */
+function normalize(saved: string[] | undefined): string[] {
+  if (!saved) return DEFAULT_WIDGETS;
+  const out = saved.flatMap((id) => (id === 'recent' ? ['map'] : id === 'news' ? ['rhythm', 'shipped'] : [id]));
+  return [...new Set(out)].filter((id) => HOME_WIDGETS.some((w) => w.id === id));
+}
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { plainLine } from './TopBarExtras';
@@ -59,11 +70,10 @@ function W({ id, size, children }: { id: string; size: 'full' | 'half'; children
 export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
   const [usage, setUsage] = useState<UsageStats | null>(null);
-  const [news, setNews] = useState<NewsItem[] | null>(null);
   const { doc, setSettings } = useWorkspace();
   const { accounts, limits } = useLive();
   const [editing, setEditing] = useState(false);
-  const widgets = doc.settings.homeWidgets ?? ['live', 'week', 'recent', 'news'];
+  const widgets = normalize(doc.settings.homeWidgets);
   const setWidgets = (w: string[]) => setSettings({ homeWidgets: w });
   const hiddenWidgets = HOME_WIDGETS.filter((w) => !widgets.includes(w.id));
   const [costTotal, setCostTotal] = useState<number | null>(null);
@@ -72,7 +82,6 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
     void window.elysium.costs(false).then((r) => setCostTotal(r.items.reduce((n, i) => n + i.cost, 0) + doc.fixedCosts.reduce((n, f) => n + monthlyOf(f), 0)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [widgets.join(',')]);
-  useEffect(() => { void window.elysium.news().then((n) => setNews(n.items)).catch(() => setNews([])); }, []);
   const [lastSaid, setLastSaid] = useState<Record<string, ReaderEntry>>({});
   useEffect(() => { void window.elysium.usage().then(setUsage); }, []);
 
@@ -89,12 +98,13 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [liveKey]);
 
-  const recent = projects.filter((p) => !p.builtin).map((p) => {
-    const st = stats.find((x) => x.id === p.id);
-    const u = usage?.projects.find((x) => x.id === p.id);
-    const t = Math.max(...[st?.lastSessionAt, st?.lastCommitAt, u?.lastAt].filter(Boolean).map((x) => Date.parse(x!)), 0);
-    return { id: p.id, name: p.name, t };
-  }).filter((p) => p.t > 0).sort((a, b) => b.t - a.t).slice(0, 5);
+  // Mission control: every project, its agent time this month, this week's commits and its live sessions.
+  const stars = useMemo<StarNode[]>(() => projects.filter((p) => !p.builtin && p.exists).map((p) => ({
+    id: p.id, name: p.name,
+    minutes: usage?.projects.find((x) => x.id === p.id)?.minutesMonth ?? 0,
+    commits: stats.find((x) => x.id === p.id)?.commitsThisWeek ?? 0,
+    sessions: sessions.filter((x) => x.status === 'running' && templates.find((t) => t.id === x.templateId)?.project === p.id).map((x) => ({ id: x.id, state: telemetry[x.id]?.state ?? 'starting' })),
+  })), [projects, usage, stats, sessions, templates, telemetry]);
   const commits = stats.reduce((n, s) => n + s.commitsThisWeek, 0);
   const waiting = live.filter((s) => telemetry[s.id]?.state === 'waiting').length;
   const working = live.filter((s) => telemetry[s.id]?.state === 'busy').length;
@@ -199,32 +209,27 @@ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
         </section>
         </W>
 
-          <W id="recent" size="half">
-          <section className="home-block home-recent">
-            <div className="section-title">Pick up where you left off</div>
-            {!recent.length && <p className="home-empty">Projects you work on show up here. Add one with the plus beside Projects.</p>}
-            {recent.map((p, i) => (
-              <button key={p.id} className="recent-row" style={{ animationDelay: `${380 + i * 60}ms` }} onClick={() => onOpen(p.id, p.name)}>
-                <ProjectLogo projectId={p.id} />
-                <span className="recent-name">{p.name}</span>
-                <span className="recent-when">{ago(new Date(p.t).toISOString())}</span>
-                <ArrowUpRight size={14} className="recent-go" />
-              </button>
-            ))}
+          <W id="map" size="full">
+          <section className="home-block">
+            <div className="section-title">Mission control<span className="mc-legend"><i className="busy" />working<i className="waiting" />needs you<i className="idle" />idle</span></div>
+            {stars.length ? (
+              <div className="mc-card">
+                <Constellation nodes={stars} onOpen={(id) => onOpen(id, projects.find((p) => p.id === id)?.name ?? id)} />
+                <div className="sr-only">{stars.map((p) => <button key={p.id} onClick={() => onOpen(p.id, p.name)}>Open {p.name}</button>)}</div>
+              </div>
+            ) : <p className="home-empty">Your projects show up here as a map once you add one with the plus beside Projects.</p>}
           </section>
           </W>
-          <W id="news" size="half">
-          <section className="home-block home-news">
-            <div className="section-title">What is new<button className="link-btn news-refresh" onClick={() => void window.elysium.news(true).then((n) => setNews(n.items))}>Refresh</button></div>
-            {!news && <div className="news-skeleton">{[0, 1, 2, 3].map((i) => <span key={i} />)}</div>}
-            {news && !news.length && <p className="home-empty">Could not reach the news just now.</p>}
-            {news?.slice(0, 7).map((n, i) => (
-              <button key={n.url} className="news-row" style={{ animationDelay: `${420 + i * 55}ms` }} onClick={() => window.elysium.openExternal(n.url)} title={n.url}>
-                <span className={`news-src src-${n.source.toLowerCase().replace(/\s+/g, '-')}`}>{n.source}</span>
-                <span className="news-title">{n.title}</span>
-                {n.at && <span className="news-when">{ago(n.at)}</span>}
-              </button>
-            ))}
+          <W id="rhythm" size="half">
+          <section className="home-block">
+            <div className="section-title">Your rhythm</div>
+            <div className="mc-panel"><Rhythm usage={usage} /></div>
+          </section>
+          </W>
+          <W id="shipped" size="half">
+          <section className="home-block">
+            <div className="section-title">Just shipped</div>
+            <div className="mc-panel"><Shipped stats={stats} onOpen={onOpen} /></div>
           </section>
           </W>
 

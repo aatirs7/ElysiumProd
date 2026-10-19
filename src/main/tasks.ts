@@ -190,30 +190,34 @@ export class Tasks {
     return n;
   }
 
-  run(projectId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string } {
+  run(projectId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string; started?: boolean } {
     const t = leadTemplate(projectId);
     if (!t) return { ok: false, reason: 'No session is set up for that project.' };
     return this.runTemplate(t.id, text);
   }
 
   /** Hands a message to one session, starting it in the background on its project's account if needed. */
-  runTemplate(templateId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string } {
+  runTemplate(templateId: string, text: string): { ok: boolean; reason: string | null; sessionId?: string; started?: boolean } {
     const t = findTemplate(templateId);
     if (!t || t.kind !== 'claude') return { ok: false, reason: 'No Claude session by that name.' };
     const projectId = t.project ?? '';
     const task = text.trim();
     if (!task) return { ok: false, reason: 'Type a task first.' };
     let s = this.sessions.runningFor(t.id);
+    const started = !s;
     if (!s) {
       const r = this.sessions.create(t.id, 120, 40, { accountId: accountForProject(projectId) });
       if (!r.ok) return { ok: false, reason: r.reason };
       s = r.session;
     }
+    // A second task before the first went in joins it, instead of replacing it.
+    const waiting = this.pending.get(s.id);
+    if (waiting && !waiting.sent) { waiting.text = `${waiting.text}\n\n${task}`; return { ok: true, reason: null, sessionId: s.id, started }; }
     const p: Pending = { sessionId: s.id, projectName: t.projectName ?? t.title, text: task, sent: false, startedAt: Date.now() };
     this.pending.set(s.id, p);
     this.watching.set(s.id, { projectName: p.projectName, lastState: this.ingest.get(s.id)?.state ?? 'starting' });
     this.trySend(s.id);
-    return { ok: true, reason: null, sessionId: s.id };
+    return { ok: true, reason: null, sessionId: s.id, started };
   }
 
   /**

@@ -46,7 +46,7 @@ async function mcpCheck(fromSessionId: string, codexTo?: string): Promise<Record
 }
 
 export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManager; resources: Resources }): Promise<void> {
-  const out = join(process.cwd(), 'smoke-out');
+  const out = process.env.ELYSIUM_SMOKE_OUT || join(process.cwd(), 'smoke-out');
   mkdirSync(out, { recursive: true });
   const r: Record<string, unknown> = { startedAt: new Date().toISOString() };
   const js = (code: string) => ctx.win.webContents.executeJavaScript(code);
@@ -97,6 +97,18 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     for (let i = 0; i < 60; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string }[]; error: string | null }; if (!st.running) { r.chatReply = st.messages[st.messages.length - 1]?.text; r.chatError = st.error; break; } }
     await sleep(800);
     await shot('3b-pc-helper-reply');
+    // The dashboard: the Speed check's report (seeded, or the last real one), wide and then in a narrow pane.
+    await js(`[...document.querySelectorAll('.pch-tool-main')].find((x) => x.textContent.includes('Speed check'))?.click()`); await sleep(900);
+    r.pcHelperTools = await js(`document.querySelectorAll('.pch-tool').length`);
+    r.pcHelperVitals = await js(`[...document.querySelectorAll('.pch-vital')].map((v) => v.querySelector('.pch-vital-label')?.textContent + ': ' + v.querySelector('.pch-vital-value')?.textContent)`);
+    r.pcHelperActions = await js(`[...document.querySelectorAll('.vz-action')].map((b) => b.textContent)`);
+    await shot('3c-pc-helper-dashboard');
+    await js(`document.querySelector('.pch-main')?.scrollTo(0, 99999)`); await sleep(400);
+    await shot('3c2-pc-helper-scrolled');
+    ctx.win.setSize(980, 900); await sleep(1200);
+    await js(`document.querySelector('.pch-main')?.scrollTo(0, 0)`); await sleep(300);
+    await shot('3d-pc-helper-narrow');
+    ctx.win.setSize(1440, 900); await sleep(900);
     // The planning chat on a real project, when this profile has one: one tiny message.
     const planFor = ((await js(`window.elysium.projects()`)) as { id: string; builtin?: boolean }[]).find((x) => !x.builtin)?.id;
     if (planFor) {
@@ -146,6 +158,17 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     const web = webStates()[0];
     // A hidden native view cannot be captured; that is a limit of the test, not the app.
     if (web) { try { const png = await captureWeb(web.id); if (png) writeFileSync(join(out, '5-claude-pane.png'), png); } catch (e) { r.webCapture = String(e); } }
+    // A menu over the Claude page hides it; closing the menu must bring it back.
+    if (!webStates().length) { await js(`window.__smoke.open({ kind: 'claude', title: 'Claude' })`); await sleep(6000); }
+    const pane = webStates()[0];
+    if (pane) {
+      const web = pane;
+      const before = webStates().find((w) => w.id === web.id)?.visible;
+      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`); await sleep(700);
+      const during = webStates().find((w) => w.id === web.id)?.visible;
+      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`); await sleep(900);
+      r.webAfterMenu = { before, during, after: webStates().find((w) => w.id === web.id)?.visible };
+    }
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Your stats'))?.click()`);
     await sleep(5000);
     await shot('6-stats');
@@ -195,7 +218,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
     await js(`window.dispatchEvent(new Event('ep:new-view'))`);
     await sleep(1200); await js(`document.querySelectorAll('.ep-tab-close').forEach((b) => b.click())`);
     await sleep(1800); await shot('22-empty-view');
-    r.emptyView = await js(`Boolean(document.querySelector('.wm-walker'))`);
+    r.emptyView = await js(`Boolean(document.querySelector('.wm-scene'))`);
     // Dictate: words in the box go into a running shell when Enter is pressed. The shell is
     // started directly, so no project opens.
     {
@@ -214,6 +237,70 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       r.dictateNote = await js(`document.querySelector('.dictate-foot')?.textContent`);
       r.dictateReached = Boolean(sh && existsSync(sh.scrollbackPath) && readFileSync(sh.scrollbackPath, 'utf8').includes('dictated-42'));
       await shot('25b-dictate-sent');
+    }
+    // A pane saved as not started: its Start button must start the session (it used to clear the card and do nothing).
+    {
+      for (const x of ctx.sessions.list()) if (x.templateId === 'local.shell' && x.status === 'running') ctx.sessions.kill(x.id);
+      await sleep(1500);
+      await js(`window.__smoke.open({ kind: 'terminal', templateId: 'local.shell', title: 'PowerShell', params: { pending: true } })`);
+      await sleep(1200);
+      r.pendingCard = await js(`document.querySelector('.term-overlay .btn.primary')?.textContent ?? null`);
+      await js(`document.querySelector('.term-overlay .btn.primary')?.click()`);
+      await sleep(4000);
+      r.pendingStarted = ctx.sessions.list().some((x) => x.templateId === 'local.shell' && x.status === 'running');
+      r.pendingCardAfter = await js(`Boolean(document.querySelector('.term-overlay'))`);
+      await shot('26-pending-started');
+    }
+    // Home's lower half: mission control, rhythm and shipped, in dark and light, plus the map's frame cost.
+    {
+      await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+      await sleep(2500);
+      await js(`document.querySelector('.mc-card')?.scrollIntoView({ block: 'start' })`);
+      await sleep(1500);
+      await shot('29-home-map');
+      await js(`document.querySelector('.shipped')?.scrollIntoView({ block: 'end' })`);
+      await sleep(1200);
+      await shot('29b-home-bottom');
+      r.homeMap = { stars: await js(`window.__mapProbe ? window.__mapProbe() : null`), shipped: await js(`document.querySelectorAll('.shipped-row').length`), hasNews: await js(`Boolean(document.querySelector('.home-news, .recent-row'))`) };
+      const was = await js(`document.documentElement.dataset.theme`);
+      await js(`document.documentElement.dataset.theme = 'claude-light'`); await sleep(900);
+      await js(`document.querySelector('.mc-card')?.scrollIntoView({ block: 'start' })`); await sleep(900);
+      await shot('29c-home-light');
+      await js(`document.documentElement.dataset.theme = ${JSON.stringify(was)}`); await sleep(500);
+      await js(`document.querySelector('.home')?.scrollTo?.(0, 0); document.scrollingElement?.scrollTo(0, 0)`);
+    }
+    // The mic on Home: listening runs inside the app. On a PC where Windows' speech privacy
+    // setting is off it says how to turn it on; either way the helper answers.
+    {
+      await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+      await sleep(1200);
+      await js(`document.querySelector('.cmd-box .cmd-icon')?.click()`);
+      let note: unknown = null; let listening: unknown = false;
+      for (let i = 0; i < 20 && !note; i++) { await sleep(500); note = await js(`document.querySelector('.mic-note')?.textContent ?? null`); listening = listening || await js(`Boolean(document.querySelector('.cmd-icon.listening'))`); }
+      r.mic = { note, listening };
+      await shot('27-mic');
+      await js(`document.querySelector('.cmd-icon.listening')?.click()`);
+    }
+    // A picture sent with a chat message reaches Claude: a small red square, asked for its colour.
+    {
+      const pic = await js(`(() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#E02020'; g.fillRect(0, 0, 64, 64); return c.toDataURL('image/png'); })()`) as string;
+      r.picSend = await js(`window.elysium.chatSend('tool:laptop', 'What single colour fills the attached picture? Answer with one word.', [${JSON.stringify(pic)}])`);
+      for (let i = 0; i < 80; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string; images?: string[] }[]; error: string | null }; if (!st.running) { r.picReply = st.messages[st.messages.length - 1]?.text; r.picSaved = st.messages.filter((m) => m.images?.length).map((m) => m.images!.every((f) => existsSync(f))); r.picError = st.error; break; } }
+    }
+    // Save layout: a project view saved with an extra pane opens the same way after it is closed.
+    // PC Helper is used because opening it starts no Claude session.
+    {
+      await js(`window.dispatchEvent(new CustomEvent('ep:open-tool', { detail: 'laptop' }))`); await sleep(1800);
+      await js(`window.__smoke.open({ kind: 'notes', title: 'Notes' })`); await sleep(900);
+      await js(`document.querySelector('.top-more .glance-btn')?.click()`); await sleep(600);
+      await shot('29-more-menu');
+      r.moreItems = await js(`[...document.querySelectorAll('.top-menu .menu-item')].map((x) => x.textContent.trim().slice(0, 40))`);
+      await js(`[...document.querySelectorAll('.top-menu .menu-item')].find((x) => x.textContent.includes('Save this layout'))?.click()`); await sleep(900);
+      const before = await js(`window.__smoke.viewPanels()`);
+      r.layoutClosed = await js(`window.__smoke.closeProjectView('laptop')`); await sleep(1200);
+      await js(`window.dispatchEvent(new CustomEvent('ep:open-tool', { detail: 'laptop' }))`); await sleep(2000);
+      r.layoutRestore = { before, after: await js(`window.__smoke.viewPanels()`) };
+      await shot('29b-layout-restored');
     }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');

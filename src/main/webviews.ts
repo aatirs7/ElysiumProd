@@ -71,7 +71,7 @@ export async function flushWebSessions(): Promise<void> {
 setInterval(() => void flushWebSessions(), 60000).unref?.();
 
 interface Bounds { x: number; y: number; width: number; height: number }
-interface Entry { view: WebContentsView; accountId: string; home: string; site: string | null }
+interface Entry { view: WebContentsView; accountId: string; home: string; site: string | null; shown?: boolean; crashedAt?: number }
 
 const views = new Map<string, Entry>();
 let hiddenAll = false;
@@ -125,7 +125,13 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
     log(`load failed ${code} ${desc} ${(() => { try { return new URL(url).hostname; } catch { return '?'; } })()}`);
     state(false, `${desc} (${code})`);
   });
-  wc.on('render-process-gone', (_e, d) => { log(`renderer gone: ${d.reason}`); state(false, 'The page crashed. Reload to try again.'); });
+  wc.on('render-process-gone', (_e, d) => {
+    log(`renderer gone: ${d.reason}`);
+    // Reload once on its own; a page that keeps crashing waits for the Reload button.
+    const e = views.get(id);
+    if (e && (!e.crashedAt || Date.now() - e.crashedAt > 60000)) { e.crashedAt = Date.now(); setTimeout(() => { if (!wc.isDestroyed()) wc.reload(); }, 800); return; }
+    state(false, 'The page crashed. Reload to try again.');
+  });
   view.setVisible(false);
   win.contentView.addChildView(view);
   views.set(id, { view, accountId, home, site: site ?? null });
@@ -133,8 +139,10 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
 }
 
 export function setWebBounds(id: string, b: Bounds, visible: boolean): void {
-  const v = views.get(id)?.view;
-  if (!v) return;
+  const e = views.get(id);
+  const v = e?.view;
+  if (!e || !v) return;
+  e.shown = visible && b.width > 0 && b.height > 0;
   if (b.width > 0 && b.height > 0) v.setBounds({ x: Math.round(b.x), y: Math.round(b.y), width: Math.round(b.width), height: Math.round(b.height) });
   v.setVisible(visible && !hiddenAll && b.width > 0 && b.height > 0);
 }
@@ -142,7 +150,8 @@ export function setWebBounds(id: string, b: Bounds, visible: boolean): void {
 /** Native views draw above the page, so hide them while a menu, dialog or other page shows. */
 export function hideAllWeb(hide: boolean): void {
   hiddenAll = hide;
-  for (const e of views.values()) if (hide) e.view.setVisible(false);
+  // Showing again puts back every page that was on screen; its pane does not resend its place.
+  for (const e of views.values()) e.view.setVisible(!hide && Boolean(e.shown));
 }
 
 /** A site pane goes to an address typed in its bar; https only. */
@@ -171,8 +180,8 @@ export function detachWeb(win: BrowserWindow | null, id: string): void {
   e.view.webContents.close();
 }
 
-export function webStates(): { id: string; url: string; title: string; loading: boolean }[] {
-  return [...views.entries()].map(([id, e]) => ({ id, url: e.view.webContents.getURL(), title: e.view.webContents.getTitle(), loading: e.view.webContents.isLoading() }));
+export function webStates(): { id: string; url: string; title: string; loading: boolean; visible: boolean }[] {
+  return [...views.entries()].map(([id, e]) => ({ id, url: e.view.webContents.getURL(), title: e.view.webContents.getTitle(), loading: e.view.webContents.isLoading(), visible: e.view.getVisible() }));
 }
 
 export async function captureWeb(id: string): Promise<Buffer | null> {

@@ -235,7 +235,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                 onContextMenu={(e) => { e.preventDefault(); setToolMenu({ id: p.id, x: e.clientX, y: e.clientY }); }}>
                 <span className="tool-icon"><Icon size={14} /></span>
                 <span className="grow">{info?.title ?? p.name}</span>
-                {st && <span className={`dot ${st}`} />}
+                {st && <span className={`dot ${st === 'busy' && p.id === 'elysiumprod' ? 'working' : st}`} title={st === 'busy' ? 'Working' : undefined} />}
                 {p.id === 'laptop' && <button className="ghost-icon tiny" onClick={(e) => { e.stopPropagation(); setChecksOpen((o) => !o); }} title="Quick checks" aria-label="Quick checks" aria-expanded={checksOpen}><ChevronDown size={13} style={{ transform: checksOpen ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} /></button>}
               </div>
               {p.id === 'laptop' && checksOpen && (

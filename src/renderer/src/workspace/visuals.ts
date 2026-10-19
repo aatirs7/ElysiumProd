@@ -6,6 +6,7 @@
 //   CPU: 41%                     Elysium: 3.3 GB            warn: Disk is nearly full
 //   ```                          ```                        bad: Two updates failed
 //                                                           ```
+//   ```actions: one "Label | the request it sends" per line, drawn as buttons.
 // Anything that does not parse falls back to an ordinary code block.
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
@@ -49,7 +50,15 @@ function status(text: string): string | null {
   }).join('')}</ul>`;
 }
 
-const KINDS: Record<string, (t: string) => string | null> = { stats, bars, status };
+/** Follow up actions as buttons; the pane that shows them sends data-prompt when one is clicked. */
+function actions(text: string): string | null {
+  const rows = lines(text).map((l) => { const i = l.indexOf('|'); return i < 0 ? null : [l.slice(0, i).trim(), l.slice(i + 1).trim()] as const; })
+    .filter((x): x is readonly [string, string] => Boolean(x && x[0] && x[1])).slice(0, 5);
+  if (!rows.length) return null;
+  return `<div class="vz-actions">${rows.map(([label, prompt]) => `<button type="button" class="vz-action" data-prompt="${esc(prompt)}">${esc(label)}</button>`).join('')}</div>`;
+}
+
+const KINDS: Record<string, (t: string) => string | null> = { stats, bars, status, actions };
 
 /** The visual for a fenced block, or null to draw it as code. */
 export function visual(lang: string | undefined, text: string): string | null {

@@ -28,10 +28,10 @@ function effective(l: AccountLimits): { five: number | null; week: number | null
   const fiveReset = toMs(l.fiveHourResetsAt as unknown as number | string | null);
   const weekReset = toMs(l.sevenDayResetsAt as unknown as number | string | null);
   const now = Date.now();
-  // Past its reset, a window starts again from nothing.
+  // Past its reset, the old figure no longer holds; show a dash until the next reading.
   return {
-    five: fiveReset && fiveReset < now ? 0 : l.fiveHourPercent,
-    week: weekReset && weekReset < now ? 0 : l.sevenDayPercent,
+    five: fiveReset && fiveReset < now ? null : l.fiveHourPercent,
+    week: weekReset && weekReset < now ? null : l.sevenDayPercent,
     fiveReset: fiveReset && fiveReset > now ? fiveReset : null,
     weekReset: weekReset && weekReset > now ? weekReset : null,
   };

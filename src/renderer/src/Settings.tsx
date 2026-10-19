@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Check, Pin, PinOff, Trash2 } from 'lucide-react';
+import { Check, Pin, PinOff, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive } from './workspace/live';
 import { ACCENTS, DEFAULT_SETTINGS, THEMES, useWorkspace, type Density } from './workspace/store';
@@ -11,6 +11,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
   const [presetName, setPresetName] = useState('');
   const [shortcut, setShortcut] = useState<string | null>(null);
   const [history, setHistory] = useState<Record<string, boolean>>({});
+  const [optionsFor, setOptionsFor] = useState<string | null>(null);
   useEffect(() => { void window.elysium.shortcut().then(setShortcut); }, []);
 
   // Whether each project's chosen account already has its session history.
@@ -77,7 +78,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
           <Row label="Tell me when Claude replies" hint="A card in the corner when a session you are not looking at replies or needs you. With the window in the background, a Windows notification instead.">
             <Seg value={s.notifyReplies === false ? 'off' : 'on'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ notifyReplies: v === 'on' })} />
           </Row>
-          <Row label="Customize Elysium" hint={s.builderTerminal === false ? 'Opens as a chat only' : 'Opens with the Elysium Builder terminal and Dictate, with the chat beside them'}>
+          <LidRow />
+          <Row label="Customize Elysium" hint={s.builderTerminal === false ? 'Opens as a chat only' : 'Opens with the Elysium Builder terminal, with the chat beside it'}>
             <Seg value={s.builderTerminal === false ? 'chat' : 'terminal'} options={[['terminal', 'Terminal'], ['chat', 'Chat only']]} onChange={(v) => setSettings({ builderTerminal: v === 'terminal' })} />
           </Row>
           <Row label="Compact automatically" hint={s.autoCompact.enabled ? `At ${s.autoCompact.percent}% context, a session saves its notes at a clean stopping point, compacts, then carries on` : 'Off. Use Compact in the top bar, or right-click a tab.'}>
@@ -97,7 +99,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
             const acc = doc.projectAccounts[p.id] || 'main';
             const pinned = doc.pinned.includes(p.id);
             return (
-              <div key={p.id} className="setting-row">
+              <div key={p.id}>
+              <div className="setting-row">
                 <div>
                   <div className="setting-label"><ProjectLogo projectId={p.id} />{p.name}</div>
                   <div className="setting-hint">
@@ -105,6 +108,9 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
                   </div>
                 </div>
                 <div className="setting-control">
+                  <button className={`ghost-icon ${optionsFor === p.id ? '' : 'muted'}`} onClick={() => setOptionsFor(optionsFor === p.id ? null : p.id)} title="Model, advisor and effort for this project's terminals" aria-label={`Claude options for ${p.name}`}>
+                    <SlidersHorizontal size={15} />
+                  </button>
                   <select className="picker" value={acc} onChange={(e) => setProjectAccount(p.id, e.target.value)} title="Claude account for this project">
                     {accounts.map((a) => <option key={a.id} value={a.id}>{label(a.id)}</option>)}
                   </select>
@@ -118,6 +124,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
                     </button>
                   )}
                 </div>
+              </div>
+              {optionsFor === p.id && <ProjectOptions projectId={p.id} />}
               </div>
             );
           })}
@@ -221,6 +229,52 @@ function UpdatesRow({ onRestart }: { onRestart(): void }) {
       {done?.ok ? <button className="btn primary" onClick={() => window.elysium.finishUpdate()}>Restart now</button>
         : info.behind ? <button className="btn primary" disabled={Boolean(step)} onClick={() => void get()}>{step ? 'Updating…' : 'Get updates'}</button>
           : <button className="btn" onClick={() => void window.elysium.checkUpdates().then(setInfo)}>Check again</button>}
+    </Row>
+  );
+}
+
+const MODELS: [string, string][] = [['', 'Claude default'], ['claude-opus-5-5', 'Opus 5.5'], ['claude-fable-5-1', 'Fable 5.1'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-haiku-5-5', 'Haiku 5.5']];
+const ADVISORS: [string, string][] = [['', 'No advisor'], ['claude-fable-5-1', 'Fable 5.1'], ['claude-opus-5-5', 'Opus 5.5']];
+const EFFORTS: [string, string][] = [['', 'Claude default'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max']];
+
+/** What a project's Claude terminals start with. Applies the next time one starts. */
+function ProjectOptions({ projectId }: { projectId: string }) {
+  const [o, setO] = useState<{ model?: string; advisor?: string; effort?: string } | null>(null);
+  useEffect(() => { void window.elysium.sessionOptions(projectId).then(setO); }, [projectId]);
+  if (!o) return null;
+  const save = (patch: Partial<NonNullable<typeof o>>) => {
+    const next = { ...o, ...patch };
+    setO(next);
+    void window.elysium.setSessionOptions(projectId, next).then(setO);
+  };
+  const pick = (key: 'model' | 'advisor' | 'effort', list: [string, string][]) => (
+    <select className="picker" value={o[key] ?? ''} onChange={(e) => save({ [key]: e.target.value || undefined })}>
+      {list.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+    </select>
+  );
+  return (
+    <div className="settings-sub">
+      <Row label="Model" hint="What its terminals start on">{pick('model', MODELS)}</Row>
+      <Row label="Advisor" hint="A stronger model the session can ask for a second opinion">{pick('advisor', ADVISORS)}</Row>
+      <Row label="Effort" hint="How hard it thinks">{pick('effort', EFFORTS)}</Row>
+      <div className="setting-hint" style={{ padding: '.2rem 0 .8rem' }}>Applies to terminals started from now on. Restart a running one to use it.</div>
+    </div>
+  );
+}
+
+/** Lid closed: Windows' own lid action, changed only from here. Working sessions also keep the PC from sleeping when idle. */
+function LidRow() {
+  const [lid, setLid] = useState<{ mode: 'off' | 'plugged' | 'always'; available: boolean } | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => { void window.elysium.lidGet().then(setLid); }, []);
+  if (lid && !lid.available) return null;
+  const hint = note ?? (lid?.mode === 'always' ? 'Closing the lid never sleeps the PC. Do not pack it in a bag while it works; it can get hot.'
+    : lid?.mode === 'plugged' ? 'On power, closing the lid leaves the PC and your sessions working. On battery it sleeps as usual.'
+      : 'Closing the lid sleeps the PC, and sessions pause until you open it. While a session is working, the PC does not fall asleep on its own.');
+  return (
+    <Row label="With the lid closed" hint={hint}>
+      <Seg value={lid?.mode ?? 'off'} options={[['off', 'Sleep'], ['plugged', 'Keep working on power'], ['always', 'Always keep working']]}
+        onChange={(v) => { void window.elysium.lidSet(v as 'off' | 'plugged' | 'always').then((r) => { setLid({ mode: r.mode, available: true }); setNote(r.ok ? null : r.reason); }); }} />
     </Row>
   );
 }

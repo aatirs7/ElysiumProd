@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type ChatEvent, type Telemetry, type WatcherState, type WebState } from '@shared/ipc';
+import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type ChatEvent, type Telemetry, type WatcherState, type WebState, type DictateEvent } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -14,7 +14,7 @@ const api: ElysiumApi = {
   templates: () => ipcRenderer.invoke(Channels.templatesList),
   playbook: () => ipcRenderer.invoke(Channels.playbookList),
   openPlaybookFolder: () => ipcRenderer.invoke(Channels.playbookOpenFolder),
-  recordPlaybook: (sessionId: string, what: string) => ipcRenderer.invoke(Channels.playbookRecord, sessionId, what),
+  recordPlaybook: (sessionId: string, what: string, kind?: string) => ipcRenderer.invoke(Channels.playbookRecord, sessionId, what, kind),
   sessions: () => ipcRenderer.invoke(Channels.sessionsList),
   create: (templateId, cols, rows, opts) => ipcRenderer.invoke(Channels.sessionCreate, templateId, cols, rows, opts ?? {}),
   write: (id, data) => ipcRenderer.send(Channels.sessionWrite, id, data),
@@ -48,7 +48,7 @@ const api: ElysiumApi = {
   onReader: (cb) => subscribe<[string, ReaderEntry]>(Channels.readerUpdate, cb),
   onChat: (cb) => subscribe<[ChatEvent]>(Channels.chatUpdate, cb),
   chatGet: (id) => ipcRenderer.invoke(Channels.chatGet, id),
-  chatSend: (id, text) => ipcRenderer.invoke(Channels.chatSend, id, text),
+  chatSend: (id, text, images) => ipcRenderer.invoke(Channels.chatSend, id, text, images),
   chatStop: (id) => ipcRenderer.send(Channels.chatStop, id),
   chatReset: (id) => ipcRenderer.invoke(Channels.chatReset, id),
   quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
@@ -68,6 +68,9 @@ const api: ElysiumApi = {
   onWatcher: (cb) => subscribe<[WatcherState]>(Channels.watcherUpdate, cb),
   renameSession: (id, title) => ipcRenderer.invoke(Channels.sessionRename, id, title),
   limits: () => ipcRenderer.invoke(Channels.limitsAll),
+  lidGet: () => ipcRenderer.invoke(Channels.lidGet),
+  lidSet: (mode) => ipcRenderer.invoke(Channels.lidSet, mode),
+  pcVitals: () => ipcRenderer.invoke(Channels.pcVitals),
   onLimits: (cb) => subscribe<[AccountLimits]>(Channels.limitsUpdate, cb),
   compact: (ids) => ipcRenderer.invoke(Channels.compact, ids),
   onCompact: (cb) => subscribe<[CompactState]>(Channels.compactUpdate, cb),
@@ -76,6 +79,8 @@ const api: ElysiumApi = {
   notifyOs: (sessionId, title, body) => ipcRenderer.send(Channels.notifyOs, sessionId, title, body),
   createProject: (req) => ipcRenderer.invoke(Channels.projectCreate, req),
   removeProject: (id) => ipcRenderer.invoke(Channels.projectRemove, id),
+  sessionOptions: (projectId) => ipcRenderer.invoke(Channels.sessionOptionsGet, projectId),
+  setSessionOptions: (projectId, opts) => ipcRenderer.invoke(Channels.sessionOptionsSet, projectId, opts),
   pickFolder: () => ipcRenderer.invoke(Channels.folderPick),
   onProjectsChanged: (cb) => subscribe<[]>(Channels.projectsChanged, cb),
   costs: (force) => ipcRenderer.invoke(Channels.costsGet, Boolean(force)),
@@ -100,7 +105,9 @@ const api: ElysiumApi = {
   connect: (service, action, accountId) => ipcRenderer.invoke(Channels.connect, service, action, accountId),
   addClaudeAccount: (name) => ipcRenderer.invoke(Channels.addClaudeAccount, name),
   scanRepos: () => ipcRenderer.invoke(Channels.scanRepos),
-  dictate: (warmOnly?: boolean) => ipcRenderer.send(Channels.dictate, Boolean(warmOnly)),
+  dictate: (action) => ipcRenderer.send(Channels.dictate, action),
+  onDictate: (cb) => subscribe<[DictateEvent]>(Channels.dictateEvent, cb),
+  openSpeechSettings: () => ipcRenderer.send(Channels.speechSettings),
   clipboardHasImage: () => ipcRenderer.invoke(Channels.clipboardHasImage),
   loadWorkspace: () => ipcRenderer.invoke(Channels.workspaceGet),
   saveWorkspace: (json) => ipcRenderer.send(Channels.workspaceSet, json),

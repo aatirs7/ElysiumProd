@@ -27,7 +27,7 @@ const TOOLS = [
   },
   {
     name: 'elysium_playbook_search',
-    description: 'Search the owner\'s shared playbook: how-tos on how features were built in any of their projects. Search before building something non-trivial, and follow a match.',
+    description: 'Search the owner\'s shared playbook, the archive of their best work across every project: how features were built, the strategy behind plans, things worth copying, and lessons learned. Search it before building or planning something non-trivial, for direction and inspiration, and follow a match.',
     inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false },
   },
   {
@@ -37,8 +37,8 @@ const TOOLS = [
   },
   {
     name: 'elysium_playbook_add',
-    description: 'Record how you built something, so any project can repeat it. Write it as a how-to in Markdown: what it is for, the steps in order, the files, commands and settings involved, and the pitfalls. No secrets. The same title updates the entry.',
-    inputSchema: { type: 'object', properties: { title: { type: 'string', description: 'What it builds, like "Stripe checkout with webhooks".' }, summary: { type: 'string', description: 'One sentence.' }, body: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } } }, required: ['title', 'summary', 'body'], additionalProperties: false },
+    description: 'Add to the shared playbook so any project can learn from it. kind "howto" (default): how you built something, with what it is for, the steps in order, the files, commands and settings, and the pitfalls. "strategy": a plan or approach and why it was chosen. "showcase": something that turned out well and is worth copying, and what makes it good. "lesson": a decision or mistake and what to do next time. Markdown, no secrets. The same title updates the entry.',
+    inputSchema: { type: 'object', properties: { title: { type: 'string', description: 'What it builds, like "Stripe checkout with webhooks".' }, summary: { type: 'string', description: 'One sentence.' }, body: { type: 'string' }, tags: { type: 'array', items: { type: 'string' } }, kind: { type: 'string', enum: ['howto', 'strategy', 'showcase', 'lesson'] } }, required: ['title', 'summary', 'body'], additionalProperties: false },
   },
 ];
 const TOOL_OF = { elysium_sessions: 'list', elysium_send: 'send', elysium_wait: 'wait', elysium_read: 'read', elysium_playbook_search: 'playbook_search', elysium_playbook_read: 'playbook_read', elysium_playbook_add: 'playbook_add' };

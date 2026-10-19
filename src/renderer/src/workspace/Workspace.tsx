@@ -29,10 +29,10 @@ import { CodePanel, FilesPanel } from './FilesPanel';
 import { TOOL_INFO } from '../tools';
 import { FlowPanel } from './FlowPanel';
 import { DictatePanel } from './DictatePanel';
+import { PcHelperPanel } from './PcHelperPanel';
 
 export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
   { kind: 'claude', title: 'Claude', blurb: 'Your planning chat, beside the terminals', icon: MessageCircle },
-  { kind: 'dictate', title: 'Dictate', blurb: 'Speak, check the words, send them to a session', icon: Mic },
   { kind: 'dashboard', title: 'Dashboard', blurb: 'Tasks, numbers, links and requests for this project', icon: LayoutGrid },
   { kind: 'flow', title: 'Live flow', blurb: 'What each session is doing, as it happens', icon: Workflow },
   { kind: 'relay', title: 'Relay', blurb: 'What waits on you, and what agents are doing', icon: Radio },
@@ -68,7 +68,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
   web: SitePanel as FunctionComponent<IDockviewPanelProps>,
   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
   tool: ToolIntro as FunctionComponent<IDockviewPanelProps>,
-  chat: ChatPanel as FunctionComponent<IDockviewPanelProps>,
+  chat: ((p: IDockviewPanelProps<{ chatId: string; projectId: string }>) => (p.params.projectId === 'laptop' ? <PcHelperPanel {...p} /> : <ChatPanel {...p} />)) as FunctionComponent<IDockviewPanelProps>,
   files: FilesPanel as FunctionComponent<IDockviewPanelProps>,
   code: CodePanel as FunctionComponent<IDockviewPanelProps>,
   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
@@ -140,14 +140,12 @@ export function openChat(api: DockviewApi, chatId: string, projectId: string, ti
 export const builderTerminal = (projectId: string | undefined, settings: { builderTerminal?: boolean }) => projectId === 'elysiumprod' && settings.builderTerminal !== false;
 
 function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = [], withBuilder = false) {
-  // Customize Elysium: the Builder terminal, Dictate under it, and the chat beside them.
+  // Customize Elysium: the Builder terminal, and the chat beside it.
   if (withBuilder && view.projectId && sessions.length) {
     api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
     const term = api.groups[0];
-    api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId: view.projectId }, position: { referenceGroup: term.id, direction: 'below' } });
-    const pad = api.groups[api.groups.length - 1];
     api.addPanel({ id: `chat-${uid()}`, component: 'chat', title: TOOL_INFO[view.projectId].title, params: { chatId: `tool:${view.projectId}`, projectId: view.projectId }, position: { direction: 'right' } });
-    setTimeout(() => { try { term.api.setSize({ width: Math.round(api.width * 0.62) }); pad.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
+    setTimeout(() => { try { term.api.setSize({ width: Math.round(api.width * 0.62) }); } catch { /* sizes are a nicety */ } }, 60);
     return;
   }
   // A tool is one calm chat, nothing else.
@@ -199,16 +197,12 @@ export function projectSessions(templates: TemplateInfo[], projectId: string | u
 export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[], withBuilder = false): void {
   if (TOOL_INFO[projectId] && !withBuilder) { openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title); return; }
   if (withBuilder) {
-    // Customize Elysium from an older layout: the Builder terminal goes on the left, Dictate under it.
+    // Customize Elysium from an older layout: the Builder terminal goes on the left.
     const t = projectSessions(templates, projectId)[0];
     const pane = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
     if (t && !pane) api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: t.title, params: { templateId: t.id }, position: { direction: 'left' } });
     else if (t) window.dispatchEvent(new CustomEvent('ep:ensure-session', { detail: t.id }));
     const term = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
-    if (term && !api.panels.some((p) => kindOf(p.id) === 'dictate')) {
-      api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId }, position: { referenceGroup: term.group.id, direction: 'below' }, inactive: true });
-      setTimeout(() => { try { api.panels.find((p) => kindOf(p.id) === 'dictate')?.group.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
-    }
     if (!api.panels.some((p) => (p.params as { chatId?: string } | undefined)?.chatId === `tool:${projectId}`)) openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title);
     term?.api.setActive();
     return;
@@ -243,6 +237,19 @@ export const TINTS: { name: string; value: string }[] = [
   { name: 'Teal', value: '#3FB5B0' },
 ];
 
+/** Whether a chat is answering, for its tab. Only subscribes for chat tabs. */
+function useChatRunning(chatId: string | undefined): boolean {
+  const [running, setRunning] = useState(false);
+  useEffect(() => {
+    if (!chatId) return;
+    let on = true;
+    void window.elysium.chatGet(chatId).then((st) => { if (on) setRunning(st.running); });
+    const off = window.elysium.onChat((e) => { if (e.chatId === chatId) setRunning(e.state.running); });
+    return () => { on = false; off(); };
+  }, [chatId]);
+  return running;
+}
+
 function Tab(props: IDockviewPanelHeaderProps) {
   const { sessions, templates, telemetry } = useLive();
   const kind = kindOf(props.api.id);
@@ -263,6 +270,10 @@ function Tab(props: IDockviewPanelHeaderProps) {
     setNote(r.ok ? null : r.reason);
   };
   const state = s?.status !== 'running' ? s?.status ?? 'exited' : tel?.state ?? 'running';
+  // Customize Elysium shows a green light while it works, in its terminal and its chat.
+  const chatId = (props.params as { chatId?: string }).chatId;
+  const chatBusy = useChatRunning(kind === 'chat' ? chatId : undefined);
+  const light = state === 'busy' && t?.project === 'elysiumprod' ? 'working' : state;
 
   // The pane's colour lives in its params, so it is saved with the layout.
   const [tint, setTint] = useState<string>((props.params as { tint?: string }).tint ?? '');
@@ -296,7 +307,8 @@ function Tab(props: IDockviewPanelHeaderProps) {
       {tint && <span className="tint-dot" />}
       <Icon size={14} />
       <span className="ep-tab-title">{title}</span>
-      {kind === 'terminal' && <span className={`dot ${state}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
+      {kind === 'terminal' && <span className={`dot ${light}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
+      {kind === 'chat' && chatBusy && chatId === 'tool:elysiumprod' && <span className="dot working" title="Working" />}
       {kind === 'terminal' && t?.kind === 'claude' && tel?.model && <span className="model-chip" title={`Model: ${tel.model}`}>{shortModel(tel.model)}</span>}
       {kind === 'terminal' && t?.kind === 'claude' && <ContextMeter t={tel} compact />}
       {drift && (
@@ -398,17 +410,6 @@ function Watermark(p: IWatermarkPanelProps) {
       <div className="wm-scene" aria-hidden="true">
         <div className="wm-floor"><div className="wm-floor-grid" /></div>
         <div className="wm-horizon" />
-        <div className="wm-walker">
-          <svg viewBox="0 0 40 64" width="30" height="48">
-            <circle cx="20" cy="9" r="6" className="wm-head" />
-            <line x1="20" y1="15" x2="20" y2="36" className="wm-body" />
-            <g className="wm-arm a"><line x1="20" y1="19" x2="20" y2="33" /></g>
-            <g className="wm-arm b"><line x1="20" y1="19" x2="20" y2="33" /></g>
-            <g className="wm-leg a"><line x1="20" y1="36" x2="20" y2="58" /></g>
-            <g className="wm-leg b"><line x1="20" y1="36" x2="20" y2="58" /></g>
-          </svg>
-          <span className="wm-shadow" />
-        </div>
         <div className="wm-stars">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, top: `${(i * 29) % 45}%`, animationDelay: `${(i % 7) * 0.6}s` }} />)}</div>
       </div>
       <div className="watermark-title">An empty view</div>

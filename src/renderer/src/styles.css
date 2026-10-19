@@ -257,6 +257,7 @@ input, select, textarea { font: inherit; }
 .dot { width: .5rem; height: .5rem; border-radius: 50%; flex: none; background: var(--idle); display: inline-block; transition: background-color .3s var(--ease); }
 .dot.running, .dot.idle { background: var(--ok); }
 .dot.busy { background: var(--accent); animation: breathe 1.6s ease-in-out infinite; }
+.dot.working { background: var(--ok); animation: breathe 1.6s ease-in-out infinite; }
 .dot.waiting, .dot.starting { background: var(--warn); }
 .dot.error { background: var(--bad); }
 .attention-dot { background: var(--accent); }
@@ -524,6 +525,7 @@ kbd { font-family: var(--font); font-size: .75rem; color: var(--text-3); border:
 .settings-card h2 { font-size: .82rem; font-weight: 600; color: var(--text-3); margin: 1rem 0 .2rem; letter-spacing: .02em; }
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 0; border-top: 1px solid var(--line); }
 .settings-card h2 + .setting-row { border-top: 0; }
+.settings-sub { margin: 0 0 .4rem; padding-left: 1rem; border-left: 2px solid var(--line); }
 .setting-label { font-size: .97rem; display: flex; align-items: center; gap: .55rem; }
 .setting-hint { font-size: .82rem; color: var(--text-3); }
 .setting-control { display: flex; align-items: center; gap: .4rem; flex: none; }
@@ -1220,6 +1222,8 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .chat-empty .tool-checks { text-align: left; }
 .msg { display: flex; flex-direction: column; animation: rise .3s var(--ease) both; }
 .msg.you { align-items: flex-end; }
+.msg.you.queued .msg-bubble { opacity: .6; }
+.msg-queued { display: block; margin-top: .25rem; font-size: .72rem; color: var(--text-2); }
 .msg-bubble { max-width: 80%; padding: .65rem .9rem; border-radius: 18px 18px 4px 18px; background: var(--surface-2); white-space: pre-wrap; line-height: 1.55; font-size: .95rem; }
 .msg.claude { align-items: stretch; }
 .msg-text { line-height: 1.65; font-size: .95rem; color: var(--text); }
@@ -1953,3 +1957,38 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .dictate-mic:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .dictate-foot { min-height: 1.2em; color: var(--text-2); font-size: .8rem; text-align: center; }
 .wm-card.own { color: var(--text); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
+
+/* ---- Mic and pictures beside the send button ---- */
+.chat-compose:has(> .compose-row) { flex-direction: column; align-items: stretch; gap: .45rem; padding-left: .55rem; }
+.compose-row { display: flex; align-items: flex-end; gap: .35rem; }
+.compose-row textarea { padding-left: .35rem; }
+.compose-pics { display: flex; flex-wrap: wrap; gap: .45rem; padding: .2rem .2rem 0; }
+.compose-pic { position: relative; width: 4.2rem; height: 4.2rem; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface-2); }
+.compose-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.compose-pic button { position: absolute; top: .2rem; right: .2rem; display: grid; place-items: center; width: 1.2rem; height: 1.2rem; border-radius: 50%; border: 0; background: color-mix(in srgb, var(--bg) 80%, transparent); color: var(--text); cursor: pointer; }
+.msg-pics { display: flex; align-items: center; gap: .3rem; font-size: .8rem; color: var(--text-2); margin-bottom: .25rem; }
+.mic-wrap { position: relative; display: inline-flex; flex: none; }
+.mic-btn { display: grid; place-items: center; width: 2.2rem; height: 2.2rem; flex: none; border-radius: 50%; border: 0; background: transparent; color: var(--text-2); cursor: pointer; transition: color .15s var(--ease), background .15s var(--ease); }
+.mic-btn:hover { color: var(--text); background: color-mix(in srgb, var(--text) 7%, transparent); }
+.mic-btn.small { width: 1.75rem; height: 1.75rem; margin-right: .35rem; }
+.mic-btn.listening, .cmd-icon.listening, .dictate-mic.listening { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); animation: mic-breathe 1.6s var(--ease) infinite; }
+@keyframes mic-breathe { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 35%, transparent); } 50% { box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 0%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .mic-btn.listening, .cmd-icon.listening, .dictate-mic.listening { animation: none; } }
+.mic-note { position: absolute; bottom: calc(100% + .5rem); right: -.5rem; z-index: 30; width: 17rem; padding: .65rem .8rem; border-radius: 12px; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow); color: var(--text); font-size: .82rem; line-height: 1.45; text-align: left; }
+.term-mode { align-items: center; }
+
+/* ---- Top bar: More, with pins ---- */
+.top-more { position: relative; -webkit-app-region: no-drag; }
+.glance-btn.icon { padding-left: .45rem; padding-right: .45rem; }
+.glance-btn.open { background: var(--surface-2); color: var(--text); }
+.top-menu { right: 0; width: 21rem; }
+.top-menu-row { display: flex; align-items: center; gap: .2rem; }
+.top-menu-row .menu-item { flex: 1; min-width: 0; }
+.top-menu-row.foot { justify-content: space-between; padding: .5rem .6rem .3rem; border-top: 1px solid var(--line); margin-top: .35rem; }
+.top-menu-watch { padding: .35rem .6rem; }
+.pin-toggle { display: inline-flex; align-items: center; gap: .3rem; flex: none; padding: .35rem; border: 0; border-radius: 8px; background: transparent; color: var(--text-3); cursor: pointer; opacity: .55; font-size: .78rem; transition: opacity .15s var(--ease), color .15s var(--ease), background .15s var(--ease); }
+.top-menu-row:hover .pin-toggle, .pin-toggle:focus-visible, .pin-toggle.on { opacity: 1; }
+.pin-toggle:hover { background: var(--surface-2); color: var(--text); }
+.pin-toggle.on { color: var(--accent); }
+.mini-switch.on { background: var(--ok); }
+.mini-switch.on i { transform: translateX(.75rem); background: var(--bg); }

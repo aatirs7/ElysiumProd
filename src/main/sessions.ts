@@ -12,6 +12,7 @@ import { childEnv } from './env';
 import { Scrollback } from './scrollback';
 import { findTemplate } from './templates';
 import { agentDef } from './agents';
+import { sessionOptionArgs } from './sessionopts';
 
 interface Live {
   info: SessionInfo;
@@ -110,7 +111,7 @@ export class SessionManager {
       Object.assign(env, accountEnv(accountId));
       const tel = this.telemetry(id);
       Object.assign(env, tel.env);
-      args = [...args, ...tel.args];
+      args = [...args, ...sessionOptionArgs(t.project), ...tel.args];
     }
     const scrollback = new Scrollback(this.scrollbackDir, id);
     const info: SessionInfo = {

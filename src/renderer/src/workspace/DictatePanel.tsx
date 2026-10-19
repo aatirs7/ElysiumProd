@@ -2,10 +2,11 @@
 // you check them, and Enter types them into a session as if you had typed them.
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { IDockviewPanelProps } from 'dockview-react';
-import { ArrowUp, Mic } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { useLive } from './live';
 import { useWorkspace } from './store';
 import { lastFocusedSession } from './TerminalPanel';
+import { MicButton, withPhrase } from '../Mic';
 
 /** Types text into a session. Claude and other agents get it as one paste, so new lines do not send early. */
 export function typeInto(sessionId: string, text: string, kind: string | undefined): void {
@@ -33,11 +34,8 @@ export function DictatePanel(props: IDockviewPanelProps<{ target?: string; proje
   const targetTpl = templates.find((t) => t.id === target);
   const live = running.find((r) => r.s.templateId === target)?.s;
 
-  // The helper that presses Win+H starts in the background, so the first press is quick too.
-  useEffect(() => { window.elysium.dictate(true); }, []);
   useEffect(() => { if (!note) return; const t = setTimeout(() => setNote(null), 3500); return () => clearTimeout(t); }, [note]);
 
-  const listen = () => { box.current?.focus(); window.elysium.dictate(); };
   const send = () => {
     const v = text.trim();
     if (!v || !targetTpl) return;
@@ -67,7 +65,7 @@ export function DictatePanel(props: IDockviewPanelProps<{ target?: string; proje
           ) : <span className="dictate-none">no session is running</span>}
         </div>
         <div className="dictate-box">
-          <button className="dictate-mic" onMouseDown={(e) => e.preventDefault()} onClick={listen} title="Speak (Windows voice typing, Win+H)" aria-label="Speak"><Mic size={18} /></button>
+          <MicButton className="dictate-mic" size={18} onText={(t) => setText((x) => withPhrase(x, t))} />
           <textarea ref={box} rows={2} value={text} aria-label="What to send"
             placeholder="Press the mic and talk. Check the words, then press Enter."
             onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(240, e.target.scrollHeight)}px`; }}

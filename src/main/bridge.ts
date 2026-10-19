@@ -82,7 +82,7 @@ export class Bridge {
     if (tool === 'list') return this.list(mine);
     if (tool === 'playbook_search') {
       const hits = playbookSearch(String(a.query ?? ''));
-      return hits.length ? ['Playbook entries (read one with elysium_playbook_read):', ...hits.map((e) => `- ${e.slug}: ${e.title}${e.project ? ` (${e.project})` : ''}. ${e.summary}`)].join('\n') : 'Nothing in the playbook matches that yet.';
+      return hits.length ? ['Playbook entries (read one with elysium_playbook_read):', ...hits.map((e) => `- ${e.slug}: [${e.kind}] ${e.title}${e.project ? ` (${e.project})` : ''}. ${e.summary}`)].join('\n') : 'Nothing in the playbook matches that yet.';
     }
     if (tool === 'playbook_read') {
       const e = playbookRead(String(a.name ?? ''));
@@ -91,7 +91,7 @@ export class Bridge {
     if (tool === 'playbook_add') {
       const title = String(a.title ?? '').trim(), body = String(a.body ?? '').trim();
       if (!title || !body) return 'Give it a title and a body.';
-      const e = playbookAdd({ title, body, summary: String(a.summary ?? ''), tags: Array.isArray(a.tags) ? a.tags.map(String) : String(a.tags ?? '').split(','), project: mine?.projectName ?? '', author: mine?.title ?? 'a session' });
+      const e = playbookAdd({ title, body, summary: String(a.summary ?? ''), tags: Array.isArray(a.tags) ? a.tags.map(String) : String(a.tags ?? '').split(','), kind: String(a.kind ?? ''), project: mine?.projectName ?? '', author: mine?.title ?? 'a session' });
       this.log(`${mine?.id ?? '?'} recorded playbook ${e.slug}`);
       this.d.note(`${mine?.title ?? 'A session'} added "${e.title}" to the playbook.`);
       return `Saved to the playbook as ${e.slug} (${PLAYBOOK_DIR}). Every project can find it now.`;

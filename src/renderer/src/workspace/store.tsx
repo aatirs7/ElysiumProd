@@ -49,7 +49,9 @@ export interface Settings {
   autoCompact: { enabled: boolean; percent: number };
   /** A notice when Claude replies in a session you are not looking at. */
   notifyReplies: boolean;
-  /** Customize Elysium opens with its Builder terminal and Dictate, not only the chat. */
+  /** Top bar items shown on the bar itself; the rest sit in its More menu. */
+  topbarPins?: string[];
+  /** Customize Elysium opens with its Builder terminal, not only the chat. */
   builderTerminal?: boolean;
   /** Live flow: a short Sonnet summary per session, at most every five minutes. */
   flowSummaries: boolean;
@@ -122,6 +124,8 @@ export interface WorkspaceDoc {
   dashboards: Record<string, { links?: DashLink[]; people?: string[] }>;
   /** What was asked for from a dashboard, newest first. */
   featureRequests: FeatureRequest[];
+  /** A project's saved layout: its view opens this way next time (terminals start as the project opens). */
+  projectLayouts?: Record<string, SerializedDockview>;
 }
 
 export interface DashLink { id: string; label: string; url: string }
@@ -217,8 +221,9 @@ function parse(json: string | null): WorkspaceDoc {
       accounts: { ...f.accounts, ...(d.accounts ?? {}) },
       projectAccounts: d.projectAccounts ?? {},
       watchers: d.watchers ?? {},
-      // The setup was rebuilt in version 2; everyone sees the new one once.
-      onboarded: Boolean(d.onboarded) && (d as { onboardVersion?: number }).onboardVersion === 2,
+      // The version 2 setup was shown to everyone already: the version was never saved, so it ran again on every start.
+      onboarded: Boolean(d.onboarded),
+      onboardVersion: d.onboarded ? 2 : d.onboardVersion,
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
       groups: Array.isArray(d.groups) ? d.groups.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.ids)) : [],
@@ -230,6 +235,7 @@ function parse(json: string | null): WorkspaceDoc {
       fixedCosts: Array.isArray(d.fixedCosts) ? d.fixedCosts : [],
       dashboards: d.dashboards ?? {},
       featureRequests: Array.isArray(d.featureRequests) ? d.featureRequests : [],
+      projectLayouts: d.projectLayouts && typeof d.projectLayouts === 'object' ? d.projectLayouts : {},
     };
   } catch {
     return f;
@@ -264,6 +270,9 @@ interface Ctx {
   setLayout(id: string, layout: SerializedDockview): void;
   setNote(panelId: string, text: string): void;
   resetView(id: string): void;
+  /** Keeps the active project view's arrangement; opening the project later lays it out the same way. */
+  saveProjectLayout(projectId: string): boolean;
+  forgetProjectLayout(projectId: string): void;
   savePreset(name: string): void;
   applyPreset(id: string): void;
   deletePreset(id: string): void;
@@ -335,7 +344,21 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
   }), []);
   const setLayout = useCallback((id: string, layout: SerializedDockview) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout } : v)) })), []);
   const setNote = useCallback((panelId: string, text: string) => setDoc((d) => ({ ...d, notes: { ...d.notes, [panelId]: text } })), []);
-  const resetView = useCallback((id: string) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout: null, rev: (v.rev ?? 0) + 1 } : v)) })), []);
+  // A project with a saved layout resets to it; without one, to the default arrangement.
+  const resetView = useCallback((id: string) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout: (v.projectId && d.projectLayouts?.[v.projectId]) || null, rev: (v.rev ?? 0) + 1 } : v)) })), []);
+  const saveProjectLayout = useCallback((projectId: string) => {
+    const v = docRef.current.views.find((x) => x.projectId === projectId);
+    const live = v ? apis.current.get(v.id)?.toJSON() ?? v.layout : null;
+    const layout = stripSessions(live);
+    if (!layout) return false;
+    setDoc((d) => ({ ...d, projectLayouts: { ...(d.projectLayouts ?? {}), [projectId]: layout } }));
+    return true;
+  }, []);
+  const forgetProjectLayout = useCallback((projectId: string) => setDoc((d) => {
+    const next = { ...(d.projectLayouts ?? {}) };
+    delete next[projectId];
+    return { ...d, projectLayouts: next };
+  }), []);
   const savePreset = useCallback((name: string) => setDoc((d) => {
     const v = d.views.find((x) => x.id === d.activeViewId);
     const layout = v ? stripSessions(apis.current.get(v.id)?.toJSON() ?? v.layout) : null;
@@ -371,7 +394,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (existing) setDoc((d) => ({ ...d, activeViewId: existing.id, lastProjectId: projectId }));
     else {
       const id = uid();
-      setDoc((d) => ({ ...d, views: [...d.views, { id, name, layout: null, projectId, ...(opts?.bare ? { bare: true } : {}) }], activeViewId: id, lastProjectId: projectId }));
+      setDoc((d) => ({ ...d, views: [...d.views, { id, name, layout: (!opts?.bare && d.projectLayouts?.[projectId]) || null, projectId, ...(opts?.bare ? { bare: true } : {}) }], activeViewId: id, lastProjectId: projectId }));
     }
   }, []);
   const registerApi = useCallback((viewId: string, api: DockviewApi | null) => {
@@ -393,9 +416,9 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
 
   const activeView = doc.views.find((v) => v.id === doc.activeViewId) ?? null;
   const value = useMemo<Ctx>(() => ({
-    doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
+    doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, saveProjectLayout, forgetProjectLayout, savePreset, applyPreset, deletePreset,
     setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
-  }), [doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset,
+  }), [doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, saveProjectLayout, forgetProjectLayout, savePreset, applyPreset, deletePreset,
     setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

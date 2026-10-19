@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { DockviewApi } from 'dockview-react';
-import { FolderTree, FoldVertical, LayoutGrid, Lightbulb, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
+import { Ellipsis, LayoutTemplate, RotateCcw, FolderTree, FoldVertical, LayoutGrid, Lightbulb, Moon, Pin, PinOff, ShieldAlert, Sparkles, Workflow, X, type LucideIcon } from 'lucide-react';
 import { Sidebar, type Page } from './Sidebar';
 import { Home } from './Home';
 import { Settings } from './Settings';
@@ -91,7 +91,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const { templates, sessions, telemetry, compacting } = useLive();
   const { res } = useMachine();
   const [wrapping, setWrapping] = useState<string[]>([]);
-  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding, setSettings, addView } = useWorkspace();
+  const { doc, ready, activeView, open, apiFor, setActiveView, deleteView, openProject, restartOnboarding, setSettings, addView, saveProjectLayout, forgetProjectLayout } = useWorkspace();
 
   useAppearance(doc.settings);
   useEffect(() => { void window.elysium.info().then((i) => setName(i.userName)); }, []);
@@ -108,7 +108,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     const existed = docRef.current.views.some((v) => v.projectId === id);
     openProject(id, projectName);
     setPage('workspace');
-    if (!existed) return; // a new view is laid out with its sessions already
+    // A new view is laid out with its sessions already, unless it came from a saved layout.
+    if (!existed && !docRef.current.projectLayouts?.[id]) return;
     setTimeout(() => {
       const v = docRef.current.views.find((x) => x.projectId === id);
       const api = v ? apiFor(v.id) : undefined;
@@ -250,7 +251,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   // Lets the smoke test start a template the same way a click does.
   useEffect(() => {
     const prev = window.__smoke;
-    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id), open: (req: OpenRequest) => { setPage('workspace'); open(req); }, popout: async () => { const api = activeView ? apiFor(activeView.id) : undefined; const g = api?.activeGroup ?? api?.groups[0]; if (!api || !g) return 'no group'; try { return String(await api.addPopoutGroup(g)); } catch (e) { return String(e); } } };
+    window.__smoke = { type: prev?.type ?? (() => {}), screen: prev?.screen ?? (() => ''), launch: async (id: string) => launch(id), open: (req: OpenRequest) => { setPage('workspace'); open(req); }, popout: async () => { const api = activeView ? apiFor(activeView.id) : undefined; const g = api?.activeGroup ?? api?.groups[0]; if (!api || !g) return 'no group'; try { return String(await api.addPopoutGroup(g)); } catch (e) { return String(e); } }, closeProjectView: (pid: string) => { const v = docRef.current.views.find((x) => x.projectId === pid); if (v) deleteView(v.id); return Boolean(v); }, viewPanels: () => (apiFor(docRef.current.activeViewId ?? '')?.panels ?? []).map((p) => p.title ?? p.id) };
   }, [launch, open]);
 
   // Wrap up: once a wrapped session exits, close its pane.
@@ -359,6 +360,20 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     });
   }, [sessions, setConfirm]);
 
+  // The top bar keeps only what matters at a glance; the rest waits in More, and any of it can be pinned back.
+  const pins = doc.settings.topbarPins ?? [];
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => { if (!moreOpen) return; overlayOpened(); return () => overlayClosed(); }, [moreOpen]);
+  const togglePin = (id: string) => setSettings({ topbarPins: pins.includes(id) ? pins.filter((x) => x !== id) : [...pins, id] });
+  const toggleAutoCompact = () => setSettings({ autoCompact: { ...doc.settings.autoCompact, enabled: !doc.settings.autoCompact.enabled } });
+  const topItems: { id: string; label: string; hint: string; icon: LucideIcon; run(): void }[] = projectId && !TOOL_INFO[projectId] ? [
+    { id: 'dashboard', label: 'Dashboard', hint: "Tasks, numbers, links and requests", icon: LayoutGrid, run: openDashboard },
+    { id: 'files', label: 'Files', hint: "The project's files, like VS Code's explorer", icon: FolderTree, run: toggleFiles },
+    { id: 'plan', label: 'Plan', hint: 'A planning chat that knows this project', icon: Lightbulb, run: openPlan },
+    { id: 'flow', label: 'Flow', hint: 'What each session is doing, drawn live', icon: Workflow, run: openFlow },
+    { id: 'artifact', label: 'Artifact', hint: 'Publish a Claude artifact of the current work', icon: Sparkles, run: () => void makeArtifact() },
+  ] : [];
+
   const crumb = page === 'workspace'
     ? (activeView?.projectId
       ? <span className="crumb"><ProjectLogo projectId={activeView.projectId} /><strong>{activeView.name}</strong></span>
@@ -382,33 +397,75 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
               </button>
             );
           })}
-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={toggleFiles} title="Show or hide the project's files, like VS Code's explorer"><FolderTree size={14} />Files</button>}
-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openPlan} title="A planning chat that knows this project and stays current, without touching code"><Lightbulb size={14} />Plan</button>}
-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}
-          {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
+          {projectId && topItems.filter((x) => pins.includes(x.id)).map((x) => <button key={x.id} className="glance-btn" onClick={x.run} title={x.hint}><x.icon size={14} />{x.label}</button>)}
+          {projectId && pins.includes('watch') && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
+          {projectId && pins.includes('compact') && claudeHere.length > 0 && !compactingHere.length && !wrappingHere.length && (
+            <span className="pill-group">
+              <button className={`pill auto-compact ${doc.settings.autoCompact.enabled ? 'on' : ''}`} role="switch" aria-checked={doc.settings.autoCompact.enabled} onClick={toggleAutoCompact}
+                title={doc.settings.autoCompact.enabled ? `Auto compact is on: a session past ${doc.settings.autoCompact.percent}% context saves its notes, compacts and carries on. Click to turn it off.` : 'Auto compact is off. Click to turn it on.'}>
+                <FoldVertical size={14} />Auto compact <span className="mini-switch"><i /></span>
+              </button>
+              <button className="pill ghost" onClick={compactNow} title="Compact every session in this project now">Now</button>
+            </span>
+          )}
           <span className="spacer" />
           <AccountUsage />
           <ThemeToggle />
           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
           {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting</button> : null}
-          {projectId && claudeHere.length > 0 && !wrappingHere.length && (
-            compactingHere.length
-              ? <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>
-              : <span className="pill-group">
-                  <button className={`pill auto-compact ${doc.settings.autoCompact.enabled ? 'on' : ''}`} role="switch" aria-checked={doc.settings.autoCompact.enabled}
-                    onClick={() => setSettings({ autoCompact: { ...doc.settings.autoCompact, enabled: !doc.settings.autoCompact.enabled } })}
-                    title={doc.settings.autoCompact.enabled ? `Auto compact is on: a session past ${doc.settings.autoCompact.percent}% context saves its notes, compacts and carries on. Click to turn it off.` : 'Auto compact is off. Click to turn it on.'}>
-                    <FoldVertical size={14} />Auto compact <span className="mini-switch"><i /></span>
-                  </button>
-                  <button className="pill ghost" onClick={compactNow} title="Compact every session in this project now">Now</button>
-                </span>
-          )}
-          {projectId && projectRunning.length > 0 && (
-            wrappingHere.length
-              ? <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>
-              : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
+          {projectId && claudeHere.length > 0 && compactingHere.length > 0 && !wrappingHere.length && <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>}
+          {projectId && wrappingHere.length > 0 && <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>}
+          {projectId && pins.includes('wrap') && projectRunning.length > 0 && !wrappingHere.length && <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>}
+          {projectId && (
+            <div className="top-more">
+              <button className={`glance-btn icon ${moreOpen ? 'open' : ''}`} onClick={() => setMoreOpen((o) => !o)} title="More for this project" aria-label="More for this project" aria-expanded={moreOpen}><Ellipsis size={16} /></button>
+              {moreOpen && (
+                <>
+                  <div className="menu-scrim" onClick={() => setMoreOpen(false)} />
+                  <div className="menu top-menu" role="menu">
+                    {topItems.length > 0 && <div className="menu-label">This project</div>}
+                    {topItems.map((x) => (
+                      <div key={x.id} className="top-menu-row">
+                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); x.run(); }}><x.icon size={16} /><span className="grow"><span>{x.label}</span><span className="menu-sub">{x.hint}</span></span></button>
+                        <PinToggle id={x.id} pins={pins} onToggle={togglePin} />
+                      </div>
+                    ))}
+                    {claudeHere.length > 0 && (
+                      <>
+                        <div className="menu-label">Sessions</div>
+                        <div className="top-menu-row">
+                          <button className="menu-item" role="menuitemcheckbox" aria-checked={doc.settings.autoCompact.enabled} onClick={toggleAutoCompact}>
+                            <FoldVertical size={16} /><span className="grow"><span>Auto compact</span><span className="menu-sub">{doc.settings.autoCompact.enabled ? `On, at ${doc.settings.autoCompact.percent}% context` : 'Off'}</span></span><span className={`mini-switch ${doc.settings.autoCompact.enabled ? 'on' : ''}`}><i /></span>
+                          </button>
+                          <PinToggle id="compact" pins={pins} onToggle={togglePin} />
+                        </div>
+                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); compactNow(); }}><FoldVertical size={16} /><span className="grow">Compact every session now</span></button>
+                      </>
+                    )}
+                    {projectRunning.length > 0 && !wrappingHere.length && (
+                      <div className="top-menu-row">
+                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); wrapUp(); }}><Moon size={16} /><span className="grow"><span>Wrap up</span><span className="menu-sub">Bring every session to a stopping point and close them</span></span></button>
+                        <PinToggle id="wrap" pins={pins} onToggle={togglePin} />
+                      </div>
+                    )}
+                    <div className="menu-label">Layout</div>
+                    <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); if (saveProjectLayout(projectId)) setToast(`Saved. ${activeView?.name ?? 'This project'} opens this way next time.`); }}>
+                      <LayoutTemplate size={16} /><span className="grow"><span>Save this layout</span><span className="menu-sub">{doc.projectLayouts?.[projectId] ? 'Replaces the saved one' : 'Opens this way next time'}</span></span>
+                    </button>
+                    {doc.projectLayouts?.[projectId] && (
+                      <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); forgetProjectLayout(projectId); setToast('Forgotten. It opens with the usual layout next time.'); }}>
+                        <RotateCcw size={16} /><span className="grow"><span>Forget the saved layout</span><span className="menu-sub">Back to the usual arrangement</span></span>
+                      </button>
+                    )}
+                    {!TOOL_INFO[projectId] && !pins.includes('watch') && <div className="top-menu-watch"><ChatWatchSwitch projectId={projectId} onNote={setToast} /></div>}
+                    {!TOOL_INFO[projectId] && <div className="top-menu-row foot">
+                      <span className="menu-sub">Pin an item to keep it on the bar.</span>
+                      <PinToggle id="watch" pins={pins} onToggle={togglePin} label="Chat watcher" />
+                    </div>}
+                  </div>
+                </>
+              )}
+            </div>
           )}
         </div>
         {page === 'home' && <Home name={doc.settings.displayName || name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
@@ -454,5 +511,14 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
       {tour && <Tour onClose={() => setTour(false)} goHome={tourHome} />}
       {builder && <ThemeBuilder onClose={() => setBuilder(false)} />}
     </div>
+  );
+}
+
+function PinToggle({ id, pins, onToggle, label }: { id: string; pins: string[]; onToggle(id: string): void; label?: string }) {
+  const on = pins.includes(id);
+  return (
+    <button className={`pin-toggle ${on ? 'on' : ''}`} onClick={() => onToggle(id)} title={on ? 'Unpin from the bar' : 'Pin to the bar'} aria-label={on ? `Unpin ${label ?? id} from the bar` : `Pin ${label ?? id} to the bar`} aria-pressed={on}>
+      {on ? <Pin size={13} /> : <PinOff size={13} />}{label && <span>{label}</span>}
+    </button>
   );
 }

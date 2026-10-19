@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { appendFileSync, existsSync, mkdirSync, unlinkSync } from 'node:fs';
 import { homedir as userHome, userInfo } from 'node:os';
 import { join, resolve } from 'node:path';
-import { Channels, type ConnectService, type ResourceSample, type SessionInfo } from '@shared/ipc';
+import { Channels, type ConnectService, type ResourceSample, type SessionInfo, type SessionOptions } from '@shared/ipc';
 import { dataDir, scrollbackDir } from './paths';
 import { Resources } from './resources';
 import { enforceCaps } from './scrollback';
@@ -26,7 +26,10 @@ import { applyUpdate, checkUpdates, restartAndInstall, updateNeedsRestartInstall
 import { Watchers } from './watchers';
 import { Tasks } from './tasks';
 import { Limits } from './limits';
+import { keepAwake, lidGet, lidSet } from './power';
+import { pcVitals } from './pcvitals';
 import { createProject, loadCustomProjects, removeProject } from './newproject';
+import { getSessionOptions, setSessionOptions } from './sessionopts';
 import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
 import { projectAction, runCommand } from './command';
@@ -46,7 +49,7 @@ import { resumeRunning, saveRunning } from './resume';
 import { findAgents } from './agents';
 import { Bridge } from './bridge';
 import { CodexWatch } from './codexwatch';
-import { PLAYBOOK_DIR, PLAYBOOK_HINT, playbookList } from './playbook';
+import { PLAYBOOK_DIR, PLAYBOOK_HINT, playbookList, recordPrompt } from './playbook';
 import { addAgents } from './templates';
 import { attachWeb, goWeb, detachWeb, hideAllWeb, navWeb, readClipboard, setWebBounds } from './webviews';
 
@@ -80,11 +83,15 @@ const send = (channel: string, ...args: unknown[]) => {
 const resources = new Resources(dataDir(), (r: ResourceSample) => send(Channels.resourcesUpdate, r));
 let tasks: Tasks | null = null;
 const limits = new Limits((l) => send(Channels.limitsUpdate, l));
+/** Which sessions are working right now, so Windows does not sleep under them. */
+const working = new Map<string, boolean>();
 const ingest = new Ingest((t) => {
   send(Channels.telemetryUpdate, t);
   tasks?.onTelemetry(t);
   const acc = sessions.list().find((x) => x.id === t.sessionId)?.accountId;
   if (acc) limits.update(acc, t);
+  working.set(t.sessionId, t.state === 'busy');
+  keepAwake([...working.values()].some(Boolean));
 }, (id, e) => send(Channels.readerUpdate, id, e), (id, e) => send(Channels.flowUpdate, id, e));
 const sessions = new SessionManager(
   scrollbackDir(),
@@ -266,12 +273,11 @@ function registerIpc(): void {
   ipcMain.handle(Channels.templatesList, () => templates.map(templateInfo));
   ipcMain.handle(Channels.playbookList, () => playbookList());
   ipcMain.handle(Channels.playbookOpenFolder, async () => { mkdirSync(PLAYBOOK_DIR, { recursive: true }); await shell.openPath(PLAYBOOK_DIR); });
-  ipcMain.handle(Channels.playbookRecord, (_e, sessionId: string, what: string) => {
+  ipcMain.handle(Channels.playbookRecord, (_e, sessionId: string, what: string, kind?: string) => {
     const s = sessions.list().find((x) => x.id === sessionId);
     const t = s ? findTemplate(s.templateId) : undefined;
     if (!s || !t || !tasks) return { ok: false, reason: 'That session is not running.' };
-    const topic = what.trim() || 'what you just built';
-    const r = tasks.runTemplate(t.id, `Explain how you built ${topic}, as a how-to another project could follow: what it is for, the steps in order, the files, commands and settings involved, and the pitfalls you hit. Leave out secrets. Save it with the elysium_playbook_add tool, then tell me its name.`);
+    const r = tasks.runTemplate(t.id, recordPrompt(what, kind));
     return { ok: r.ok, reason: r.reason };
   });
   ipcMain.handle(Channels.sessionsList, () => sessions.list());
@@ -313,6 +319,9 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectGlance, (_e, id: unknown) => projectGlance(String(id)));
   ipcMain.handle(Channels.wrapUp, (_e, projectId: unknown) => (typeof projectId === 'string' && tasks ? tasks.wrapUp(projectId) : []));
   ipcMain.handle(Channels.limitsAll, () => limits.all());
+  ipcMain.handle(Channels.lidGet, () => lidGet());
+  ipcMain.handle(Channels.pcVitals, () => pcVitals());
+  ipcMain.handle(Channels.lidSet, (_e, mode: unknown) => (mode === 'off' || mode === 'plugged' || mode === 'always' ? lidSet(mode) : { ok: false, mode: 'off', reason: 'Unknown choice.' }));
   ipcMain.handle(Channels.projectAction, (_e, id: unknown, type: unknown) =>
     (tasks && typeof id === 'string' && (type === 'start' || type === 'stop' || type === 'kill' || type === 'compact') ? projectAction(id, type, tasks, sessions) : { ok: false, via: 'rules', say: 'Not ready yet.', steps: [], open: null }));
   ipcMain.handle(Channels.homeDir, () => userHome());
@@ -326,7 +335,7 @@ function registerIpc(): void {
   ipcMain.on(Channels.readerAsk, (_e, id: unknown, text: unknown) => { if (typeof id === 'string' && typeof text === 'string') ingest.noteAsked(id, text); });
   ipcMain.handle(Channels.tokenStats, () => tokenStats());
   ipcMain.handle(Channels.chatGet, (_e, id: unknown) => chats.get(String(id)));
-  ipcMain.handle(Channels.chatSend, (_e, id: unknown, text: unknown) => chats.send(String(id), String(text ?? '')));
+  ipcMain.handle(Channels.chatSend, (_e, id: unknown, text: unknown, images: unknown) => chats.send(String(id), String(text ?? ''), Array.isArray(images) ? images.filter((x): x is string => typeof x === 'string').slice(0, 8) : []));
   ipcMain.on(Channels.chatStop, (_e, id: unknown) => chats.stop(String(id)));
   ipcMain.handle(Channels.chatReset, (_e, id: unknown) => chats.reset(String(id)));
   ipcMain.handle(Channels.connections, () => connections());
@@ -340,12 +349,14 @@ function registerIpc(): void {
   ipcMain.handle(Channels.clipboardHasImage, async () => {
     try { return (await clipboard.read()).some((item) => item.types.some((t) => t.startsWith('image/'))); } catch { return false; }
   });
-  // Windows voice typing types into whatever has focus; this presses Win+H for you. Fixed script, no input.
-  // One PowerShell stays ready and presses on each line it reads: a new one each time took about half a second.
-  ipcMain.on(Channels.dictate, (_e, warmOnly: unknown) => {
-    const ps = dictateHelper();
-    if (!warmOnly) ps?.stdin?.write('h\n');
+  // The mic buttons: Windows speech recognition in a PowerShell kept ready (resources/speech.ps1),
+  // told to start or stop; each finished phrase comes back as text. Nothing is recorded.
+  ipcMain.on(Channels.dictate, (_e, action: unknown) => {
+    if (action !== 'warm' && action !== 'start' && action !== 'stop') return;
+    const ps = speechHelper();
+    if (action !== 'warm') ps?.stdin?.write(`${action}\n`);
   });
+  ipcMain.on(Channels.speechSettings, () => void shell.openExternal('ms-settings:privacy-speech'));
   ipcMain.handle(Channels.flowGet, (_e, id: unknown) => (typeof id === 'string' ? { events: ingest.flow(id), summary: lastSummary(id) } : { events: [], summary: null }));
   ipcMain.handle(Channels.flowSummary, (_e, id: unknown) => {
     if (typeof id !== 'string') return { text: null, at: null, reason: null };
@@ -365,6 +376,8 @@ function registerIpc(): void {
     if (ok) send(Channels.projectsChanged);
     return ok;
   });
+  ipcMain.handle(Channels.sessionOptionsGet, (_e, id: unknown) => getSessionOptions(String(id)));
+  ipcMain.handle(Channels.sessionOptionsSet, (_e, id: unknown, opts: unknown) => setSessionOptions(String(id), (opts ?? {}) as SessionOptions));
   ipcMain.handle(Channels.folderPick, async () => {
     const r = win ? await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] }) : await dialog.showOpenDialog({ properties: ['openDirectory', 'createDirectory'] });
     return r.canceled ? null : r.filePaths[0] ?? null;
@@ -426,7 +439,7 @@ function registerIpc(): void {
 
 let quitting = false;
 app.on('before-quit', (e) => {
-  dictater?.kill();
+  speaker?.kill();
   if (quitting) return;
   e.preventDefault();
   quitting = true;
@@ -465,6 +478,8 @@ loadCustomProjects();
 ingest.onConversation = (sid, conv) => sessions.noteConversation(sid, conv);
 
 app.whenReady().then(async () => {
+  limits.start();
+  app.on('browser-window-focus', () => void limits.poll());
   serveRenderer();
   try { enforceCaps(scrollbackDir()); } catch { /* never block startup on cleanup */ }
   registerIpc();
@@ -496,16 +511,23 @@ app.whenReady().then(async () => {
   if (SMOKE) void runSmoke({ win, sessions, resources });
 });
 
-let dictater: ChildProcess | null = null;
-/** The PowerShell that presses Win+H, started on first use and kept for the next press. */
-function dictateHelper(): ChildProcess | null {
-  if (dictater && dictater.exitCode === null && !dictater.killed) return dictater;
-  const press = '[E.K]::keybd_event(0x5B,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,0,[UIntPtr]::Zero); [E.K]::keybd_event(0x48,0,2,[UIntPtr]::Zero); [E.K]::keybd_event(0x5B,0,2,[UIntPtr]::Zero)';
-  const ps = 'Add-Type -Namespace E -Name K -MemberDefinition \'[DllImport("user32.dll")] public static extern void keybd_event(byte k, byte s, uint f, System.UIntPtr e);\'; while ($null -ne [Console]::In.ReadLine()) { ' + press + ' }';
+let speaker: ChildProcess | null = null;
+/** The listening helper, started on first use and kept for the next time. */
+function speechHelper(): ChildProcess | null {
+  if (speaker && speaker.exitCode === null && !speaker.killed) return speaker;
   try {
-    dictater = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { windowsHide: true, stdio: ['pipe', 'ignore', 'ignore'] });
-    dictater.on('exit', () => { dictater = null; });
-    dictater.on('error', () => { dictater = null; });
-  } catch { dictater = null; }
-  return dictater;
+    const script = join(app.getAppPath(), 'resources', 'speech.ps1');
+    const ps = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', script], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+    let buf = '';
+    ps.stdout?.on('data', (d: Buffer) => {
+      buf += d.toString('utf8');
+      const lines = buf.split(/\r?\n/);
+      buf = lines.pop() ?? '';
+      for (const l of lines) { try { if (l.trim()) send(Channels.dictateEvent, JSON.parse(l)); } catch { /* not ours */ } }
+    });
+    ps.on('exit', () => { if (speaker === ps) speaker = null; send(Channels.dictateEvent, { t: 'idle' }); });
+    ps.on('error', () => { if (speaker === ps) speaker = null; });
+    speaker = ps;
+  } catch { speaker = null; }
+  return speaker;
 }

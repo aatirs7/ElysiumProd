@@ -7,6 +7,7 @@ import type { ReaderEntry } from '@shared/ipc';
 import { useWorkspace } from './store';
 import { useLive } from './live';
 import { md, onLinkClick } from './project-widgets';
+import { MicButton, withPhrase } from '../Mic';
 
 export interface TerminalParams {
   templateId: string;
@@ -93,6 +94,8 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   const [error, setError] = useState<string | null>(null);
   const [lowRes, setLowRes] = useState(false);
   const overrideRef = useRef(false);
+  // Set by Start: the next attempt starts fresh even if the old parameters have not caught up yet.
+  const startingRef = useRef(false);
   const [attempt, setAttempt] = useState(0);
   const sessionId = props.params.sessionId;
   const session = sessions.find((s) => s.id === sessionId);
@@ -117,7 +120,9 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
   useEffect(() => {
     const el = host.current!;
     let disposed = false;
-    let sid: string | null = props.params.sessionId ?? null;
+    const asked = startingRef.current;
+    startingRef.current = false;
+    let sid: string | null = asked ? null : (props.params.sessionId ?? null);
     let seen = 0; // characters of this session already written
     const cleanups: Array<() => void> = [];
 
@@ -182,7 +187,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
     };
 
     void (async () => {
-      if (props.params.pending && !sid) return;
+      if (props.params.pending && !sid && !asked) return;
       if (sid) {
         const r = await window.elysium.replay(sid);
         if (disposed) return;
@@ -213,7 +218,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
         // Already running (a pane from before, or the quick bar started it): connect to it instead.
         const running = (await window.elysium.sessions()).find((x) => x.templateId === props.params.templateId && x.status === 'running');
         if (running && /already running/i.test(r.reason ?? '')) {
-          props.api.updateParameters({ templateId: props.params.templateId, sessionId: running.id });
+          props.api.updateParameters({ ...props.params, sessionId: running.id, pending: undefined });
           setAttempt((a) => a + 1);
           return;
         }
@@ -246,8 +251,9 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
     setError(null);
     setLowRes(false);
     setPending(false);
-    const keep = props.params as { tint?: string; reader?: boolean };
-    props.api.updateParameters({ templateId: props.params.templateId, ...(keep.tint ? { tint: keep.tint } : {}), ...(keep.reader ? { reader: true } : {}) });
+    startingRef.current = true;
+    // dockview merges parameters, and only undefined removes one: a kept pending or old session id stopped Start from doing anything.
+    props.api.updateParameters({ ...props.params, sessionId: undefined, pending: undefined });
     setAttempt((a) => a + 1);
   };
 
@@ -269,6 +275,7 @@ export function TerminalPanel(props: IDockviewPanelProps<TerminalParams>) {
     <div className={`term-panel ${doc.settings.termStyle === 'paper' ? 'paper' : ''}`} style={{ background: theme.panel }}>
       {hasReader && (
         <div className="term-mode">
+          {!reader && sessionId && <MicButton className="mic-btn small" size={14} onText={(t) => { window.elysium.write(sessionId, `\x1b[200~${t} \x1b[201~`); termRef.current?.focus(); }} />}
           <div className="seg">
             <button className={!reader ? 'on' : ''} onClick={() => setReader(false)} title="The live terminal"><SquareTerminal size={13} /> Terminal</button>
             <button className={reader ? 'on' : ''} onClick={() => setReader(true)} title="The conversation as a readable page"><BookOpenText size={13} /> Reader</button>
@@ -391,6 +398,7 @@ function ReaderView({ sessionId, title }: { sessionId: string; title: string }) 
       <div className="reader-compose">
         <textarea value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={`Reply to ${title}`} rows={1}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }} />
+        <MicButton onText={(t) => setDraft((x) => withPhrase(x, t))} size={16} />
         <button className="send-btn" onClick={send} disabled={!draft.trim()} aria-label="Send"><SendHorizontal size={16} /></button>
       </div>
     </div>

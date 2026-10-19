@@ -109,6 +109,9 @@ export const Channels = {
   readerUpdate: 'reader:update',
   clipboardRead: 'clipboard:read',
   limitsAll: 'limits:all',
+  lidGet: 'power:lid-get',
+  lidSet: 'power:lid-set',
+  pcVitals: 'pc:vitals',
   limitsUpdate: 'limits:update',
   compact: 'session:compact',
   compactUpdate: 'compact:update',
@@ -117,6 +120,8 @@ export const Channels = {
   notifyOs: 'notify:os',
   projectCreate: 'project:create',
   projectRemove: 'project:remove',
+  sessionOptionsGet: 'project:session-options-get',
+  sessionOptionsSet: 'project:session-options-set',
   folderPick: 'folder:pick',
   projectsChanged: 'projects:changed',
   costsGet: 'costs:get',
@@ -148,12 +153,14 @@ export const Channels = {
   scanRepos: 'connect:scan-repos',
   openFolder: 'project:open-folder',
   dictate: 'dictate:start',
+  dictateEvent: 'dictate:event',
+  speechSettings: 'dictate:settings',
   clipboardHasImage: 'clipboard:has-image',
 } as const;
 
 export interface ProcGroup { name: string; pids: number[]; bytes: number; windowTitle: string | null; protected: boolean; agentHost: boolean }
 
-export interface ChatMessage { id: string; role: 'you' | 'claude'; text: string; at: string; steps: FlowEvent[]; costUsd?: number }
+export interface ChatMessage { id: string; role: 'you' | 'claude'; text: string; at: string; steps: FlowEvent[]; costUsd?: number; /** Sent while Claude was still answering; waits its turn. */ queued?: boolean; /** Pictures pasted or attached with it, saved in the data folder. */ images?: string[] }
 export interface ChatState { id: string; conversationId: string | null; messages: ChatMessage[]; running: boolean; error: string | null }
 export interface ChatEvent { chatId: string; state: ChatState; finished?: boolean }
 /** The built in ones, the extra integrations (aws, supabase, ...) and custom:<id> for your own. */
@@ -164,8 +171,10 @@ export interface ConnectStatus {
   group?: 'core' | 'more' | 'custom';
   accounts?: { id: string; configDir: string; signedIn: boolean }[];
 }
-/** One how-to in the shared playbook (~/Elysium Playbook). */
-export interface PlaybookEntry { slug: string; title: string; summary: string; project: string; tags: string[]; updatedAt: string; body: string }
+/** What a playbook entry is: how something was built, the thinking behind a plan, a thing worth copying, or a lesson. */
+export type PlaybookKind = 'howto' | 'strategy' | 'showcase' | 'lesson';
+/** One entry in the shared playbook (~/Elysium Playbook). */
+export interface PlaybookEntry { slug: string; title: string; summary: string; project: string; tags: string[]; updatedAt: string; body: string; kind: PlaybookKind; author: string }
 export interface FileEntry { name: string; path: string; dir: boolean; dim: boolean }
 export interface FileText { ok: boolean; error: string | null; text: string; size: number; binary: boolean }
 export interface NewsItem { title: string; url: string; source: string; at: string | null; points?: number }
@@ -213,7 +222,7 @@ export interface ElysiumApi {
   playbook(): Promise<PlaybookEntry[]>;
   openPlaybookFolder(): Promise<void>;
   /** Asks a running session to write up how it built what it just did. */
-  recordPlaybook(sessionId: string, what: string): Promise<{ ok: boolean; reason: string | null }>;
+  recordPlaybook(sessionId: string, what: string, kind?: PlaybookKind): Promise<{ ok: boolean; reason: string | null }>;
   sessions(): Promise<SessionInfo[]>;
   create(templateId: string, cols: number, rows: number, opts?: CreateOptions): Promise<CreateResult>;
   write(sessionId: string, data: string): void;
@@ -275,6 +284,11 @@ export interface ElysiumApi {
   onResources(cb: (r: ResourceSample) => void): () => void;
   /** Last known Claude plan limits per account, kept across restarts. */
   limits(): Promise<AccountLimits[]>;
+  /** What Windows does when the lid closes: off (sleeps as usual), plugged (keeps working on power), always. */
+  lidGet(): Promise<{ mode: 'off' | 'plugged' | 'always'; available: boolean }>;
+  lidSet(mode: 'off' | 'plugged' | 'always'): Promise<{ ok: boolean; mode: 'off' | 'plugged' | 'always'; reason: string | null }>;
+  /** Drives, Wi-Fi and uptime for the PC Helper's vitals strip. */
+  pcVitals(): Promise<PcVitals>;
   onLimits(cb: (l: AccountLimits) => void): () => void;
   /** Asks each session to reach a clean stopping point, then runs /compact. Returns the sessions started. */
   compact(sessionIds: string[]): Promise<string[]>;
@@ -286,6 +300,9 @@ export interface ElysiumApi {
   createProject(req: NewProjectRequest): Promise<NewProjectResult>;
   /** Takes a project made in the app out of the list; its folder is left alone. */
   removeProject(id: string): Promise<boolean>;
+  /** Model, advisor and effort a project's Claude sessions start with. */
+  sessionOptions(projectId: string): Promise<SessionOptions>;
+  setSessionOptions(projectId: string, opts: SessionOptions): Promise<SessionOptions>;
   pickFolder(): Promise<string | null>;
   onProjectsChanged(cb: () => void): () => void;
   /** Costs across Vercel, Neon and AWS; cached for an hour unless forced. */
@@ -312,7 +329,8 @@ export interface ElysiumApi {
   readerAsk(sessionId: string, text: string): void;
   tokens(): Promise<TokenStats>;
   chatGet(chatId: string): Promise<ChatState>;
-  chatSend(chatId: string, text: string): Promise<{ ok: boolean; reason: string | null }>;
+  /** images: pasted or attached pictures as data: URLs (png, jpeg, gif, webp). */
+  chatSend(chatId: string, text: string, images?: string[]): Promise<{ ok: boolean; reason: string | null }>;
   chatStop(chatId: string): void;
   chatReset(chatId: string): Promise<ChatState>;
   onChat(cb: (e: ChatEvent) => void): () => void;
@@ -320,8 +338,11 @@ export interface ElysiumApi {
   connect(service: ConnectService, action: 'install' | 'signin', accountId?: string): Promise<{ ok: boolean; reason: string | null }>;
   addClaudeAccount(name: string): Promise<{ ok: boolean; reason: string | null; accountId?: string }>;
   scanRepos(): Promise<RepoCandidate[]>;
-  /** Opens Windows voice typing (Win+H) for the focused text box. */
-  dictate(warmOnly?: boolean): void;
+  /** Listening for the mic buttons, with Windows speech recognition inside the app. */
+  dictate(action: 'warm' | 'start' | 'stop'): void;
+  onDictate(cb: (e: DictateEvent) => void): () => void;
+  /** Windows' speech privacy page, where online speech recognition is turned on. */
+  openSpeechSettings(): void;
   clipboardHasImage(): Promise<boolean>;
 }
 
@@ -401,6 +422,8 @@ export interface WatcherState {
   error: string | null;
 }
 
+/** What a project's Claude sessions start with; empty means the CLI default. */
+export interface SessionOptions { model?: string; advisor?: string; effort?: string }
 export interface CreateOptions { accountId?: string | null; /** Start even though memory or disk is low. */ override?: boolean }
 
 export interface WebState { id: string; url: string; title: string; loading: boolean; error: string | null; accountId: string }
@@ -441,3 +464,9 @@ export interface UsageStats {
 }
 
 export interface ReaderEntry { at: string; role: 'you' | 'claude'; text: string }
+
+/** From the listening helper: a finished phrase, or a change of state. */
+export interface DictateEvent { t: 'ready' | 'listening' | 'text' | 'idle' | 'error'; text?: string; code?: 'privacy' | 'microphone' | 'unavailable' | 'failed'; message?: string }
+
+/** What the PC Helper shows at the top besides CPU and memory. */
+export interface PcVitals { at: string; drives: { name: string; freeBytes: number; totalBytes: number }[]; wifi: { connected: boolean; ssid: string | null; signal: number | null } | null; uptimeSec: number }

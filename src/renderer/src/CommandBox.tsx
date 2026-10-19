@@ -1,8 +1,9 @@
 // Home's command box: one line to run every project. "Tell Elysium Intern to fix
 // the login", "start Gulf and Attestia", "wrap up SecurITPosture", "compact Prime
-// Posture". The mic opens Windows voice typing, which types into the box.
+// Posture". The mic listens inside the app and types what you say into the box.
 import { useRef, useState } from 'react';
-import { ArrowUp, Check, Loader2, Mic, TriangleAlert } from 'lucide-react';
+import { ArrowUp, Check, Loader2, TriangleAlert } from 'lucide-react';
+import { MicButton, withPhrase } from './Mic';
 import type { CommandResult } from '@shared/ipc';
 import { useLive } from './workspace/live';
 
@@ -31,7 +32,6 @@ export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void 
     if (r.ok) setText('');
     if (r.open) onOpenProject(r.open);
   };
-  const dictate = () => { input.current?.focus(); setTimeout(() => window.elysium.dictate(), 120); };
 
   return (
     <div className="cmd">
@@ -39,7 +39,7 @@ export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void 
         <textarea ref={input} className="cmd-input" rows={1} value={text} placeholder="Tell any project what to do"
           onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(160, e.target.scrollHeight)}px`; }}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run(); } }} aria-label="Tell a project what to do" />
-        <button className="cmd-icon" onClick={dictate} title="Dictate with Windows voice typing (Win+H)" aria-label="Dictate"><Mic size={17} /></button>
+        <MicButton className="cmd-icon" onText={(t) => { setText((x) => withPhrase(x, t)); input.current?.focus(); }} />
         <button className="cmd-send" onClick={() => void run()} disabled={!text.trim() || busy} aria-label="Run">
           {busy ? <Loader2 size={17} className="spin" /> : <ArrowUp size={17} />}
         </button>
