@@ -1,0 +1,556 @@
+diff --git a/src/main/smoke.ts b/src/main/smoke.ts
+index 9324d29..7b9203b 100644
+--- a/src/main/smoke.ts
++++ b/src/main/smoke.ts
+@@ -46,7 +46,7 @@ async function mcpCheck(fromSessionId: string, codexTo?: string): Promise<Record
+ }
+ 
+ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManager; resources: Resources }): Promise<void> {
+-  const out = join(process.cwd(), 'smoke-out');
++  const out = process.env.ELYSIUM_SMOKE_OUT || join(process.cwd(), 'smoke-out');
+   mkdirSync(out, { recursive: true });
+   const r: Record<string, unknown> = { startedAt: new Date().toISOString() };
+   const js = (code: string) => ctx.win.webContents.executeJavaScript(code);
+@@ -97,6 +97,11 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
+     for (let i = 0; i < 60; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string }[]; error: string | null }; if (!st.running) { r.chatReply = st.messages[st.messages.length - 1]?.text; r.chatError = st.error; break; } }
+     await sleep(800);
+     await shot('3b-pc-helper-reply');
++    // The dashboard: open the older result card too, to see its tiles, checks and action buttons.
++    await js(`[...document.querySelectorAll('.pch-card-head')].pop()?.click()`); await sleep(700);
++    r.pcHelperCards = await js(`document.querySelectorAll('.pch-card').length`);
++    r.pcHelperActions = await js(`[...document.querySelectorAll('.vz-action')].map((b) => b.textContent)`);
++    await shot('3c-pc-helper-dashboard');
+     // The planning chat on a real project, when this profile has one: one tiny message.
+     const planFor = ((await js(`window.elysium.projects()`)) as { id: string; builtin?: boolean }[]).find((x) => !x.builtin)?.id;
+     if (planFor) {
+@@ -146,6 +151,17 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
+     const web = webStates()[0];
+     // A hidden native view cannot be captured; that is a limit of the test, not the app.
+     if (web) { try { const png = await captureWeb(web.id); if (png) writeFileSync(join(out, '5-claude-pane.png'), png); } catch (e) { r.webCapture = String(e); } }
++    // A menu over the Claude page hides it; closing the menu must bring it back.
++    if (!webStates().length) { await js(`window.__smoke.open({ kind: 'claude', title: 'Claude' })`); await sleep(6000); }
++    const pane = webStates()[0];
++    if (pane) {
++      const web = pane;
++      const before = webStates().find((w) => w.id === web.id)?.visible;
++      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`); await sleep(700);
++      const during = webStates().find((w) => w.id === web.id)?.visible;
++      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true }))`); await sleep(900);
++      r.webAfterMenu = { before, during, after: webStates().find((w) => w.id === web.id)?.visible };
++    }
+     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.includes('Your stats'))?.click()`);
+     await sleep(5000);
+     await shot('6-stats');
+@@ -195,7 +211,41 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
+     await js(`window.dispatchEvent(new Event('ep:new-view'))`);
+     await sleep(1200); await js(`document.querySelectorAll('.ep-tab-close').forEach((b) => b.click())`);
+     await sleep(1800); await shot('22-empty-view');
+-    r.emptyView = await js(`Boolean(document.querySelector('.wm-walker'))`);
++    r.emptyView = await js(`Boolean(document.querySelector('.wm-ninja .mc-ninja'))`);
++    // Playful extras: frame cost on the empty view with and without the ninja, then each visitor once.
++    {
++      const frames = (ms: number) => js(`new Promise((ok) => { const d = []; let last = performance.now(); const end = last + ${ms}; const f = (t) => { d.push(t - last); last = t; if (t < end) requestAnimationFrame(f); else { d.sort((a, b) => a - b); ok({ median: +d[Math.floor(d.length / 2)].toFixed(1), p95: +d[Math.floor(d.length * .95)].toFixed(1), frames: d.length }); } }; requestAnimationFrame(f); })`);
++      await js(`(() => { const st = document.createElement('style'); st.id = 'no-fun'; st.textContent = '.wm-ninja { display: none !important; }'; document.head.appendChild(st); })()`);
++      await sleep(300);
++      const without = await frames(2500);
++      await js(`document.getElementById('no-fun')?.remove()`);
++      await sleep(300);
++      const withNinja = await frames(2500);
++      r.funFrames = { without, withNinja };
++      const trick = async (name: string, at: number, file: string) => { await js(`window.__mascots?.play(${JSON.stringify(name)})`); await sleep(at); await shot(file); };
++      await trick('ninja-flip', 330, '28a-ninja-flip');
++      await sleep(900);
++      await trick('ninja-cartwheel', 380, '28b-ninja-cartwheel');
++      await sleep(900);
++      await trick('ninja-slash', 470, '28c-ninja-slash');
++      await sleep(700);
++      await trick('ninja-wave', 500, '28d-ninja-wave');
++      await js(`window.__smoke.open({ kind: 'notes', title: 'Notes' })`);
++      await sleep(900);
++      r.funTabPeek = await js(`window.__mascots?.play('tab-peek')`); await sleep(1100); await shot('28e-tab-peek');
++      await sleep(3500);
++      r.funCheer = await js(`window.__mascots?.play('cheer')`); await sleep(420); await shot('28f-cheer');
++      await sleep(2000);
++      r.funSidePeek = await js(`window.__mascots?.play('side-peek')`); await sleep(1300); await shot('28g-side-peek');
++      await sleep(2600);
++      r.funSideSit = await js(`window.__mascots?.play('side-sit')`); await sleep(1500); await shot('28h-side-sit');
++      await sleep(6500);
++      r.funWander = await js(`window.__mascots?.play('wander')`); await sleep(3000); await shot('28i-wander');
++      await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
++      await sleep(1600);
++      r.funHome = await js(`window.__mascots?.play('home')`); await sleep(1250); await shot('28j-home');
++      await sleep(5200);
++    }
+     // Dictate: words in the box go into a running shell when Enter is pressed. The shell is
+     // started directly, so no project opens.
+     {
+@@ -215,6 +265,37 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
+       r.dictateReached = Boolean(sh && existsSync(sh.scrollbackPath) && readFileSync(sh.scrollbackPath, 'utf8').includes('dictated-42'));
+       await shot('25b-dictate-sent');
+     }
++    // A pane saved as not started: its Start button must start the session (it used to clear the card and do nothing).
++    {
++      for (const x of ctx.sessions.list()) if (x.templateId === 'local.shell' && x.status === 'running') ctx.sessions.kill(x.id);
++      await sleep(1500);
++      await js(`window.__smoke.open({ kind: 'terminal', templateId: 'local.shell', title: 'PowerShell', params: { pending: true } })`);
++      await sleep(1200);
++      r.pendingCard = await js(`document.querySelector('.term-overlay .btn.primary')?.textContent ?? null`);
++      await js(`document.querySelector('.term-overlay .btn.primary')?.click()`);
++      await sleep(4000);
++      r.pendingStarted = ctx.sessions.list().some((x) => x.templateId === 'local.shell' && x.status === 'running');
++      r.pendingCardAfter = await js(`Boolean(document.querySelector('.term-overlay'))`);
++      await shot('26-pending-started');
++    }
++    // The mic on Home: listening runs inside the app. On a PC where Windows' speech privacy
++    // setting is off it says how to turn it on; either way the helper answers.
++    {
++      await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
++      await sleep(1200);
++      await js(`document.querySelector('.cmd-box .cmd-icon')?.click()`);
++      let note: unknown = null; let listening: unknown = false;
++      for (let i = 0; i < 20 && !note; i++) { await sleep(500); note = await js(`document.querySelector('.mic-note')?.textContent ?? null`); listening = listening || await js(`Boolean(document.querySelector('.cmd-icon.listening'))`); }
++      r.mic = { note, listening };
++      await shot('27-mic');
++      await js(`document.querySelector('.cmd-icon.listening')?.click()`);
++    }
++    // A picture sent with a chat message reaches Claude: a small red square, asked for its colour.
++    {
++      const pic = await js(`(() => { const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#E02020'; g.fillRect(0, 0, 64, 64); return c.toDataURL('image/png'); })()`) as string;
++      r.picSend = await js(`window.elysium.chatSend('tool:laptop', 'What single colour fills the attached picture? Answer with one word.', [${JSON.stringify(pic)}])`);
++      for (let i = 0; i < 80; i++) { await sleep(1500); const st = await js(`window.elysium.chatGet('tool:laptop')`) as { running: boolean; messages: { text: string; images?: string[] }[]; error: string | null }; if (!st.running) { r.picReply = st.messages[st.messages.length - 1]?.text; r.picSaved = st.messages.filter((m) => m.images?.length).map((m) => m.images!.every((f) => existsSync(f))); r.picError = st.error; break; } }
++    }
+     await js(`document.querySelector('.usage-strip')?.click()`);
+     await sleep(600); await shot('16-usage');
+     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
+diff --git a/src/renderer/src/App.tsx b/src/renderer/src/App.tsx
+index 04f460c..264f4a1 100644
+--- a/src/renderer/src/App.tsx
++++ b/src/renderer/src/App.tsx
+@@ -1,6 +1,6 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import type { DockviewApi } from 'dockview-react';
+-import { FolderTree, FoldVertical, LayoutGrid, Lightbulb, Moon, ShieldAlert, Sparkles, Workflow, X } from 'lucide-react';
++import { Ellipsis, FolderTree, FoldVertical, LayoutGrid, Lightbulb, Moon, Pin, PinOff, ShieldAlert, Sparkles, Workflow, X, type LucideIcon } from 'lucide-react';
+ import { Sidebar, type Page } from './Sidebar';
+ import { Home } from './Home';
+ import { Settings } from './Settings';
+@@ -22,6 +22,7 @@ import { Playbook } from './Playbook';
+ import { CHECKS, TOOL_INFO } from './tools';
+ import { MachineWidget } from './workspace/widgets';
+ import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
++import { Mascots } from './mascots/Mascots';
+ import { AccountUsage, ChatWatchSwitch, NoticeStack, ThemeToggle, useNotices, type Notice } from './TopBarExtras';
+ 
+ interface Confirm { title: string; body: string; yes: string; run(): void }
+@@ -359,6 +360,20 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
+     });
+   }, [sessions, setConfirm]);
+ 
++  // The top bar keeps only what matters at a glance; the rest waits in More, and any of it can be pinned back.
++  const pins = doc.settings.topbarPins ?? [];
++  const [moreOpen, setMoreOpen] = useState(false);
++  useEffect(() => { if (!moreOpen) return; overlayOpened(); return () => overlayClosed(); }, [moreOpen]);
++  const togglePin = (id: string) => setSettings({ topbarPins: pins.includes(id) ? pins.filter((x) => x !== id) : [...pins, id] });
++  const toggleAutoCompact = () => setSettings({ autoCompact: { ...doc.settings.autoCompact, enabled: !doc.settings.autoCompact.enabled } });
++  const topItems: { id: string; label: string; hint: string; icon: LucideIcon; run(): void }[] = projectId && !TOOL_INFO[projectId] ? [
++    { id: 'dashboard', label: 'Dashboard', hint: "Tasks, numbers, links and requests", icon: LayoutGrid, run: openDashboard },
++    { id: 'files', label: 'Files', hint: "The project's files, like VS Code's explorer", icon: FolderTree, run: toggleFiles },
++    { id: 'plan', label: 'Plan', hint: 'A planning chat that knows this project', icon: Lightbulb, run: openPlan },
++    { id: 'flow', label: 'Flow', hint: 'What each session is doing, drawn live', icon: Workflow, run: openFlow },
++    { id: 'artifact', label: 'Artifact', hint: 'Publish a Claude artifact of the current work', icon: Sparkles, run: () => void makeArtifact() },
++  ] : [];
++
+   const crumb = page === 'workspace'
+     ? (activeView?.projectId
+       ? <span className="crumb"><ProjectLogo projectId={activeView.projectId} /><strong>{activeView.name}</strong></span>
+@@ -382,33 +397,66 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
+               </button>
+             );
+           })}
+-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openDashboard} title="This project's tasks, numbers, links and requests"><LayoutGrid size={14} />Dashboard</button>}
+-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={toggleFiles} title="Show or hide the project's files, like VS Code's explorer"><FolderTree size={14} />Files</button>}
+-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openPlan} title="A planning chat that knows this project and stays current, without touching code"><Lightbulb size={14} />Plan</button>}
+-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={openFlow} title="What each session is doing, drawn live"><Workflow size={14} />Flow</button>}
+-          {projectId && !TOOL_INFO[projectId] && <button className="glance-btn" onClick={() => void makeArtifact()} title="Have this project's session publish a Claude artifact of what it is working on"><Sparkles size={14} />Artifact</button>}
+-          {projectId && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
++          {projectId && topItems.filter((x) => pins.includes(x.id)).map((x) => <button key={x.id} className="glance-btn" onClick={x.run} title={x.hint}><x.icon size={14} />{x.label}</button>)}
++          {projectId && pins.includes('watch') && <ChatWatchSwitch projectId={projectId} onNote={setToast} />}
++          {projectId && pins.includes('compact') && claudeHere.length > 0 && !compactingHere.length && !wrappingHere.length && (
++            <span className="pill-group">
++              <button className={`pill auto-compact ${doc.settings.autoCompact.enabled ? 'on' : ''}`} role="switch" aria-checked={doc.settings.autoCompact.enabled} onClick={toggleAutoCompact}
++                title={doc.settings.autoCompact.enabled ? `Auto compact is on: a session past ${doc.settings.autoCompact.percent}% context saves its notes, compacts and carries on. Click to turn it off.` : 'Auto compact is off. Click to turn it on.'}>
++                <FoldVertical size={14} />Auto compact <span className="mini-switch"><i /></span>
++              </button>
++              <button className="pill ghost" onClick={compactNow} title="Compact every session in this project now">Now</button>
++            </span>
++          )}
+           <span className="spacer" />
+           <AccountUsage />
+           <ThemeToggle />
+           {glance?.awsTotal != null && <span className="glance" title="AWS and Bedrock spend this month, from the plugin's daily check">AWS ${glance.awsTotal.toFixed(2)} of ${glance.awsCap}</span>}
+           {glance?.waiting ? <button className="pill warn" onClick={openRelay} title="Open the relay">{glance.waiting} waiting</button> : null}
+-          {projectId && claudeHere.length > 0 && !wrappingHere.length && (
+-            compactingHere.length
+-              ? <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>
+-              : <span className="pill-group">
+-                  <button className={`pill auto-compact ${doc.settings.autoCompact.enabled ? 'on' : ''}`} role="switch" aria-checked={doc.settings.autoCompact.enabled}
+-                    onClick={() => setSettings({ autoCompact: { ...doc.settings.autoCompact, enabled: !doc.settings.autoCompact.enabled } })}
+-                    title={doc.settings.autoCompact.enabled ? `Auto compact is on: a session past ${doc.settings.autoCompact.percent}% context saves its notes, compacts and carries on. Click to turn it off.` : 'Auto compact is off. Click to turn it on.'}>
+-                    <FoldVertical size={14} />Auto compact <span className="mini-switch"><i /></span>
+-                  </button>
+-                  <button className="pill ghost" onClick={compactNow} title="Compact every session in this project now">Now</button>
+-                </span>
+-          )}
+-          {projectId && projectRunning.length > 0 && (
+-            wrappingHere.length
+-              ? <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>
+-              : <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>
++          {projectId && claudeHere.length > 0 && compactingHere.length > 0 && !wrappingHere.length && <span className="pill" title="Each session saves its notes, compacts, then carries on"><span className="dot busy" />Compacting, {compactStage}</span>}
++          {projectId && wrappingHere.length > 0 && <span className="pill" title="Each session closes once it reaches a stopping point"><span className="dot busy" />Wrapping up {wrappingHere.length}{wrappingHere.some((x) => telemetry[x.id]?.state === 'waiting') ? ', one needs you' : ''}</span>}
++          {projectId && pins.includes('wrap') && projectRunning.length > 0 && !wrappingHere.length && <button className="pill" onClick={wrapUp} title="Bring every session in this project to a stopping point and close them"><Moon size={14} />Wrap up</button>}
++          {projectId && (
++            <div className="top-more">
++              <button className={`glance-btn icon ${moreOpen ? 'open' : ''}`} onClick={() => setMoreOpen((o) => !o)} title="More for this project" aria-label="More for this project" aria-expanded={moreOpen}><Ellipsis size={16} /></button>
++              {moreOpen && (
++                <>
++                  <div className="menu-scrim" onClick={() => setMoreOpen(false)} />
++                  <div className="menu top-menu" role="menu">
++                    <div className="menu-label">This project</div>
++                    {topItems.map((x) => (
++                      <div key={x.id} className="top-menu-row">
++                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); x.run(); }}><x.icon size={16} /><span className="grow"><span>{x.label}</span><span className="menu-sub">{x.hint}</span></span></button>
++                        <PinToggle id={x.id} pins={pins} onToggle={togglePin} />
++                      </div>
++                    ))}
++                    {claudeHere.length > 0 && (
++                      <>
++                        <div className="menu-label">Sessions</div>
++                        <div className="top-menu-row">
++                          <button className="menu-item" role="menuitemcheckbox" aria-checked={doc.settings.autoCompact.enabled} onClick={toggleAutoCompact}>
++                            <FoldVertical size={16} /><span className="grow"><span>Auto compact</span><span className="menu-sub">{doc.settings.autoCompact.enabled ? `On, at ${doc.settings.autoCompact.percent}% context` : 'Off'}</span></span><span className={`mini-switch ${doc.settings.autoCompact.enabled ? 'on' : ''}`}><i /></span>
++                          </button>
++                          <PinToggle id="compact" pins={pins} onToggle={togglePin} />
++                        </div>
++                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); compactNow(); }}><FoldVertical size={16} /><span className="grow">Compact every session now</span></button>
++                      </>
++                    )}
++                    {projectRunning.length > 0 && !wrappingHere.length && (
++                      <div className="top-menu-row">
++                        <button className="menu-item" role="menuitem" onClick={() => { setMoreOpen(false); wrapUp(); }}><Moon size={16} /><span className="grow"><span>Wrap up</span><span className="menu-sub">Bring every session to a stopping point and close them</span></span></button>
++                        <PinToggle id="wrap" pins={pins} onToggle={togglePin} />
++                      </div>
++                    )}
++                    {!pins.includes('watch') && <div className="top-menu-watch"><ChatWatchSwitch projectId={projectId} onNote={setToast} /></div>}
++                    <div className="top-menu-row foot">
++                      <span className="menu-sub">Pin an item to keep it on the bar.</span>
++                      <PinToggle id="watch" pins={pins} onToggle={togglePin} label="Chat watcher" />
++                    </div>
++                  </div>
++                </>
++              )}
++            </div>
+           )}
+         </div>
+         {page === 'home' && <Home name={doc.settings.displayName || name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
+@@ -426,6 +474,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
+       {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
+       {toast && <div className="toast over-native" role="status">{toast}</div>}
+       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
++      {ready && doc.onboarded && <Mascots />}
+ 
+       {memory && (
+         <div className="backdrop" onClick={() => setMemory(false)}>
+@@ -456,3 +505,12 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
+     </div>
+   );
+ }
++
++function PinToggle({ id, pins, onToggle, label }: { id: string; pins: string[]; onToggle(id: string): void; label?: string }) {
++  const on = pins.includes(id);
++  return (
++    <button className={`pin-toggle ${on ? 'on' : ''}`} onClick={() => onToggle(id)} title={on ? 'Unpin from the bar' : 'Pin to the bar'} aria-label={on ? `Unpin ${label ?? id} from the bar` : `Pin ${label ?? id} to the bar`} aria-pressed={on}>
++      {on ? <Pin size={13} /> : <PinOff size={13} />}{label && <span>{label}</span>}
++    </button>
++  );
++}
+diff --git a/src/renderer/src/Home.tsx b/src/renderer/src/Home.tsx
+index db6e644..e016e97 100644
+--- a/src/renderer/src/Home.tsx
++++ b/src/renderer/src/Home.tsx
+@@ -58,6 +58,8 @@ function W({ id, size, children }: { id: string; size: 'full' | 'half'; children
+ 
+ export function Home({ name, onOpen, onFocus, onNewProject }: Props) {
+   const { projects, stats, sessions, telemetry, templates, compacting } = useLive();
++  // The ninja may cartwheel over the greeting (mascots/Mascots.tsx).
++  useEffect(() => { window.dispatchEvent(new Event('ep:home-shown')); }, []);
+   const [usage, setUsage] = useState<UsageStats | null>(null);
+   const [news, setNews] = useState<NewsItem[] | null>(null);
+   const { doc, setSettings } = useWorkspace();
+diff --git a/src/renderer/src/Settings.tsx b/src/renderer/src/Settings.tsx
+index 87ebd33..720abae 100644
+--- a/src/renderer/src/Settings.tsx
++++ b/src/renderer/src/Settings.tsx
+@@ -1,5 +1,5 @@
+ import { useEffect, useState } from 'react';
+-import { Check, Pin, PinOff, Trash2 } from 'lucide-react';
++import { Check, Pin, PinOff, SlidersHorizontal, Trash2 } from 'lucide-react';
+ import { ProjectLogo } from './ProjectLogo';
+ import { useLive } from './workspace/live';
+ import { ACCENTS, DEFAULT_SETTINGS, THEMES, useWorkspace, type Density } from './workspace/store';
+@@ -11,6 +11,7 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+   const [presetName, setPresetName] = useState('');
+   const [shortcut, setShortcut] = useState<string | null>(null);
+   const [history, setHistory] = useState<Record<string, boolean>>({});
++  const [optionsFor, setOptionsFor] = useState<string | null>(null);
+   useEffect(() => { void window.elysium.shortcut().then(setShortcut); }, []);
+ 
+   // Whether each project's chosen account already has its session history.
+@@ -46,6 +47,9 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+ 
+         <section className="settings-card">
+           <h2>Appearance</h2>
++          <Row label="Playful extras" hint={s.playful === false ? 'Off. No characters anywhere.' : 'A ninja on the empty view, and now and then a visitor peeking over a tab or out from a project. Click one for a trick.'}>
++            <Seg value={s.playful === false ? 'off' : 'on'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ playful: v === 'on' })} />
++          </Row>
+           <Row label="Accent" hint="Buttons, focus and highlights">
+             <div className="swatches">
+               {ACCENTS.map((a) => (
+@@ -77,7 +81,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+           <Row label="Tell me when Claude replies" hint="A card in the corner when a session you are not looking at replies or needs you. With the window in the background, a Windows notification instead.">
+             <Seg value={s.notifyReplies === false ? 'off' : 'on'} options={[['on', 'On'], ['off', 'Off']]} onChange={(v) => setSettings({ notifyReplies: v === 'on' })} />
+           </Row>
+-          <Row label="Customize Elysium" hint={s.builderTerminal === false ? 'Opens as a chat only' : 'Opens with the Elysium Builder terminal and Dictate, with the chat beside them'}>
++          <LidRow />
++          <Row label="Customize Elysium" hint={s.builderTerminal === false ? 'Opens as a chat only' : 'Opens with the Elysium Builder terminal, with the chat beside it'}>
+             <Seg value={s.builderTerminal === false ? 'chat' : 'terminal'} options={[['terminal', 'Terminal'], ['chat', 'Chat only']]} onChange={(v) => setSettings({ builderTerminal: v === 'terminal' })} />
+           </Row>
+           <Row label="Compact automatically" hint={s.autoCompact.enabled ? `At ${s.autoCompact.percent}% context, a session saves its notes at a clean stopping point, compacts, then carries on` : 'Off. Use Compact in the top bar, or right-click a tab.'}>
+@@ -97,7 +102,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+             const acc = doc.projectAccounts[p.id] || 'main';
+             const pinned = doc.pinned.includes(p.id);
+             return (
+-              <div key={p.id} className="setting-row">
++              <div key={p.id}>
++              <div className="setting-row">
+                 <div>
+                   <div className="setting-label"><ProjectLogo projectId={p.id} />{p.name}</div>
+                   <div className="setting-hint">
+@@ -105,6 +111,9 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+                   </div>
+                 </div>
+                 <div className="setting-control">
++                  <button className={`ghost-icon ${optionsFor === p.id ? '' : 'muted'}`} onClick={() => setOptionsFor(optionsFor === p.id ? null : p.id)} title="Model, advisor and effort for this project's terminals" aria-label={`Claude options for ${p.name}`}>
++                    <SlidersHorizontal size={15} />
++                  </button>
+                   <select className="picker" value={acc} onChange={(e) => setProjectAccount(p.id, e.target.value)} title="Claude account for this project">
+                     {accounts.map((a) => <option key={a.id} value={a.id}>{label(a.id)}</option>)}
+                   </select>
+@@ -119,6 +128,8 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
+                   )}
+                 </div>
+               </div>
++              {optionsFor === p.id && <ProjectOptions projectId={p.id} />}
++              </div>
+             );
+           })}
+         </section>
+@@ -224,3 +235,49 @@ function UpdatesRow({ onRestart }: { onRestart(): void }) {
+     </Row>
+   );
+ }
++
++const MODELS: [string, string][] = [['', 'Claude default'], ['claude-opus-5-5', 'Opus 5.5'], ['claude-fable-5-1', 'Fable 5.1'], ['claude-sonnet-5-5', 'Sonnet 5.5'], ['claude-haiku-5-5', 'Haiku 5.5']];
++const ADVISORS: [string, string][] = [['', 'No advisor'], ['claude-fable-5-1', 'Fable 5.1'], ['claude-opus-5-5', 'Opus 5.5']];
++const EFFORTS: [string, string][] = [['', 'Claude default'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['xhigh', 'Extra high'], ['max', 'Max']];
++
++/** What a project's Claude terminals start with. Applies the next time one starts. */
++function ProjectOptions({ projectId }: { projectId: string }) {
++  const [o, setO] = useState<{ model?: string; advisor?: string; effort?: string } | null>(null);
++  useEffect(() => { void window.elysium.sessionOptions(projectId).then(setO); }, [projectId]);
++  if (!o) return null;
++  const save = (patch: Partial<NonNullable<typeof o>>) => {
++    const next = { ...o, ...patch };
++    setO(next);
++    void window.elysium.setSessionOptions(projectId, next).then(setO);
++  };
++  const pick = (key: 'model' | 'advisor' | 'effort', list: [string, string][]) => (
++    <select className="picker" value={o[key] ?? ''} onChange={(e) => save({ [key]: e.target.value || undefined })}>
++      {list.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
++    </select>
++  );
++  return (
++    <div className="settings-sub">
++      <Row label="Model" hint="What its terminals start on">{pick('model', MODELS)}</Row>
++      <Row label="Advisor" hint="A stronger model the session can ask for a second opinion">{pick('advisor', ADVISORS)}</Row>
++      <Row label="Effort" hint="How hard it thinks">{pick('effort', EFFORTS)}</Row>
++      <div className="setting-hint" style={{ padding: '.2rem 0 .8rem' }}>Applies to terminals started from now on. Restart a running one to use it.</div>
++    </div>
++  );
++}
++
++/** Lid closed: Windows' own lid action, changed only from here. Working sessions also keep the PC from sleeping when idle. */
++function LidRow() {
++  const [lid, setLid] = useState<{ mode: 'off' | 'plugged' | 'always'; available: boolean } | null>(null);
++  const [note, setNote] = useState<string | null>(null);
++  useEffect(() => { void window.elysium.lidGet().then(setLid); }, []);
++  if (lid && !lid.available) return null;
++  const hint = note ?? (lid?.mode === 'always' ? 'Closing the lid never sleeps the PC. Do not pack it in a bag while it works; it can get hot.'
++    : lid?.mode === 'plugged' ? 'On power, closing the lid leaves the PC and your sessions working. On battery it sleeps as usual.'
++      : 'Closing the lid sleeps the PC, and sessions pause until you open it. While a session is working, the PC does not fall asleep on its own.');
++  return (
++    <Row label="With the lid closed" hint={hint}>
++      <Seg value={lid?.mode ?? 'off'} options={[['off', 'Sleep'], ['plugged', 'Keep working on power'], ['always', 'Always keep working']]}
++        onChange={(v) => { void window.elysium.lidSet(v as 'off' | 'plugged' | 'always').then((r) => { setLid({ mode: r.mode, available: true }); setNote(r.ok ? null : r.reason); }); }} />
++    </Row>
++  );
++}
+diff --git a/src/renderer/src/workspace/Workspace.tsx b/src/renderer/src/workspace/Workspace.tsx
+index 814c7f7..a92dc84 100644
+--- a/src/renderer/src/workspace/Workspace.tsx
++++ b/src/renderer/src/workspace/Workspace.tsx
+@@ -29,10 +29,11 @@ import { CodePanel, FilesPanel } from './FilesPanel';
+ import { TOOL_INFO } from '../tools';
+ import { FlowPanel } from './FlowPanel';
+ import { DictatePanel } from './DictatePanel';
++import { PcHelperPanel } from './PcHelperPanel';
++import { FloorNinja } from '../mascots/Mascots';
+ 
+ export const WIDGETS: { kind: PanelKind; title: string; blurb: string; icon: FunctionComponent<{ size?: number }> }[] = [
+   { kind: 'claude', title: 'Claude', blurb: 'Your planning chat, beside the terminals', icon: MessageCircle },
+-  { kind: 'dictate', title: 'Dictate', blurb: 'Speak, check the words, send them to a session', icon: Mic },
+   { kind: 'dashboard', title: 'Dashboard', blurb: 'Tasks, numbers, links and requests for this project', icon: LayoutGrid },
+   { kind: 'flow', title: 'Live flow', blurb: 'What each session is doing, as it happens', icon: Workflow },
+   { kind: 'relay', title: 'Relay', blurb: 'What waits on you, and what agents are doing', icon: Radio },
+@@ -68,7 +69,7 @@ const components: Record<string, FunctionComponent<IDockviewPanelProps>> = {
+   web: SitePanel as FunctionComponent<IDockviewPanelProps>,
+   dashboard: Dashboard as FunctionComponent<IDockviewPanelProps>,
+   tool: ToolIntro as FunctionComponent<IDockviewPanelProps>,
+-  chat: ChatPanel as FunctionComponent<IDockviewPanelProps>,
++  chat: ((p: IDockviewPanelProps<{ chatId: string; projectId: string }>) => (p.params.projectId === 'laptop' ? <PcHelperPanel {...p} /> : <ChatPanel {...p} />)) as FunctionComponent<IDockviewPanelProps>,
+   files: FilesPanel as FunctionComponent<IDockviewPanelProps>,
+   code: CodePanel as FunctionComponent<IDockviewPanelProps>,
+   flow: FlowPanel as FunctionComponent<IDockviewPanelProps>,
+@@ -140,14 +141,12 @@ export function openChat(api: DockviewApi, chatId: string, projectId: string, ti
+ export const builderTerminal = (projectId: string | undefined, settings: { builderTerminal?: boolean }) => projectId === 'elysiumprod' && settings.builderTerminal !== false;
+ 
+ function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = [], withBuilder = false) {
+-  // Customize Elysium: the Builder terminal, Dictate under it, and the chat beside them.
++  // Customize Elysium: the Builder terminal, and the chat beside it.
+   if (withBuilder && view.projectId && sessions.length) {
+     api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
+     const term = api.groups[0];
+-    api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId: view.projectId }, position: { referenceGroup: term.id, direction: 'below' } });
+-    const pad = api.groups[api.groups.length - 1];
+     api.addPanel({ id: `chat-${uid()}`, component: 'chat', title: TOOL_INFO[view.projectId].title, params: { chatId: `tool:${view.projectId}`, projectId: view.projectId }, position: { direction: 'right' } });
+-    setTimeout(() => { try { term.api.setSize({ width: Math.round(api.width * 0.62) }); pad.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
++    setTimeout(() => { try { term.api.setSize({ width: Math.round(api.width * 0.62) }); } catch { /* sizes are a nicety */ } }, 60);
+     return;
+   }
+   // A tool is one calm chat, nothing else.
+@@ -199,16 +198,12 @@ export function projectSessions(templates: TemplateInfo[], projectId: string | u
+ export function ensureProjectSessions(api: DockviewApi, projectId: string, templates: TemplateInfo[], withBuilder = false): void {
+   if (TOOL_INFO[projectId] && !withBuilder) { openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title); return; }
+   if (withBuilder) {
+-    // Customize Elysium from an older layout: the Builder terminal goes on the left, Dictate under it.
++    // Customize Elysium from an older layout: the Builder terminal goes on the left.
+     const t = projectSessions(templates, projectId)[0];
+     const pane = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
+     if (t && !pane) api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: t.title, params: { templateId: t.id }, position: { direction: 'left' } });
+     else if (t) window.dispatchEvent(new CustomEvent('ep:ensure-session', { detail: t.id }));
+     const term = t && api.panels.find((p) => (p.params as { templateId?: string } | undefined)?.templateId === t.id);
+-    if (term && !api.panels.some((p) => kindOf(p.id) === 'dictate')) {
+-      api.addPanel({ id: `dictate-${uid()}`, component: 'dictate', title: 'Dictate', params: { projectId }, position: { referenceGroup: term.group.id, direction: 'below' }, inactive: true });
+-      setTimeout(() => { try { api.panels.find((p) => kindOf(p.id) === 'dictate')?.group.api.setSize({ height: 190 }); } catch { /* sizes are a nicety */ } }, 60);
+-    }
+     if (!api.panels.some((p) => (p.params as { chatId?: string } | undefined)?.chatId === `tool:${projectId}`)) openChat(api, `tool:${projectId}`, projectId, TOOL_INFO[projectId].title);
+     term?.api.setActive();
+     return;
+@@ -243,6 +238,19 @@ export const TINTS: { name: string; value: string }[] = [
+   { name: 'Teal', value: '#3FB5B0' },
+ ];
+ 
++/** Whether a chat is answering, for its tab. Only subscribes for chat tabs. */
++function useChatRunning(chatId: string | undefined): boolean {
++  const [running, setRunning] = useState(false);
++  useEffect(() => {
++    if (!chatId) return;
++    let on = true;
++    void window.elysium.chatGet(chatId).then((st) => { if (on) setRunning(st.running); });
++    const off = window.elysium.onChat((e) => { if (e.chatId === chatId) setRunning(e.state.running); });
++    return () => { on = false; off(); };
++  }, [chatId]);
++  return running;
++}
++
+ function Tab(props: IDockviewPanelHeaderProps) {
+   const { sessions, templates, telemetry } = useLive();
+   const kind = kindOf(props.api.id);
+@@ -263,6 +271,10 @@ function Tab(props: IDockviewPanelHeaderProps) {
+     setNote(r.ok ? null : r.reason);
+   };
+   const state = s?.status !== 'running' ? s?.status ?? 'exited' : tel?.state ?? 'running';
++  // Customize Elysium shows a green light while it works, in its terminal and its chat.
++  const chatId = (props.params as { chatId?: string }).chatId;
++  const chatBusy = useChatRunning(kind === 'chat' ? chatId : undefined);
++  const light = state === 'busy' && t?.project === 'elysiumprod' ? 'working' : state;
+ 
+   // The pane's colour lives in its params, so it is saved with the layout.
+   const [tint, setTint] = useState<string>((props.params as { tint?: string }).tint ?? '');
+@@ -296,7 +308,8 @@ function Tab(props: IDockviewPanelHeaderProps) {
+       {tint && <span className="tint-dot" />}
+       <Icon size={14} />
+       <span className="ep-tab-title">{title}</span>
+-      {kind === 'terminal' && <span className={`dot ${state}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
++      {kind === 'terminal' && <span className={`dot ${light}`} title={state === 'waiting' ? tel?.waitingMessage ?? 'Waiting on you' : state} />}
++      {kind === 'chat' && chatBusy && chatId === 'tool:elysiumprod' && <span className="dot working" title="Working" />}
+       {kind === 'terminal' && t?.kind === 'claude' && tel?.model && <span className="model-chip" title={`Model: ${tel.model}`}>{shortModel(tel.model)}</span>}
+       {kind === 'terminal' && t?.kind === 'claude' && <ContextMeter t={tel} compact />}
+       {drift && (
+@@ -398,17 +411,7 @@ function Watermark(p: IWatermarkPanelProps) {
+       <div className="wm-scene" aria-hidden="true">
+         <div className="wm-floor"><div className="wm-floor-grid" /></div>
+         <div className="wm-horizon" />
+-        <div className="wm-walker">
+-          <svg viewBox="0 0 40 64" width="30" height="48">
+-            <circle cx="20" cy="9" r="6" className="wm-head" />
+-            <line x1="20" y1="15" x2="20" y2="36" className="wm-body" />
+-            <g className="wm-arm a"><line x1="20" y1="19" x2="20" y2="33" /></g>
+-            <g className="wm-arm b"><line x1="20" y1="19" x2="20" y2="33" /></g>
+-            <g className="wm-leg a"><line x1="20" y1="36" x2="20" y2="58" /></g>
+-            <g className="wm-leg b"><line x1="20" y1="36" x2="20" y2="58" /></g>
+-          </svg>
+-          <span className="wm-shadow" />
+-        </div>
++        <FloorNinja />
+         <div className="wm-stars">{Array.from({ length: 18 }, (_, i) => <i key={i} style={{ left: `${(i * 53) % 100}%`, top: `${(i * 29) % 45}%`, animationDelay: `${(i % 7) * 0.6}s` }} />)}</div>
+       </div>
+       <div className="watermark-title">An empty view</div>
+diff --git a/src/renderer/src/workspace/store.tsx b/src/renderer/src/workspace/store.tsx
+index 3ff51ac..46c8bbf 100644
+--- a/src/renderer/src/workspace/store.tsx
++++ b/src/renderer/src/workspace/store.tsx
+@@ -49,7 +49,11 @@ export interface Settings {
+   autoCompact: { enabled: boolean; percent: number };
+   /** A notice when Claude replies in a session you are not looking at. */
+   notifyReplies: boolean;
+-  /** Customize Elysium opens with its Builder terminal and Dictate, not only the chat. */
++  /** Top bar items shown on the bar itself; the rest sit in its More menu. */
++  topbarPins?: string[];
++  /** The ninja, Mochi and Bolt: little characters around the app. On unless turned off. */
++  playful?: boolean;
++  /** Customize Elysium opens with its Builder terminal, not only the chat. */
+   builderTerminal?: boolean;
+   /** Live flow: a short Sonnet summary per session, at most every five minutes. */
+   flowSummaries: boolean;
+@@ -217,8 +221,9 @@ function parse(json: string | null): WorkspaceDoc {
+       accounts: { ...f.accounts, ...(d.accounts ?? {}) },
+       projectAccounts: d.projectAccounts ?? {},
+       watchers: d.watchers ?? {},
+-      // The setup was rebuilt in version 2; everyone sees the new one once.
+-      onboarded: Boolean(d.onboarded) && (d as { onboardVersion?: number }).onboardVersion === 2,
++      // The version 2 setup was shown to everyone already: the version was never saved, so it ran again on every start.
++      onboarded: Boolean(d.onboarded),
++      onboardVersion: d.onboarded ? 2 : d.onboardVersion,
+       lastProjectId: d.lastProjectId ?? null,
+       pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
+       groups: Array.isArray(d.groups) ? d.groups.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.ids)) : [],
