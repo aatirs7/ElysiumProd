@@ -94,6 +94,23 @@ export class Chats {
 
   get(id: string): ChatState { return this.load(id).state; }
 
+  /** The chats answering right now, for Restart and resume. */
+  busyIds(): string[] { return [...this.chats].filter(([, c]) => c.busy).map(([id]) => id); }
+
+  /** After Restart and resume: the chat carries on its answer, then answers what was waiting its turn. */
+  carryOn(id: string, text: string): void {
+    const c = this.load(id);
+    if (!c.state.conversationId) return;
+    const waiting = c.state.messages.filter((m) => m.queued);
+    c.state = { ...c.state, messages: c.state.messages.filter((m) => !m.queued) };
+    void this.send(id, text);
+    // The carry on turn started (busy is set before send's first await): what waited goes back in line after it.
+    if (!c.busy || !waiting.length) return;
+    c.state = { ...c.state, messages: [...c.state.messages, ...waiting] };
+    c.queue.push(...waiting.map((m) => m.id));
+    this.emit({ chatId: id, state: c.state });
+  }
+
   /** Where a chat works and what it may do. */
   private setup(id: string): { cwd: string; projectId: string; system: string; readOnly: boolean } | null {
     if (id.startsWith('tool:')) {

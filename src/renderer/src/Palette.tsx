@@ -8,7 +8,7 @@ import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onNewProject(): void }) {
+export function Palette({ onClose, go, onProject, onRestart, onRestartResume, onNewProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onRestartResume(): void; onNewProject(): void }) {
   const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
@@ -34,9 +34,10 @@ export function Palette({ onClose, go, onProject, onRestart, onNewProject }: { o
       { id: 'costs', label: 'Costs', hint: 'Vercel, Neon, AWS and subscriptions', icon: <BarChart3 size={15} />, run: () => go('costs') },
       { id: 'stats', label: 'Your stats', hint: 'Hours, projects, streak', icon: <BarChart3 size={15} />, run: () => go('stats') },
       { id: 'restart', label: 'Restart Elysium', hint: 'Load the newest version', icon: <RotateCw size={15} />, run: onRestart },
+      { id: 'restart-resume', label: 'Restart and resume', hint: 'Restart, then what was in the middle of something carries on', icon: <RotateCw size={15} />, run: onRestartResume },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onNewProject]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onRestartResume, onNewProject]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

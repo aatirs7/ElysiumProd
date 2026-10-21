@@ -54,7 +54,7 @@ export function registerShortcut(preferred?: string): string | null {
 
 export function currentShortcut(): string | null { return registered; }
 
-export function createTray(showMain: () => void, quit: () => void, restart: () => void): void {
+export function createTray(showMain: () => void, quit: () => void, restart: () => void, restartResume: () => void): void {
   const img = nativeImage.createFromPath(trayIconPath());
   tray = new Tray(img.isEmpty() ? nativeImage.createEmpty() : img.resize({ width: 16, height: 16 }));
   tray.setToolTip('Elysium Development');
@@ -63,6 +63,7 @@ export function createTray(showMain: () => void, quit: () => void, restart: () =
     { label: `Quick task${registered ? `    ${registered.replace('Control', 'Ctrl')}` : ''}`, click: toggleQuick },
     { type: 'separator' },
     { label: 'Restart Elysium', click: restart },
+    { label: 'Restart and resume', click: restartResume },
     { label: 'Quit Elysium', click: quit },
   ]);
   tray.setContextMenu(menu());

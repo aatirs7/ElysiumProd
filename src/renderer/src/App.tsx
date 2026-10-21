@@ -24,7 +24,7 @@ import { MachineWidget } from './workspace/widgets';
 import { overlayClosed, overlayOpened } from './workspace/ClaudePanel';
 import { AccountUsage, ChatWatchSwitch, NoticeStack, ThemeToggle, useNotices, type Notice } from './TopBarExtras';
 
-interface Confirm { title: string; body: string; yes: string; run(): void }
+interface Confirm { title: string; body: string; yes: string; run(): void; /** A second choice beside the main one. */ alt?: { label: string; run(): void } }
 
 export function App() {
   return (
@@ -349,16 +349,18 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     if (p) p.api.setActive(); else open({ kind: 'relay', params: { projectId } });
   };
 
-  const restart = useCallback(() => {
-    const n = sessions.filter((x) => x.status === 'running').length;
-    if (!n) { window.elysium.restartApp(); return; }
+  // Running sessions come back either way; Restart and resume also tells the ones mid task to carry on.
+  const restart = useCallback((carryOn = false) => {
+    const mid = sessions.filter((x) => x.status === 'running' && ['busy', 'waiting'].includes(telemetry[x.id]?.state ?? '')).length;
+    if (!mid || carryOn) { window.elysium.restartApp(carryOn); return; }
     setConfirm({
       title: 'Restart Elysium?',
-      body: `${n} session${n > 1 ? 's are' : ' is'} running and will stop. Claude sessions can be resumed afterwards from the project's top bar. Use Wrap up first if one is in the middle of something.`,
-      yes: 'Restart',
-      run: () => window.elysium.restartApp(),
+      body: `${mid} session${mid > 1 ? 's are' : ' is'} in the middle of something. Running sessions come back after the restart. Restart and resume also tells ${mid > 1 ? 'them' : 'it'} to carry on where ${mid > 1 ? 'they' : 'it'} left off.`,
+      yes: 'Restart and resume',
+      run: () => window.elysium.restartApp(true),
+      alt: { label: 'Just restart', run: () => window.elysium.restartApp() },
     });
-  }, [sessions, setConfirm]);
+  }, [sessions, telemetry, setConfirm]);
 
   // The top bar keeps only what matters at a glance; the rest waits in More, and any of it can be pinned back.
   const pins = doc.settings.topbarPins ?? [];
@@ -469,7 +471,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
           )}
         </div>
         {page === 'home' && <Home name={doc.settings.displayName || name || 'there'} onOpen={goProject} onFocus={focusSession} onNewProject={() => setNewProject(true)} />}
-        {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={restart} />}
+        {page === 'settings' && <Settings onOnboarding={restartOnboarding} onRestart={() => restart()} onRestartResume={() => restart(true)} />}
         {page === 'help' && <Help />}
         {page === 'stats' && <Stats />}
         {page === 'usage' && <Usage />}
@@ -479,7 +481,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={restart} onNewProject={() => setNewProject(true)} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} />}
       {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
@@ -501,6 +503,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
             <p>{confirm.body}</p>
             <div className="dialog-row">
               <button className="btn" onClick={() => setConfirm(null)}>Not now</button>
+              {confirm.alt && <button className="btn" onClick={() => { const a = confirm.alt; setConfirm(null); a?.run(); }}>{confirm.alt.label}</button>}
               <button className="btn primary" autoFocus onClick={() => { const c = confirm; setConfirm(null); c.run(); }}>{confirm.yes}</button>
             </div>
           </div>

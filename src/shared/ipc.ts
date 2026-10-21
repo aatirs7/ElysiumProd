@@ -261,7 +261,8 @@ export interface ElysiumApi {
   quickRun(projectId: string, text: string): Promise<{ ok: boolean; reason: string | null; sessionId?: string }>;
   quickHide(): void;
   /** Quits normally and starts again: running sessions stop and can be resumed. */
-  restartApp(): void;
+  /** `carryOn` also tells what was in the middle of something to carry on once it is back. */
+  restartApp(carryOn?: boolean): void;
   quickOpenMain(): void;
   onQuickShown(cb: () => void): () => void;
   shortcut(): Promise<string | null>;

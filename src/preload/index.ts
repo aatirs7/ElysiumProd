@@ -53,7 +53,7 @@ const api: ElysiumApi = {
   chatReset: (id) => ipcRenderer.invoke(Channels.chatReset, id),
   quickRun: (projectId, text) => ipcRenderer.invoke(Channels.quickRun, projectId, text),
   quickHide: () => ipcRenderer.send(Channels.quickHide),
-  restartApp: () => ipcRenderer.send(Channels.appRestart),
+  restartApp: (carryOn?: boolean) => ipcRenderer.send(Channels.appRestart, carryOn === true),
   quickOpenMain: () => ipcRenderer.send(Channels.quickOpenMain),
   onQuickShown: (cb) => subscribe<[]>(Channels.quickShown, cb),
   shortcut: () => ipcRenderer.invoke(Channels.shortcutGet),

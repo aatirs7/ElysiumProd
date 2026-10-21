@@ -4,7 +4,7 @@ import { ProjectLogo } from './ProjectLogo';
 import { useLive } from './workspace/live';
 import { ACCENTS, DEFAULT_SETTINGS, THEMES, useWorkspace, type Density } from './workspace/store';
 
-export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; onRestart(): void }) {
+export function Settings({ onOnboarding, onRestart, onRestartResume }: { onOnboarding(): void; onRestart(): void; onRestartResume(): void }) {
   const { doc, activeView, setSettings, resetView, savePreset, applyPreset, deletePreset, setAccountLabel, setProjectAccount, togglePin, setWatcher } = useWorkspace();
   const { projects, accounts, watchers } = useLive();
   const s = doc.settings;
@@ -193,6 +193,9 @@ export function Settings({ onOnboarding, onRestart }: { onOnboarding(): void; on
           <UpdatesRow onRestart={onRestart} />
           <Row label="Restart Elysium" hint="Loads the newest build. Running sessions come back on their own.">
             <button className="btn" onClick={onRestart}>Restart</button>
+          </Row>
+          <Row label="Restart and resume" hint="The same, and sessions or chats that were in the middle of something carry on where they left off.">
+            <button className="btn" onClick={onRestartResume}>Restart and resume</button>
           </Row>
           <Row label="Run the welcome again" hint="Accounts, projects and a quick tour">
             <button className="btn" onClick={onOnboarding}>Show setup again</button>

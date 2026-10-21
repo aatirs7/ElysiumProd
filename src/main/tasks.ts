@@ -220,6 +220,23 @@ export class Tasks {
     return { ok: true, reason: null, sessionId: s.id, started };
   }
 
+  /** A task handed to this session that has not gone in yet, kept across Restart and resume. */
+  unsent(sessionId: string): string | null {
+    const p = this.pending.get(sessionId);
+    return p && !p.sent ? p.text : null;
+  }
+
+  /** After Restart and resume: types this into the session once it is ready, and says when it is done. */
+  handOver(sessionId: string, text: string): void {
+    const s = this.sessions.list().find((x) => x.id === sessionId);
+    const t = s ? findTemplate(s.templateId) : undefined;
+    if (!s || !t) return;
+    const p: Pending = { sessionId, projectName: t.projectName ?? t.title, text, sent: false, startedAt: Date.now() };
+    this.pending.set(sessionId, p);
+    this.watching.set(sessionId, { projectName: p.projectName, lastState: this.ingest.get(sessionId)?.state ?? 'starting' });
+    this.trySend(sessionId);
+  }
+
   /**
    * Wrap up a project: every running Claude session of it is asked to reach a
    * stopping point, save its state, and stop; once it has, it is exited.

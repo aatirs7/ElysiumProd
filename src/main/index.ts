@@ -45,7 +45,7 @@ import { endWatchers, findWatchers } from './chatwatch';
 import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
-import { resumeRunning, saveRunning } from './resume';
+import { CARRY_ON_CHAT, resumeRunning, saveRunning } from './resume';
 import { findAgents } from './agents';
 import { Bridge } from './bridge';
 import { CodexWatch } from './codexwatch';
@@ -191,9 +191,16 @@ function loadRenderer(w: BrowserWindow, hash = ''): void {
   else void w.loadURL(`elysium://app/index.html${hash ? `#${hash}` : ''}`);
 }
 
-/** Restart: the normal quit (sessions stop, cookies and layout saved), then start again with the same sessions resumed. */
-function restartApp(): void {
-  saveRunning(sessions);
+/**
+ * Restart: the normal quit (sessions stop, cookies and layout saved), then start again with the same sessions resumed.
+ * With `carryOn`, the sessions and chats that were in the middle of something are told to carry on once they are back.
+ */
+function restartApp(carryOn = false): void {
+  saveRunning(sessions, carryOn ? {
+    busy: (id) => { const st = ingest.get(id)?.state; return st === 'busy' || st === 'waiting'; },
+    unsent: (id) => tasks?.unsent(id) ?? null,
+    busyChats: () => chats.busyIds(),
+  } : undefined);
   app.relaunch();
   app.quit();
 }
@@ -424,7 +431,7 @@ function registerIpc(): void {
     return r;
   });
   ipcMain.on(Channels.quickHide, () => hideQuick());
-  ipcMain.on(Channels.appRestart, () => restartApp());
+  ipcMain.on(Channels.appRestart, (_e, carryOn: unknown) => restartApp(carryOn === true));
   ipcMain.on(Channels.quickOpenMain, () => { hideQuick(); showMain(); });
   ipcMain.handle(Channels.shortcutGet, () => currentShortcut());
   ipcMain.handle(Channels.shortcutSet, (_e, acc: unknown) => registerShortcut(typeof acc === 'string' ? acc : undefined));
@@ -502,9 +509,9 @@ app.whenReady().then(async () => {
   if (!SMOKE && !DEMO) {
     createQuickWindow(loadRenderer);
     registerShortcut();
-    createTray(showMain, () => app.quit(), restartApp);
+    createTray(showMain, () => app.quit(), () => restartApp(), () => restartApp(true));
   }
-  if (!SMOKE && !DEMO) resumeRunning(sessions);
+  if (!SMOKE && !DEMO) resumeRunning(sessions, (id, text) => tasks?.handOver(id, text), (id) => chats.carryOn(id, CARRY_ON_CHAT));
   // Codex and other agents: found in the background, then every project offers them.
   if (!DEMO) findAgents((found) => { if (found.length) { addAgents(found); send(Channels.projectsChanged); } });
   if (!SMOKE) setTimeout(warmCosts, 4000);
