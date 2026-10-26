@@ -230,7 +230,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
 
         <div className="side-label">
           <span>Sessions</span>
-          <button className="ghost-icon tiny" onClick={() => onNewSession(true)} title="New Claude session in its own window, tied to no project" aria-label="New Claude session"><Plus size={14} /></button>
+          <button className="ghost-icon tiny" onClick={() => onNewSession(false)} title="New Claude session, tied to no project" aria-label="New Claude session"><Plus size={14} /></button>
         </div>
         {freeSessions.map((p) => {
           const st = status(p.id);
@@ -248,7 +248,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           );
         })}
         {!freeSessions.length && (
-          <button className="nav muted" onClick={() => onNewSession(true)} title="A Claude session of its own, tied to no project">
+          <button className="nav muted" onClick={() => onNewSession(false)} title="A Claude session of its own, tied to no project">
             <MessageSquarePlus size={15} /><span className="grow">New Claude session</span>
           </button>
         )}

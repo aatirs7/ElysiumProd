@@ -500,7 +500,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} onNewSession={() => void newFreeSession(true)} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} onNewSession={() => void newFreeSession()} />}
       {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
