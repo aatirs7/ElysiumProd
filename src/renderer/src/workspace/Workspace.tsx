@@ -139,7 +139,12 @@ export function openChat(api: DockviewApi, chatId: string, projectId: string, ti
 /** Customize Elysium opens on its Builder terminal, unless the person chose the chat only. */
 export const builderTerminal = (projectId: string | undefined, settings: { builderTerminal?: boolean }) => projectId === 'elysiumprod' && settings.builderTerminal !== false;
 
-function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = [], withBuilder = false) {
+function seedLayout(api: DockviewApi, view: View, projectHasRelay: boolean, accountId: string, sessions: TemplateInfo[] = [], withBuilder = false, free = false) {
+  // A free session is just its terminal, using the whole view.
+  if (free && sessions.length) {
+    for (const t of sessions) api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: t.title, params: { templateId: t.id } });
+    return;
+  }
   // Customize Elysium: the Builder terminal, and the chat beside it.
   if (withBuilder && view.projectId && sessions.length) {
     api.addPanel({ id: `terminal-${uid()}`, component: 'terminal', title: sessions[0].title, params: { templateId: sessions[0].id } });
@@ -431,6 +436,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
   const openRef = useRef(open);
   openRef.current = open;
   const hasRelay = projects.find((p) => p.id === view.projectId)?.hasRelay ?? false;
+  const free = projects.find((p) => p.id === view.projectId)?.free ?? false;
 
   // When a view is rebuilt (reset, preset applied) or deleted, its terminals stop with it.
   useEffect(() => () => {
@@ -458,7 +464,7 @@ function ViewDock({ view, active, theme }: { view: View; active: boolean; theme:
           if (view.layout) {
             try { api.fromJSON(view.layout); restored = true; } catch { api.clear(); }
           }
-          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), view.bare ? [] : projectSessions(templates, view.projectId), !view.bare && builderTerminal(view.projectId, doc.settings));
+          if (!restored) seedLayout(api, view, hasRelay, accountFor(view.projectId), view.bare ? [] : projectSessions(templates, view.projectId), !view.bare && builderTerminal(view.projectId, doc.settings), free);
           // Closing a terminal pane ends its session. Moving, floating and
           // switching views do not, because every view stays mounted.
           api.onDidRemovePanel((p) => {

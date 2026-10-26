@@ -28,7 +28,7 @@ import { Tasks } from './tasks';
 import { Limits } from './limits';
 import { keepAwake, lidGet, lidSet } from './power';
 import { pcVitals } from './pcvitals';
-import { createProject, loadCustomProjects, removeProject } from './newproject';
+import { createFreeSession, createProject, loadCustomProjects, removeProject } from './newproject';
 import { getSessionOptions, setSessionOptions } from './sessionopts';
 import { costReport, warmCosts } from './costs';
 import { lastSummary, summarize } from './flow';
@@ -374,6 +374,11 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectCreate, async (_e, req: unknown) => {
     if (DEMO) return { ok: true, reason: null, projectId: `demo-${Math.random().toString(36).slice(2, 8)}` };
     const r = await createProject((req ?? {}) as Parameters<typeof createProject>[0]);
+    if (r.ok) send(Channels.projectsChanged);
+    return r;
+  });
+  ipcMain.handle(Channels.freeSessionCreate, () => {
+    const r = createFreeSession();
     if (r.ok) send(Channels.projectsChanged);
     return r;
   });

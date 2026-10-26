@@ -96,6 +96,7 @@ export const Channels = {
   quickRun: 'quick:run',
   quickHide: 'quick:hide',
   appRestart: 'app:restart',
+  freeSessionCreate: 'project:free-session',
   quickOpenMain: 'quick:open-main',
   quickShown: 'quick:shown',
   shortcutGet: 'shortcut:get',
@@ -182,7 +183,7 @@ export interface NewsItem { title: string; url: string; source: string; at: stri
 export interface CustomTool { id: string; name: string; check: string; signin: string }
 export interface RepoCandidate { folder: string; name: string; touchedAt: string }
 export interface ProjectExtras { links?: { id: string; label: string; url: string }[]; people?: string[]; open?: string; checkWhat?: string }
-export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean; extras: ProjectExtras | null; builtin: boolean }
+export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean; /** A Claude session tied to no project. */ free: boolean; extras: ProjectExtras | null; builtin: boolean }
 
 export interface NewProjectRequest {
   mode: 'clone' | 'new' | 'existing';
@@ -299,6 +300,8 @@ export interface ElysiumApi {
   /** A Windows notification that opens the session when clicked. */
   notifyOs(sessionId: string, title: string, body: string): void;
   createProject(req: NewProjectRequest): Promise<NewProjectResult>;
+  /** A new Claude session tied to no project, kept in the sidebar under Sessions. */
+  createFreeSession(): Promise<NewProjectResult>;
   /** Takes a project made in the app out of the list; its folder is left alone. */
   removeProject(id: string): Promise<boolean>;
   /** Model, advisor and effort a project's Claude sessions start with. */

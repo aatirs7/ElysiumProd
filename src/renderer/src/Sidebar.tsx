@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BarChart3, BookMarked, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { AppWindow, BarChart3, BookMarked, MessageSquarePlus, Sparkles, Trash2, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -26,16 +26,21 @@ interface Props {
   onFocus(sessionId: string, templateId: string): void;
   /** Runs one of the PC Helper's quick checks. */
   onRunCheck(checkId: string): void;
+  /** Starts a Claude session tied to no project, here or in a window of its own. */
+  onNewSession(inWindow: boolean): void;
+  onOpenInWindow(id: string, name: string): void;
 }
 
-export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus, onRunCheck }: Props) {
+export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus, onRunCheck, onNewSession, onOpenInWindow }: Props) {
+  const [sessionMenu, setSessionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
   const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const { doc, activeView, setActiveView, renameView, addView, togglePin, patchDoc } = useWorkspace();
   const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry, templates } = useLive();
   const { res } = useMachine();
   const [editing, setEditing] = useState<string | null>(null);
-  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id && !p.builtin)).filter(Boolean) as typeof projects;
+  const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id && !p.builtin && !p.free)).filter(Boolean) as typeof projects;
+  const freeSessions = projects.filter((p) => p.free);
   const nameOf = (p: { id: string; name: string }) => doc.projectNames[p.id] || p.name;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
@@ -57,7 +62,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
   const tools = projects.filter((p) => p.builtin);
   const [checksOpen, setChecksOpen] = useState(false);
   const freeViews = doc.views.filter((v) => !v.projectId);
-  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id) && !p.builtin);
+  const unpinned = projects.filter((p) => !doc.pinned.includes(p.id) && !p.builtin && !p.free);
 
   /** A project's status: waiting on you beats busy beats running. */
   const status = (projectId: string) => {
@@ -218,6 +223,56 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                   : <form className="tab-menu-item" onSubmit={(e) => { e.preventDefault(); const n = newGroup.trim(); if (!n) return; const id = `g${Date.now().toString(36)}`; const next = [...doc.groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== menu.id) })), { id, name: n, ids: [menu.id] }]; patchDoc({ groups: next, pinned: doc.pinned.includes(menu.id) ? doc.pinned : [...doc.pinned, menu.id] }); setNewGroup(null); setMenu(null); }}>
                       <FolderPlus size={14} /><input className="rename" autoFocus placeholder="Group name" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNewGroup(null); }} />
                     </form>}
+              </div>
+            </div>
+          );
+        })()}
+
+        <div className="side-label">
+          <span>Sessions</span>
+          <button className="ghost-icon tiny" onClick={() => onNewSession(true)} title="New Claude session in its own window, tied to no project" aria-label="New Claude session"><Plus size={14} /></button>
+        </div>
+        {freeSessions.map((p) => {
+          const st = status(p.id);
+          const active = page === 'workspace' && activeView?.projectId === p.id;
+          return (
+            <div key={p.id} className={`nav view-item ${active ? 'active' : ''} ${sessionMenu?.id === p.id ? 'menu-open' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, nameOf(p))}
+              onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, nameOf(p)); }} onContextMenu={(e) => { e.preventDefault(); setSessionMenu({ id: p.id, x: e.clientX, y: e.clientY }); }} title={p.folder}>
+              <span className="tool-icon"><Sparkles size={14} /></span>
+              {renaming === p.id
+                ? <input className="rename grow" autoFocus defaultValue={nameOf(p)} onClick={(e) => e.stopPropagation()} onBlur={(e) => { const v = e.target.value.trim(); patchDoc({ projectNames: { ...doc.projectNames, [p.id]: v && v !== p.name ? v : undefined as unknown as string } }); setRenaming(null); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
+                : <span className="grow">{nameOf(p)}</span>}
+              {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
+              <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setSessionMenu({ id: p.id, x: r.left, y: r.bottom }); }} title="More" aria-label={`More for ${nameOf(p)}`} aria-haspopup="menu"><MoreHorizontal size={14} /></button>
+            </div>
+          );
+        })}
+        {!freeSessions.length && (
+          <button className="nav muted" onClick={() => onNewSession(true)} title="A Claude session of its own, tied to no project">
+            <MessageSquarePlus size={15} /><span className="grow">New Claude session</span>
+          </button>
+        )}
+        {sessionMenu && (() => {
+          const p = freeSessions.find((x) => x.id === sessionMenu.id);
+          if (!p) return null;
+          const running = Boolean(status(p.id));
+          return (
+            <div className="menu-backdrop" onMouseDown={() => setSessionMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSessionMenu(null); }}>
+              <div className="tab-menu over-native" style={{ left: Math.min(sessionMenu.x, window.innerWidth - 250), top: Math.min(sessionMenu.y + 4, window.innerHeight - 260) }} onMouseDown={(e) => e.stopPropagation()} role="menu" aria-label={nameOf(p)}>
+                <div className="tab-menu-label">{nameOf(p)}</div>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setSessionMenu(null); onProject(p.id, nameOf(p)); }}><Layers size={14} />Open</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setSessionMenu(null); onOpenInWindow(p.id, nameOf(p)); }}><AppWindow size={14} />Open in a new window</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setSessionMenu(null); setRenaming(p.id); }}><Pencil size={14} />Rename</button>
+                <button className="tab-menu-item" role="menuitem" onClick={() => { setSessionMenu(null); window.elysium.openFolder(p.id); }}><FolderOpen size={14} />Open its folder</button>
+                <div className="tab-menu-sep" />
+                {running
+                  ? <button className="tab-menu-item danger" role="menuitem" onClick={async () => { setSessionMenu(null); const r = await window.elysium.projectAction(p.id, 'kill'); onNote(r.say || 'Ended.'); }}><Square size={14} />End it</button>
+                  : <button className="tab-menu-item danger" role="menuitem" onClick={async () => {
+                      setSessionMenu(null);
+                      const v = doc.views.find((x) => x.projectId === p.id);
+                      if (v) onDeleteView(v.id);
+                      onNote((await window.elysium.removeProject(p.id)) ? 'Removed from the list. Its folder and conversation are kept.' : 'End it first, then remove it.');
+                    }}><Trash2 size={14} />Remove from the list</button>}
               </div>
             </div>
           );

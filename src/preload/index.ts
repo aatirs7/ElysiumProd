@@ -78,6 +78,7 @@ const api: ElysiumApi = {
   setChatWatch: (projectId, on) => ipcRenderer.invoke(Channels.chatWatchSet, projectId, on),
   notifyOs: (sessionId, title, body) => ipcRenderer.send(Channels.notifyOs, sessionId, title, body),
   createProject: (req) => ipcRenderer.invoke(Channels.projectCreate, req),
+  createFreeSession: () => ipcRenderer.invoke(Channels.freeSessionCreate),
   removeProject: (id) => ipcRenderer.invoke(Channels.projectRemove, id),
   sessionOptions: (projectId) => ipcRenderer.invoke(Channels.sessionOptionsGet, projectId),
   setSessionOptions: (projectId, opts) => ipcRenderer.invoke(Channels.sessionOptionsSet, projectId, opts),

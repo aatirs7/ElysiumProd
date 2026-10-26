@@ -44,7 +44,7 @@ function mods(folder: string, projectId?: string): Mods {
 export function listProjects(): ProjectInfo[] {
   return Object.entries(PROJECT_FOLDERS).map(([id, p]) => {
     const m = mods(p.folder, id);
-    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id), extras: projectDef(id)?.extras ?? null, builtin: projectDef(id)?.source === 'builtin' };
+    return { id, name: p.name, folder: p.folder, repo: m.relayRepo ?? null, tier: p.tier, hasRelay: Boolean(m.relayFile || m.relayIssue), waitingHeading: m.waitingHeading ?? 'Blocked on the owner', exists: existsSync(p.folder), custom: isCustom(id), free: Boolean(projectDef(id)?.free), extras: projectDef(id)?.extras ?? null, builtin: projectDef(id)?.source === 'builtin' };
   });
 }
 

@@ -144,12 +144,31 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   }, [goProject, apiFor]);
 
   // New project: once main has added it, open it as soon as its sessions are listed here.
-  const [toOpen, setToOpen] = useState<{ id: string; name: string } | null>(null);
+  const [toOpen, setToOpen] = useState<{ id: string; name: string; window?: boolean } | null>(null);
+  // Opens a project's view, then moves its terminal into a window of its own.
+  const openInWindow = useCallback((id: string, projectName: string) => {
+    goProject(id, projectName);
+    const tries = { n: 0 };
+    const tick = () => {
+      const v = docRef.current.views.find((x) => x.projectId === id);
+      const api = v ? apiFor(v.id) : undefined;
+      const term = api?.panels.find((p) => p.id.startsWith('terminal-'));
+      if (api && term) { void api.addPopoutGroup(term.group).catch(() => setToast('Could not open a new window. It is open here instead.')); return; }
+      if ((tries.n += 1) < 20) setTimeout(tick, 150);
+    };
+    setTimeout(tick, 150);
+  }, [goProject, apiFor]);
   useEffect(() => {
     if (!toOpen || !templates.some((t) => t.project === toOpen.id)) return;
     setToOpen(null);
-    goProject(toOpen.id, toOpen.name);
-  }, [toOpen, templates, goProject]);
+    if (toOpen.window) openInWindow(toOpen.id, toOpen.name); else goProject(toOpen.id, toOpen.name);
+  }, [toOpen, templates, goProject, openInWindow]);
+  // A Claude session tied to no project: made, kept under Sessions in the sidebar, and opened.
+  const newFreeSession = useCallback(async (inWindow = false) => {
+    const r = await window.elysium.createFreeSession();
+    if (!r.ok || !r.projectId) { setToast(r.reason ?? 'Could not start a session.'); return; }
+    setToOpen({ id: r.projectId, name: '', window: inWindow });
+  }, []);
 
   const launch = useCallback((templateId: string) => {
     const t = templates.find((x) => x.id === templateId);
@@ -384,7 +403,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
 
   return (
     <div className="shell">
-      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} onAddToView={addToView} onDashboard={dashboardFor} onNote={setToast} onFocus={focusSession} onRunCheck={runCheck} />
+      <Sidebar page={page} go={go} onPalette={() => setPalette(true)} onMemory={() => setMemory(true)} onDeleteView={removeView} onNewProject={() => setNewProject(true)} onProject={goProject} onAddToView={addToView} onDashboard={dashboardFor} onNote={setToast} onFocus={focusSession} onRunCheck={runCheck} onNewSession={(w) => void newFreeSession(w)} onOpenInWindow={openInWindow} />
       <div className="stage">
         <div className="topbar">
           {crumb}
@@ -481,7 +500,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} onNewSession={() => void newFreeSession(true)} />}
       {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />

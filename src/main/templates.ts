@@ -36,6 +36,8 @@ export interface ProjectDef {
   tier: 'main' | 'side';
   /** Added in the app (projects.json), not part of the built-in table. */
   custom?: boolean;
+  /** A Claude session of its own, tied to no project: it works in its own folder under Elysium Sessions. */
+  free?: boolean;
   /** Side projects: a named session of their own instead of the folder's latest conversation. */
   sessionName?: string;
   /** Side projects: more folders the one session may work in (the iOS hub). */
@@ -82,7 +84,8 @@ function pairTemplate(p: ProjectDef, role: 'prime' | 'meridian'): Template {
 function soloTemplate(p: ProjectDef): Template {
   const dirs = (p.addDirs ?? []).filter((d) => existsSync(d)).flatMap((d) => ['--add-dir', d]);
   return {
-    id: `${p.id}.claude`, title: p.sessionName ?? p.name, kind: 'claude', project: p.id, projectName: p.name, role: 'solo', cwd: p.folder,
+    // A free session's name inside Claude carries a tag so it is never mistaken for an older one; its tab shows the plain name.
+    id: `${p.id}.claude`, title: p.free ? p.name : p.sessionName ?? p.name, kind: 'claude', project: p.id, projectName: p.name, role: 'solo', cwd: p.folder,
     confirm: null,
     command: resolveClaude,
     args: p.sessionName ? ['--resume', p.sessionName, '--dangerously-skip-permissions', ...dirs] : ['--continue', '--dangerously-skip-permissions', ...dirs],

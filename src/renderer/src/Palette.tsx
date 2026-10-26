@@ -8,7 +8,7 @@ import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go, onProject, onRestart, onRestartResume, onNewProject }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onRestartResume(): void; onNewProject(): void }) {
+export function Palette({ onClose, go, onProject, onRestart, onRestartResume, onNewProject, onNewSession }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onRestartResume(): void; onNewProject(): void; onNewSession(): void }) {
   const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
@@ -20,6 +20,7 @@ export function Palette({ onClose, go, onProject, onRestart, onRestartResume, on
     const toWs = (f: () => void) => () => { go('workspace'); f(); };
     return [
       { id: 'newproject', label: 'New project', hint: 'Clone a repository or start one', icon: <Plus size={15} />, run: onNewProject },
+      { id: 'newsession', label: 'New Claude session', hint: 'Tied to no project, kept under Sessions', icon: <Sparkles size={15} />, run: onNewSession },
       ...projects.map((p) => ({ id: `p-open-${p.id}`, label: `Open ${p.name}`, hint: p.tier === 'main' ? 'Project' : 'Side project', icon: <ProjectLogo projectId={p.id} />, run: () => onProject(p.id, p.name) })),
       ...templates.map((t) => ({ id: `t-${t.id}`, label: t.kind === 'agent' ? `Start ${t.title} in ${t.projectName}` : `Start ${t.title}`, hint: t.kind === 'shell' ? 'Shell' : 'Session', icon: t.kind === 'claude' ? <Sparkles size={15} /> : t.kind === 'agent' ? <Bot size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),
       ...WIDGETS.map((w) => ({ id: `w-${w.kind}`, label: `Add ${w.title}`, hint: w.blurb, icon: <w.icon size={15} />, run: toWs(() => open({ kind: w.kind })) })),
@@ -37,7 +38,7 @@ export function Palette({ onClose, go, onProject, onRestart, onRestartResume, on
       { id: 'restart-resume', label: 'Restart and resume', hint: 'Restart, then what was in the middle of something carries on', icon: <RotateCw size={15} />, run: onRestartResume },
       { id: 'help', label: 'Help', hint: 'How everything works', icon: <CircleHelp size={15} />, run: () => go('help') },
     ];
-  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onRestartResume, onNewProject]);
+  }, [projects, templates, doc.views, doc.presets, open, setActiveView, addView, applyPreset, savePreset, go, onProject, apiFor, onRestart, onRestartResume, onNewProject, onNewSession]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();

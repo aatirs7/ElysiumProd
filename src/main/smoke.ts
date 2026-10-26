@@ -2,11 +2,12 @@
 // smoke-out/result.json, then quits. It starts only a PowerShell session; it
 // never starts or resumes a Claude session.
 import { app, BrowserWindow } from 'electron';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Resources } from './resources';
 import type { SessionManager } from './sessions';
 import { captureWeb, webStates } from './webviews';
+import { dataDir } from './paths';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -301,6 +302,20 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       await js(`window.dispatchEvent(new CustomEvent('ep:open-tool', { detail: 'laptop' }))`); await sleep(2000);
       r.layoutRestore = { before, after: await js(`window.__smoke.viewPanels()`) };
       await shot('29b-layout-restored');
+    }
+    // A free session: made, saved with the app's projects, and listed under Sessions. Not opened: that would start Claude.
+    {
+      const made = await js(`window.elysium.createFreeSession()`) as { ok: boolean; projectId?: string; reason: string | null };
+      await sleep(800);
+      let saved: { id: string; free?: boolean; folder: string }[] = [];
+      try { saved = JSON.parse(readFileSync(join(dataDir(), 'projects.json'), 'utf8')); } catch { /* checked below */ }
+      const t = await js(`window.elysium.templates()`) as { id: string; title: string; project: string | null }[];
+      r.freeSession = {
+        made: made.ok, saved: saved.some((x) => x.id === made.projectId && x.free), title: t.find((x) => x.project === made.projectId)?.title ?? null,
+        listed: await js(`[...document.querySelectorAll('.sidebar .view-item')].map((x) => x.textContent.trim()).filter((x) => x.startsWith('Session'))`),
+      };
+      await shot('30-free-session');
+      if (made.projectId) { await js(`window.elysium.removeProject('${made.projectId}')`); try { rmdirSync(saved.find((x) => x.id === made.projectId)?.folder ?? ''); } catch { /* only an empty folder is removed */ } }
     }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');

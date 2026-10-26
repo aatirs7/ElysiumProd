@@ -147,7 +147,26 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
   const pair = req.sessions === 'pair'
     ? { prime: `Prime ${name}`, meridian: `Meridian ${name}`, pluginPrime: `Prime ${name}`, pluginMeridian: `Meridian ${name}`, extra: [] }
     : undefined;
-  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, ...(pair ? { pair } : {}) };
+  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, source: 'custom', ...(pair ? { pair } : {}) };
+  registerProject(def);
+  save();
+  return { ok: true, reason: null, projectId: id };
+}
+
+/**
+ * A Claude session tied to no project: its own folder under Elysium Sessions in
+ * the home folder, no git, and a name of its own so it resumes the same
+ * conversation every time. Saved with the projects made in the app.
+ */
+export function createFreeSession(): NewProjectResult {
+  const day = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const taken = new Set(PROJECTS.map((p) => p.name));
+  let name = `Session ${day}`;
+  for (let i = 2; taken.has(name); i += 1) name = `Session ${day} (${i})`;
+  const id = slugify(name);
+  const folder = join(homedir(), 'Elysium Sessions', id);
+  try { mkdirSync(folder, { recursive: true }); } catch { return { ok: false, reason: `Could not make ${folder}.` }; }
+  const def: ProjectDef = { id, name, folder, repo: null, tier: 'side', custom: true, source: 'custom', free: true, sessionName: `${name} ${Date.now().toString(36)}` };
   registerProject(def);
   save();
   return { ok: true, reason: null, projectId: id };
