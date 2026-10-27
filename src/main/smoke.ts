@@ -323,6 +323,7 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       await js(`document.querySelector('.pin-picker .new-project')?.click()`); await sleep(700);
       await shot('31-new-project');
       r.newProjectStarts = await js(`[...document.querySelectorAll('.dialog.np .np-mode-label')].map((x) => x.textContent)`);
+      r.bridgeSwitch = await js(`document.querySelector('.dialog.np .np-check')?.getAttribute('aria-checked')`);
       await js(`document.querySelector('.dialog.np .np-close')?.click()`); await sleep(300);
       const parent = join(out, 'np');
       mkdirSync(parent, { recursive: true });
@@ -337,6 +338,34 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
         mentionsEas: agents.includes('EAS'), emDash: /\u2014/.test(agents + (made.kickoff ?? '')), kickoff: (made.kickoff ?? '').slice(0, 80),
       };
       if (made.projectId) await js(`window.elysium.removeProject('${made.projectId}')`);
+    }
+    // The sidebar: two projects, dragged into a new order, one renamed.
+    {
+      const parent = join(out, 'np2');
+      mkdirSync(parent, { recursive: true });
+      const ids: string[] = [];
+      for (const n of ['Alpha Test', 'Beta Test']) {
+        const m = await js(`window.elysium.createProject({ mode: 'new', kind: 'blank', name: '${n}', parent: ${JSON.stringify(parent)}, sessions: 'solo', github: 'none' })`) as { projectId?: string };
+        if (m.projectId) ids.push(m.projectId);
+      }
+      await sleep(800);
+      for (const id of ids) await js(`(() => { const b = document.querySelector('.side-label[data-tour="projects"] button'); b?.click(); return new Promise((r) => setTimeout(() => { [...document.querySelectorAll('.pin-picker .nav')].find((x) => x.textContent.includes('${id === ids[0] ? 'Alpha' : 'Beta'}'))?.click(); document.querySelector('.side-label[data-tour="projects"] button')?.click(); r(true); }, 300)); })()`);
+      await sleep(600);
+      const order = () => js(`[...document.querySelectorAll('.side-project .view-item .grow')].map((x) => x.textContent)`);
+      r.sidebarBefore = await order();
+      // Drag Beta onto Alpha: Beta moves above it.
+      await js(`(() => { const rows = [...document.querySelectorAll('.side-project')]; const from = rows.find((x) => x.textContent.includes('Beta')); const to = rows.find((x) => x.textContent.includes('Alpha')); const dt = new DataTransfer(); from.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt })); return new Promise((res) => setTimeout(() => { to.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt })); setTimeout(() => { to.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt })); from.dispatchEvent(new DragEvent('dragend', { bubbles: true, dataTransfer: dt })); res(true); }, 100); }, 100)); })()`);
+      await sleep(500);
+      r.sidebarAfterDrag = await order();
+      // Rename by double click.
+      await js(`[...document.querySelectorAll('.side-project .view-item')].find((x) => x.textContent.includes('Alpha'))?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
+      await sleep(300);
+      await js(`(() => { const i = document.querySelector('.side-project input.rename'); if (!i) return false; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Alpha Renamed'); i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); return true; })()`);
+      await sleep(400);
+      r.sidebarAfterRename = await order();
+      // Folding is not checked here: it needs an open project, and opening one starts Claude.
+      await shot('32-sidebar');
+      for (const id of ids) { const v = await js(`window.__smoke.closeProjectView('${id}')`); void v; await js(`window.elysium.removeProject('${id}')`); }
     }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');

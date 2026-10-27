@@ -517,7 +517,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
       </div>
 
       {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={(start) => setNewProject(start ?? true)} onNewSession={() => void newFreeSession()} />}
-      {newProject && <NewProject start={newProject} onClose={() => setNewProject(false)} onCreated={(id, n, kickoff) => { setNewProject(false); setToOpen({ id, name: n, kickoff }); }} />}
+      {newProject && <NewProject start={newProject} onClose={() => setNewProject(false)} onCreated={(id, n, kickoff, note) => { setNewProject(false); setToOpen({ id, name: n, kickoff }); if (note) setToast(note); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
 

@@ -97,6 +97,11 @@ export const Channels = {
   quickHide: 'quick:hide',
   appRestart: 'app:restart',
   freeSessionCreate: 'project:free-session',
+  connectorGet: 'connector:get',
+  connectorSetup: 'connector:setup',
+  connectorUpdate: 'connector:update',
+  boardsList: 'boards:list',
+  boardEnable: 'boards:enable',
   quickOpenMain: 'quick:open-main',
   quickShown: 'quick:shown',
   shortcutGet: 'shortcut:get',
@@ -188,8 +193,13 @@ export interface ProjectInfo { id: string; name: string; folder: string; repo: s
 /** What a new project is: its kind writes working rules into the folder and gives Claude a first message. */
 export type ProjectKind = 'ios' | 'web' | 'blank';
 
+export interface ConnectorState { url: string | null; deployedAt: string | null; passphrase: string | null; /** The step running now, or null. */ step: string | null; error: string | null }
+export interface BoardInfo { projectId: string; repo: string }
+
 export interface NewProjectRequest {
   kind?: ProjectKind;
+  /** The planning chat on claude.ai can read it and hand its Prime tasks (see boards.ts). */
+  bridge?: boolean;
   mode: 'clone' | 'new' | 'existing';
   name: string;
   /** clone: a repository address or owner/repo. */
@@ -203,7 +213,7 @@ export interface NewProjectRequest {
   /** new: also make a repository on GitHub. */
   github?: 'none' | 'private' | 'public';
 }
-export interface NewProjectResult { ok: boolean; reason: string | null; projectId?: string; /** The first message for its Claude session, sent once the project is open. */ kickoff?: string }
+export interface NewProjectResult { ok: boolean; reason: string | null; projectId?: string; /** The first message for its Claude session, sent once the project is open. */ kickoff?: string; /** Something to tell the owner: made, but a part did not work. */ note?: string }
 export interface RelayInfo { ok: boolean; error: string | null; text: string; updatedAt: string | null; source: string; waitingHeading: string }
 export interface TaskInfo { number: number; title: string; labels: string[]; updatedAt: string; url: string; comments: number; needsOwner: boolean }
 export interface GitInfo { ok: boolean; error: string | null; branch: string | null; ahead: number; behind: number; dirty: number; commits: { hash: string; when: string; subject: string }[] }
@@ -306,6 +316,13 @@ export interface ElysiumApi {
   createProject(req: NewProjectRequest): Promise<NewProjectResult>;
   /** A new Claude session tied to no project, kept in the sidebar under Sessions. */
   createFreeSession(): Promise<NewProjectResult>;
+  /** The one Elysium board connector for claude.ai: its address once deployed, and setup progress. */
+  connector(): Promise<ConnectorState>;
+  setupConnector(): Promise<{ ok: boolean; reason: string | null }>;
+  onConnector(cb: (s: ConnectorState) => void): () => void;
+  /** Projects with the chat bridge on. */
+  boards(): Promise<BoardInfo[]>;
+  enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null }>;
   /** Takes a project made in the app out of the list; its folder is left alone. */
   removeProject(id: string): Promise<boolean>;
   /** Model, advisor and effort a project's Claude sessions start with. */

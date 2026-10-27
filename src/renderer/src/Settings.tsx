@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Check, Pin, PinOff, SlidersHorizontal, Trash2 } from 'lucide-react';
 import { ProjectLogo } from './ProjectLogo';
+import type { ConnectorState } from '@shared/ipc';
 import { useLive } from './workspace/live';
 import { ACCENTS, DEFAULT_SETTINGS, THEMES, useWorkspace, type Density } from './workspace/store';
 
@@ -94,6 +95,7 @@ export function Settings({ onOnboarding, onRestart, onRestartResume }: { onOnboa
 
         <section className="settings-card">
           <h2>Projects</h2>
+          <ConnectorRow />
           <p className="setting-hint" style={{ margin: '-.2rem 0 .6rem' }}>The pin puts a project in the sidebar and on Home. You can also use the plus beside Projects in the sidebar.</p>
           {projects.map((p) => {
             const acc = doc.projectAccounts[p.id] || 'main';
@@ -279,5 +281,33 @@ function LidRow() {
       <Seg value={lid?.mode ?? 'off'} options={[['off', 'Sleep'], ['plugged', 'Keep working on power'], ['always', 'Always keep working']]}
         onChange={(v) => { void window.elysium.lidSet(v as 'off' | 'plugged' | 'always').then((r) => { setLid({ mode: r.mode, available: true }); setNote(r.ok ? null : r.reason); }); }} />
     </Row>
+  );
+}
+
+/** The one Elysium board connector: Elysium deploys it to your Vercel, then you add its address in claude.ai once. */
+function ConnectorRow() {
+  const [c, setC] = useState<ConnectorState | null>(null);
+  const [show, setShow] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => { void window.elysium.connector().then(setC); return window.elysium.onConnector(setC); }, []);
+  const copy = (what: string, text: string) => { void navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(null), 1500); };
+  const ready = Boolean(c?.url);
+  const hint = c?.step ? `${c.step}…`
+    : c?.error ? c.error
+      : ready ? 'In claude.ai: Settings, Connectors, Add custom connector. Paste the address, Connect, and type the passphrase. Once, for every project.'
+        : 'One connector for every project with the chat bridge on, so the planning chat in claude.ai can read them and hand their Prime sessions tasks. Elysium puts it on your Vercel account with your own sign ins.';
+  return (
+    <>
+      <Row label="Planning chat connector" hint={hint}>
+        <button className={`btn ${ready ? '' : 'primary'}`} disabled={Boolean(c?.step)} onClick={() => void window.elysium.setupConnector()}>{c?.step ? 'Setting up' : ready ? 'Deploy again' : 'Set up'}</button>
+      </Row>
+      {ready && c && (
+        <div className="connector-keys">
+          <button className="btn" onClick={() => copy('url', c.url!)}>{copied === 'url' ? <><Check size={14} />Copied</> : 'Copy the address'}</button>
+          <button className="btn" onClick={() => (show ? copy('pass', c.passphrase ?? '') : setShow(true))}>{copied === 'pass' ? <><Check size={14} />Copied</> : show ? <code>{c.passphrase}</code> : 'Show the passphrase'}</button>
+          <button className="btn" onClick={() => window.elysium.openExternal('https://claude.ai/settings/connectors')}>Open claude.ai connectors</button>
+        </div>
+      )}
+    </>
   );
 }

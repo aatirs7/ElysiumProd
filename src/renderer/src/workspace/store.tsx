@@ -110,6 +110,8 @@ export interface WorkspaceDoc {
   pinsOffered: string[];
   /** Sidebar groups of the owner's making, like Clients or Personal. */
   groups: { id: string; name: string; ids: string[]; collapsed?: boolean }[];
+  /** Projects whose sessions are folded away in the sidebar. */
+  folded?: string[];
   /** Names the owner gave projects in the sidebar. */
   projectNames: Record<string, string>;
   /** A colour the owner gave each project, shown in the sidebar. */
@@ -227,6 +229,7 @@ function parse(json: string | null): WorkspaceDoc {
       lastProjectId: d.lastProjectId ?? null,
       pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
       groups: Array.isArray(d.groups) ? d.groups.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.ids)) : [],
+      folded: Array.isArray(d.folded) ? d.folded.filter((x) => typeof x === 'string') : [],
       projectNames: d.projectNames && typeof d.projectNames === 'object' ? d.projectNames : {},
       projectColors: d.projectColors && typeof d.projectColors === 'object' ? d.projectColors : {},
       pinsOffered: [...new Set([...(Array.isArray(d.pinsOffered) ? d.pinsOffered : []), ...LATER_PINS])],
@@ -281,7 +284,7 @@ interface Ctx {
   accountFor(projectId: string | null | undefined): string;
   setWatcher(projectId: string, cfg: WatcherConfig): void;
   togglePin(projectId: string): void;
-  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'projectNames' | 'projectColors' | 'pinned'>>): void;
+  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'folded' | 'projectNames' | 'projectColors' | 'pinned'>>): void;
   setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
   finishOnboarding(): void;
   restartOnboarding(): void;
@@ -386,7 +389,7 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
     return { ...d, projectChats };
   }), []);
-  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'projectNames' | 'projectColors' | 'pinned'>>) => setDoc((d) => ({ ...d, ...p })), []);
+  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'folded' | 'projectNames' | 'projectColors' | 'pinned'>>) => setDoc((d) => ({ ...d, ...p })), []);
   const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true, onboardVersion: 2 })), []);
   const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
   const openProject = useCallback((projectId: string, name: string, opts?: { bare?: boolean }) => {

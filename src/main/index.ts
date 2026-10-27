@@ -46,6 +46,8 @@ import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
 import { CARRY_ON_CHAT, resumeRunning, saveRunning } from './resume';
+import { BoardWatcher, boardList, enableBoard } from './boards';
+import { connectorState, setupConnector } from './connector';
 import { findAgents } from './agents';
 import { Bridge } from './bridge';
 import { CodexWatch } from './codexwatch';
@@ -82,6 +84,7 @@ const send = (channel: string, ...args: unknown[]) => {
 
 const resources = new Resources(dataDir(), (r: ResourceSample) => send(Channels.resourcesUpdate, r));
 let tasks: Tasks | null = null;
+let boardWatcher: BoardWatcher | null = null;
 const limits = new Limits((l) => send(Channels.limitsUpdate, l));
 /** Which sessions are working right now, so Windows does not sleep under them. */
 const working = new Map<string, boolean>();
@@ -377,6 +380,14 @@ function registerIpc(): void {
     if (r.ok) send(Channels.projectsChanged);
     return r;
   });
+  ipcMain.handle(Channels.connectorGet, () => connectorState());
+  ipcMain.handle(Channels.connectorSetup, () => setupConnector((s) => send(Channels.connectorUpdate, s)));
+  ipcMain.handle(Channels.boardsList, () => boardList());
+  ipcMain.handle(Channels.boardEnable, async (_e, id: unknown) => {
+    const r = await enableBoard(String(id));
+    if (r.ok) send(Channels.projectsChanged);
+    return r;
+  });
   ipcMain.handle(Channels.freeSessionCreate, () => {
     const r = createFreeSession();
     if (r.ok) send(Channels.projectsChanged);
@@ -457,6 +468,7 @@ app.on('before-quit', (e) => {
   quitting = true;
   resources.stop();
   watchers.stopAll();
+  boardWatcher?.stop();
   chats.stopAll();
   ingest.stop();
   disposeQuick();
@@ -511,6 +523,13 @@ app.whenReady().then(async () => {
   if (!SMOKE && !DEMO) ensureStartMenuShortcut();
   win = createWindow();
   tasks = new Tasks(sessions, ingest, (sessionId, templateId) => { showMain(); send(Channels.focusSession, sessionId, templateId); }, (c) => send(Channels.compactUpdate, c));
+  // The chat bridge: one watcher for every project's board; a new task goes to that project's Prime.
+  boardWatcher = new BoardWatcher((projectId, templateId, text, title) => {
+    const r = tasks?.runTemplate(templateId, text);
+    const name = PROJECT_FOLDERS[projectId]?.name ?? projectId;
+    try { new Notification({ title: `New task for ${name}`, body: r?.ok ? `${title}. Prime has it.` : `${title}. It could not start: ${r?.reason ?? ''}`, icon: appIcon() }).show(); } catch { /* notifications are optional */ }
+  });
+  if (!DEMO) boardWatcher.start();
   if (!SMOKE && !DEMO) {
     createQuickWindow(loadRenderer);
     registerShortcut();

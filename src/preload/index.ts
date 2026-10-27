@@ -1,7 +1,7 @@
 // The only bridge between the sandboxed renderer and the main process.
 // Exposes exactly the calls in ElysiumApi over the channels in Channels.
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
-import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type ChatEvent, type Telemetry, type WatcherState, type WebState, type DictateEvent } from '@shared/ipc';
+import { Channels, type FlowEvent, type AccountLimits, type CompactState, type ElysiumApi, type ResourceSample, type SessionInfo, type ReaderEntry, type ChatEvent, type Telemetry, type WatcherState, type WebState, type DictateEvent, type ConnectorState } from '@shared/ipc';
 
 function subscribe<T extends unknown[]>(channel: string, cb: (...a: T) => void): () => void {
   const fn = (_e: IpcRendererEvent, ...a: unknown[]) => cb(...(a as T));
@@ -79,6 +79,11 @@ const api: ElysiumApi = {
   notifyOs: (sessionId, title, body) => ipcRenderer.send(Channels.notifyOs, sessionId, title, body),
   createProject: (req) => ipcRenderer.invoke(Channels.projectCreate, req),
   createFreeSession: () => ipcRenderer.invoke(Channels.freeSessionCreate),
+  connector: () => ipcRenderer.invoke(Channels.connectorGet),
+  setupConnector: () => ipcRenderer.invoke(Channels.connectorSetup),
+  onConnector: (cb) => subscribe<[ConnectorState]>(Channels.connectorUpdate, cb),
+  boards: () => ipcRenderer.invoke(Channels.boardsList),
+  enableBoard: (id) => ipcRenderer.invoke(Channels.boardEnable, id),
   removeProject: (id) => ipcRenderer.invoke(Channels.projectRemove, id),
   sessionOptions: (projectId) => ipcRenderer.invoke(Channels.sessionOptionsGet, projectId),
   setSessionOptions: (projectId, opts) => ipcRenderer.invoke(Channels.sessionOptionsSet, projectId, opts),

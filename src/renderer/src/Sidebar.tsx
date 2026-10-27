@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { AppWindow, BarChart3, BookMarked, MessageSquarePlus, Sparkles, Trash2, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { MessagesSquare, AppWindow, BarChart3, BookMarked, MessageSquarePlus, Sparkles, Trash2, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -33,7 +33,10 @@ interface Props {
 
 export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus, onRunCheck, onNewSession, onOpenInWindow }: Props) {
   const [sessionMenu, setSessionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  // Which projects have the chat bridge on, read when a project's menu opens.
+  const [bridged, setBridged] = useState<Set<string> | null>(null);
   const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
+  useEffect(() => { if (menu) void window.elysium.boards().then((b) => setBridged(new Set(b.map((x) => x.projectId)))); }, [menu]);
   const { doc, activeView, setActiveView, renameView, addView, togglePin, patchDoc } = useWorkspace();
   const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry, templates } = useLive();
@@ -41,6 +44,36 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
   const [editing, setEditing] = useState<string | null>(null);
   const pinned = doc.pinned.map((id) => projects.find((p) => p.id === id && !p.builtin && !p.free)).filter(Boolean) as typeof projects;
   const freeSessions = projects.filter((p) => p.free);
+  // Drag a project onto another to put it above that one (in that one's group), or onto a group to move it in.
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropOn, setDropOn] = useState<string | null>(null);
+  const dropBefore = (target: { project?: string; group?: string }) => {
+    const id = dragging;
+    setDragging(null); setDropOn(null);
+    if (!id || id === target.project) return;
+    const groups = doc.groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== id) }));
+    const into = target.group ? groups.find((g) => g.id === target.group) : groups.find((g) => g.ids.includes(target.project ?? ''));
+    if (into) into.ids.splice(target.project ? Math.max(0, into.ids.indexOf(target.project)) : into.ids.length, 0, id);
+    const pinnedNow = doc.pinned.filter((x) => x !== id);
+    const at = target.project && !into ? pinnedNow.indexOf(target.project) : -1;
+    pinnedNow.splice(at >= 0 ? at : pinnedNow.length, 0, id);
+    patchDoc({ groups, pinned: pinnedNow });
+  };
+  const dropProps = (key: string, target: { project?: string; group?: string }) => ({
+    onDragOver: (e: React.DragEvent) => { if (!dragging) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dropOn !== key) setDropOn(key); },
+    onDragLeave: () => { if (dropOn === key) setDropOn(null); },
+    onDrop: (e: React.DragEvent) => { e.preventDefault(); dropBefore(target); },
+  });
+  // A new name shows in the sidebar and on the project's view; its folder and sessions keep theirs.
+  const renameProject = (p: { id: string; name: string }, typed: string) => {
+    const v = typed.trim();
+    patchDoc({ projectNames: { ...doc.projectNames, [p.id]: v && v !== p.name ? v : undefined as unknown as string } });
+    for (const view of doc.views) if (view.projectId === p.id) renameView(view.id, v || p.name);
+  };
+  // A project's sessions show under it while any run or it is open; the arrow folds them away.
+  const folded = new Set(doc.folded ?? []);
+  const toggleFold = (id: string) => patchDoc({ folded: folded.has(id) ? [...folded].filter((x) => x !== id) : [...folded, id] });
+  const hasSessions = (id: string, open: boolean) => open || sessions.some((s) => s.status === 'running' && s.templateId.startsWith(`${id}.`));
   const nameOf = (p: { id: string; name: string }) => doc.projectNames[p.id] || p.name;
   const [renaming, setRenaming] = useState<string | null>(null);
   const [renamingGroup, setRenamingGroup] = useState<string | null>(null);
@@ -119,7 +152,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           if (row.kind === 'group') {
             const g = row.g;
             return (
-              <div key={`g-${g.id}`} className="side-group" onContextMenu={(e) => { e.preventDefault(); setGroupMenu({ id: g.id, x: e.clientX, y: e.clientY }); }}>
+              <div key={`g-${g.id}`} className={`side-group ${dropOn === `g-${g.id}` ? 'drop-into' : ''}`} {...dropProps(`g-${g.id}`, { group: g.id })} onContextMenu={(e) => { e.preventDefault(); setGroupMenu({ id: g.id, x: e.clientX, y: e.clientY }); }}>
                 <button className="side-group-head" onClick={() => setGroups(doc.groups.map((x) => (x.id === g.id ? { ...x, collapsed: !x.collapsed } : x)))} aria-expanded={!g.collapsed}>
                   <ChevronDown size={12} style={{ transform: g.collapsed ? 'rotate(-90deg)' : undefined, transition: 'transform .2s' }} />
                   {renamingGroup === g.id
@@ -134,15 +167,17 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           const st = status(p.id);
           const active = page === 'workspace' && activeView?.projectId === p.id;
           return (
-            <div key={p.id} className="side-project">
+            <div key={p.id} className={`side-project ${dropOn === p.id && dragging !== p.id ? 'drop-before' : ''} ${dragging === p.id ? 'dragging' : ''}`} draggable={renaming !== p.id}
+              onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', p.id); setDragging(p.id); }} onDragEnd={() => { setDragging(null); setDropOn(null); }} {...dropProps(p.id, { project: p.id })}>
             <div style={doc.projectColors[p.id] ? { ['--pc' as string]: doc.projectColors[p.id] } : undefined} className={`nav view-item ${doc.projectColors[p.id] ? 'colored' : ''} ${active ? 'active' : ''} ${menu?.id === p.id ? 'menu-open' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, p.name)}
               onContextMenu={(e) => { e.preventDefault(); setMenu({ id: p.id, name: p.name, x: e.clientX, y: e.clientY }); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, p.name); }} title={p.folder}>
+              onKeyDown={(e) => { if (e.key === 'Enter' && renaming !== p.id) onProject(p.id, p.name); if (e.key === 'F2') setRenaming(p.id); }} onDoubleClick={() => setRenaming(p.id)} title={`${p.folder}. Double click or F2 to rename.`}>
               <ProjectLogo projectId={p.id} />
               {renaming === p.id
-                ? <input className="rename grow" autoFocus defaultValue={nameOf(p)} onClick={(e) => e.stopPropagation()} onBlur={(e) => { const v = e.target.value.trim(); patchDoc({ projectNames: { ...doc.projectNames, [p.id]: v && v !== p.name ? v : undefined as unknown as string } }); setRenaming(null); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
+                ? <input className="rename grow" autoFocus defaultValue={nameOf(p)} onClick={(e) => e.stopPropagation()} onBlur={(e) => { renameProject(p, e.target.value); setRenaming(null); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
                 : <span className="grow">{nameOf(p)}</span>}
               {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
+              {hasSessions(p.id, active) && <button className="ghost-icon tiny fold-btn" onClick={(e) => { e.stopPropagation(); toggleFold(p.id); }} title={folded.has(p.id) ? 'Show its sessions' : 'Hide its sessions'} aria-label={folded.has(p.id) ? `Show sessions of ${p.name}` : `Hide sessions of ${p.name}`} aria-expanded={!folded.has(p.id)}><ChevronDown size={13} style={{ transform: folded.has(p.id) ? 'rotate(-90deg)' : undefined, transition: 'transform .2s' }} /></button>}
               <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu({ id: p.id, name: p.name, x: r.left, y: r.bottom }); }} title="More" aria-label={`More for ${p.name}`} aria-haspopup="menu"><MoreHorizontal size={14} /></button>
             </div>
             {/* Its sessions, right under it, while any run or the project is open. */}
@@ -150,7 +185,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
               const mine = templates.filter((t) => t.kind === 'claude' && t.project === p.id);
               // Other agents show while they run.
               const live = [...mine, ...templates.filter((t) => t.kind === 'agent' && t.project === p.id)].map((t) => ({ t, s: sessions.find((x) => x.templateId === t.id && x.status === 'running') })).filter((x) => x.t.kind !== 'agent' || x.s);
-              if (!live.some((x) => x.s) && !active) return null;
+              if ((!live.some((x) => x.s) && !active) || folded.has(p.id)) return null;
               return (
                 <div className="side-sessions">
                   {live.map(({ t, s }) => {
@@ -197,6 +232,14 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                 <div className="tab-menu-sep" />
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onDashboard(menu.id, menu.name); }}><LayoutGrid size={14} />Dashboard</button>
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); window.elysium.openFolder(menu.id); }}><FolderOpen size={14} />Open folder</button>
+                {bridged && !bridged.has(menu.id) && (
+                  <button className="tab-menu-item" role="menuitem" title="The planning chat on claude.ai can read it and hand its Prime tasks. Adds a small commit with the board files and pushes it." onClick={async () => {
+                    setMenu(null);
+                    onNote('Turning on the chat bridge…');
+                    const r = await window.elysium.enableBoard(menu.id);
+                    onNote(r.ok ? `Chat bridge on for ${menu.name}. Tasks from the planning chat now reach its Prime.` : r.reason ?? 'It did not work.');
+                  }}><MessagesSquare size={14} />Turn on the chat bridge</button>
+                )}
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); doc.groups.some((g) => g.ids.includes(menu.id)) && moveTo(menu.id, null); togglePin(menu.id); }}><PinOff size={14} />Unpin from the sidebar</button>
                 {others.length > 0 && <div className="tab-menu-label">Add its sessions to</div>}
                 {others.map((v) => (
@@ -237,10 +280,10 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           const active = page === 'workspace' && activeView?.projectId === p.id;
           return (
             <div key={p.id} className={`nav view-item ${active ? 'active' : ''} ${sessionMenu?.id === p.id ? 'menu-open' : ''}`} role="button" tabIndex={0} onClick={() => onProject(p.id, nameOf(p))}
-              onKeyDown={(e) => { if (e.key === 'Enter') onProject(p.id, nameOf(p)); }} onContextMenu={(e) => { e.preventDefault(); setSessionMenu({ id: p.id, x: e.clientX, y: e.clientY }); }} title={p.folder}>
+              onKeyDown={(e) => { if (e.key === 'Enter' && renaming !== p.id) onProject(p.id, nameOf(p)); if (e.key === 'F2') setRenaming(p.id); }} onDoubleClick={() => setRenaming(p.id)} onContextMenu={(e) => { e.preventDefault(); setSessionMenu({ id: p.id, x: e.clientX, y: e.clientY }); }} title={p.folder}>
               <span className="tool-icon"><Sparkles size={14} /></span>
               {renaming === p.id
-                ? <input className="rename grow" autoFocus defaultValue={nameOf(p)} onClick={(e) => e.stopPropagation()} onBlur={(e) => { const v = e.target.value.trim(); patchDoc({ projectNames: { ...doc.projectNames, [p.id]: v && v !== p.name ? v : undefined as unknown as string } }); setRenaming(null); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
+                ? <input className="rename grow" autoFocus defaultValue={nameOf(p)} onClick={(e) => e.stopPropagation()} onBlur={(e) => { renameProject(p, e.target.value); setRenaming(null); }} onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); if (e.key === 'Escape') setRenaming(null); }} />
                 : <span className="grow">{nameOf(p)}</span>}
               {st && <span className={`dot ${st}`} title={st === 'waiting' ? 'Waiting on you' : st === 'busy' ? 'Working' : 'Running'} />}
               <button className="ghost-icon tiny hover-only" onClick={(e) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setSessionMenu({ id: p.id, x: r.left, y: r.bottom }); }} title="More" aria-label={`More for ${nameOf(p)}`} aria-haspopup="menu"><MoreHorizontal size={14} /></button>

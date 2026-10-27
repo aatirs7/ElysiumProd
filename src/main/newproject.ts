@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { arch, homedir, totalmem, userInfo } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { NewProjectRequest, NewProjectResult } from '@shared/ipc';
+import { addBoard, enableBoard, ghLogin, writeBoardFiles } from './boards';
 import { kindFiles, kindKickoff } from './kinds';
 import { dataDir } from './paths';
 import { PROJECT_FOLDERS, PROJECTS, registerProject, unregisterProject, type ProjectDef } from './templates';
@@ -100,6 +101,10 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
   const parent = req.parent && isAbsolute(req.parent) ? req.parent : homedir();
   let folder: string;
   let repo: string | null = null;
+  // The chat bridge needs GitHub: the board's owner, and a repository (a new project is made private when none was chosen).
+  const login = req.bridge ? await ghLogin() : '';
+  if (req.bridge && !login) return { ok: false, reason: 'The chat bridge needs GitHub. Run gh auth login in a terminal, or untick the chat bridge.' };
+  const github = req.bridge && req.github !== 'public' ? 'private' : req.github;
 
   if (req.mode === 'existing') {
     folder = String(req.folder ?? '');
@@ -130,6 +135,7 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
     writeFileSync(join(folder, 'README.md'), `# ${name}\n`);
     // A kind (iOS app, web app) brings its working rules for the project's Claude session.
     for (const [file, text] of Object.entries(kindFiles(req.kind, name))) writeFileSync(join(folder, file), text);
+    if (req.bridge) writeBoardFiles(folder, name, login);
     const steps: [string, string[]][] = [['git', ['init', '-b', 'main']], ['git', ['add', '-A']], ['git', ['-c', `user.name=${userInfo().username}`, '-c', `user.email=${userInfo().username}@localhost`, 'commit', '-m', `Start ${name}`]]];
     // Use their own identity when git has one; the fallback only covers a fresh install.
     const who = await run('git', ['config', 'user.email'], folder, 10000);
@@ -138,23 +144,30 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
       const r = await run(c, a, folder, 30000);
       if (!r.ok) return { ok: false, reason: `Could not set up git in ${folder}: ${r.err.trim().slice(0, 200)}` };
     }
-    if (req.github === 'private' || req.github === 'public') {
+    if (github === 'private' || github === 'public') {
       if (!existsSync(GH)) return { ok: false, reason: 'The folder is ready, but the GitHub CLI is not installed, so no repository was made on GitHub.' };
-      const r = await run(GH, ['repo', 'create', dirName, `--${req.github}`, '--source', folder, '--remote', 'origin', '--push'], folder, 120000);
+      const r = await run(GH, ['repo', 'create', dirName, `--${github}`, '--source', folder, '--remote', 'origin', '--push'], folder, 120000);
       if (!r.ok) return { ok: false, reason: `The folder is ready, but GitHub said: ${r.err.trim().slice(0, 240)}` };
       repo = await remoteSlug(folder);
     }
   }
 
   const id = slugify(name);
+  // Sessions are named after the project: Prime first, then Meridian.
   const pair = req.sessions === 'pair'
     ? { prime: `Prime ${name}`, meridian: `Meridian ${name}`, pluginPrime: `Prime ${name}`, pluginMeridian: `Meridian ${name}`, extra: [] }
     : undefined;
-  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, source: 'custom', ...(pair ? { pair } : {}), ...(req.mode === 'new' && req.kind && req.kind !== 'blank' ? { kind: req.kind } : {}) };
+  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, source: 'custom', ...(pair ? { pair } : { sessionName: `Prime ${name}` }), ...(req.mode === 'new' && req.kind && req.kind !== 'blank' ? { kind: req.kind } : {}) };
   registerProject(def);
   save();
   const kickoff = req.mode === 'new' ? kindKickoff(req.kind, name) : null;
-  return { ok: true, reason: null, projectId: id, ...(kickoff ? { kickoff } : {}) };
+  // A new project already holds the board files; one brought in gets them in a commit of its own.
+  let note: string | undefined;
+  if (req.bridge) {
+    if (req.mode === 'new' && repo) await addBoard(id, repo, login);
+    else if (req.mode !== 'new') { const b = await enableBoard(id); if (!b.ok) note = `The project is ready, but the chat bridge is not on: ${b.reason}`; }
+  }
+  return { ok: true, reason: null, projectId: id, ...(kickoff ? { kickoff } : {}), ...(note ? { note } : {}) };
 }
 
 /**

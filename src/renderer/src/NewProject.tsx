@@ -31,7 +31,7 @@ function nameFromUrl(url: string): string {
   return last.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
 
-export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): void; onCreated(projectId: string, name: string, kickoff?: string): void; start?: Start }) {
+export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): void; onCreated(projectId: string, name: string, kickoff?: string, note?: string): void; start?: Start }) {
   const { accounts } = useLive();
   const { doc, togglePin, setProjectAccount } = useWorkspace();
   const [what, setWhat] = useState<Start>(start);
@@ -43,7 +43,9 @@ export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): v
   useEffect(() => { void window.elysium.homeDir().then((h) => setParent((p) => p || `${h}\\Projects`)); }, []);
   const [folder, setFolder] = useState('');
   const [sessions, setSessions] = useState<'pair' | 'solo'>('solo');
-  const [github, setGithub] = useState<'none' | 'private' | 'public'>('none');
+  const [github, setGithub] = useState<'none' | 'private' | 'public'>('private');
+  // The chat bridge: on by default; it needs the project on GitHub.
+  const [bridge, setBridge] = useState(true);
   const [account, setAccount] = useState('main');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,12 +62,12 @@ export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): v
   const submit = async () => {
     if (!ready || busy) return;
     setBusy(true); setError(null);
-    const r = await window.elysium.createProject({ mode, kind: kindOf(what), name: name.trim(), url, parent, folder, sessions, github: mode === 'new' ? github : 'none' });
+    const r = await window.elysium.createProject({ mode, kind: kindOf(what), bridge, name: name.trim(), url, parent, folder, sessions, github: mode === 'new' ? github : 'none' });
     setBusy(false);
     if (!r.ok || !r.projectId) { setError(r.reason ?? 'Something went wrong.'); return; }
     if (account !== 'main') setProjectAccount(r.projectId, account);
     if (!doc.pinned.includes(r.projectId)) togglePin(r.projectId);
-    onCreated(r.projectId, name.trim(), r.kickoff);
+    onCreated(r.projectId, name.trim(), r.kickoff, r.note);
   };
 
   const where = mode === 'existing' ? folder : `${parent}\\${(mode === 'clone' ? (url.trim().replace(/\.git$/, '').split(/[/:]/).pop() ?? '') : name.trim().replace(/[^\w.-]+/g, '-')) || '…'}`;
@@ -134,12 +136,19 @@ export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): v
             <div className="np-field">
               <span>On GitHub</span>
               <div className="seg">
-                <button className={github === 'none' ? 'on' : ''} onClick={() => setGithub('none')}>Not yet</button>
+                <button className={github === 'none' ? 'on' : ''} onClick={() => { setGithub('none'); setBridge(false); }}>Not yet</button>
                 <button className={github === 'private' ? 'on' : ''} onClick={() => setGithub('private')}>Private repo</button>
                 <button className={github === 'public' ? 'on' : ''} onClick={() => setGithub('public')}>Public repo</button>
               </div>
             </div>
           )}
+          <div className="np-field">
+            <span>Chat bridge</span>
+            <button className="np-check" role="switch" aria-checked={bridge} onClick={() => { setBridge((b) => !b); if (!bridge && github === 'none') setGithub('private'); }}>
+              <span className={`mini-switch ${bridge ? 'on' : ''}`}><i /></span>
+              <span className="np-check-text">{bridge ? 'On. The planning chat on claude.ai can read it and hand Prime tasks.' : 'Off. You can turn it on later from the project menu.'}</span>
+            </button>
+          </div>
         </div>
 
         {error && <p className="np-error" role="alert">{error}</p>}

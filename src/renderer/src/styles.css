@@ -784,6 +784,9 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .np-start-label { font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 0 0 .45rem .1rem; }
 .np-start .np-modes { margin-bottom: 1rem; }
 .np-start:last-of-type .np-modes { margin-bottom: 1.3rem; }
+.np-check { justify-self: start; display: inline-flex; align-items: center; gap: .6rem; background: none; border: 0; padding: .2rem 0; color: var(--text-2); font: inherit; font-size: .86rem; cursor: pointer; text-align: left; }
+.np-check:hover { color: var(--text); }
+.np-check .mini-switch { flex: none; margin: 0; }
 .np-modes.n2 { grid-template-columns: repeat(2, 1fr); }
 .np-mode { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .9rem .6rem; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); cursor: pointer; text-align: center; transition: border-color .15s var(--ease), background-color .15s var(--ease), color .15s var(--ease); }
 .np-mode:hover { border-color: var(--line-strong); color: var(--text); }
@@ -1523,6 +1526,12 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 
 /* ---- Sidebar groups ---- */
 .side-group { margin-top: .35rem; }
+.side-project { position: relative; }
+.side-project.dragging { opacity: .45; }
+.side-project.drop-before::before { content: ''; position: absolute; left: .6rem; right: .6rem; top: -2px; height: 2px; border-radius: 2px; background: var(--accent); }
+.side-group.drop-into .side-group-head { background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 8px; }
+.fold-btn { opacity: .55; }
+.view-item:hover .fold-btn { opacity: 1; }
 .side-group-head { width: 100%; display: flex; align-items: center; gap: .4rem; padding: .3rem .55rem; border: 0; background: transparent; color: var(--text-3); font-size: .76rem; text-transform: uppercase; letter-spacing: .05em; cursor: pointer; border-radius: 8px; }
 .side-group-head:hover { color: var(--text-2); background: var(--hover); }
 .side-group-head .rename { text-transform: none; letter-spacing: 0; font-size: .85rem; }
@@ -1996,3 +2005,6 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 .pin-toggle.on { color: var(--accent); }
 .mini-switch.on { background: var(--ok); }
 .mini-switch.on i { transform: translateX(.75rem); background: var(--bg); }
+
+.connector-keys { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 0 .9rem; }
+.connector-keys code { font-size: .8rem; }
