@@ -682,7 +682,7 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .dockview-theme-elysium .dv-groupview.tinted { border-color: color-mix(in srgb, var(--tint) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 30%, transparent), var(--shadow); }
 .dockview-theme-elysium .dv-groupview.tinted .dv-tabs-and-actions-container { background: color-mix(in srgb, var(--tint) 13%, var(--surface)); border-bottom-color: color-mix(in srgb, var(--tint) 35%, var(--line)); }
 .menu-backdrop { position: fixed; inset: 0; z-index: 80; }
-.tab-menu { position: fixed; min-width: 14rem; padding: .45rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: pop .14s var(--ease) both; }
+.tab-menu { position: fixed; max-height: calc(100vh - 16px); overflow-y: auto; min-width: 14rem; padding: .45rem; border-radius: 12px; background: var(--surface); border: 1px solid var(--line-strong); box-shadow: var(--shadow); animation: pop .14s var(--ease) both; }
 .tab-menu-label { font-size: .74rem; font-weight: 600; color: var(--text-3); padding: .2rem .45rem .35rem; }
 .tint-row { display: flex; gap: .35rem; padding: 0 .4rem .45rem; border-bottom: 1px solid var(--line); margin-bottom: .3rem; }
 .tint-swatch { width: 1.35rem; height: 1.35rem; border-radius: 50%; border: 1px solid var(--line-strong); display: grid; place-items: center; color: #fff; cursor: pointer; transition: transform .12s var(--ease); }
@@ -2008,3 +2008,4 @@ button.usage-strip { cursor: pointer; font: inherit; color: inherit; }
 
 .connector-keys { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0 0 .9rem; }
 .connector-keys code { font-size: .8rem; }
+.menu-indent { display: inline-block; width: 14px; }

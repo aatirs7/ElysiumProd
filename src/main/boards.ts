@@ -25,7 +25,7 @@ interface Board { repo: string; to: string; since: string }
 function run(cmd: string, args: string[], cwd?: string, timeout = 60000): Promise<{ ok: boolean; out: string; err: string }> {
   return new Promise((r) => execFile(cmd, args, { cwd, timeout, windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (e, out, err) => r({ ok: !e, out: String(out ?? ''), err: String(err ?? (e ? e.message : '')) })));
 }
-const gh = (args: string[], cwd?: string) => run(existsSync(GH) ? GH : 'gh', args, cwd);
+const gh = (args: string[], cwd?: string, timeout?: number) => run(existsSync(GH) ? GH : 'gh', args, cwd, timeout);
 
 function read<T>(file: string, empty: T): T {
   try { return JSON.parse(readFileSync(file, 'utf8')) as T; } catch { return empty; }
@@ -82,26 +82,55 @@ export function writeBoardFiles(folder: string, name: string, login: string): st
   return ['.elysium/board.json', RELAY, '.claude/rules/elysium-bridge.md', 'CLAUDE.md'];
 }
 
-/** Turns the chat bridge on for a project that is already on GitHub: its own commit, pushed. */
-export async function enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null }> {
+const IGNORE = ['node_modules/', '.env', '.env.*', '*.pem', '*.key', '*.p8', 'dist/', 'build/', '.next/', '.expo/', '.vercel/', ''].join('\n');
+
+/**
+ * Turns the chat bridge on for a project: its own commit, pushed. A project not
+ * on GitHub yet is put there first, as a private repository (and a folder that is
+ * not a git repository yet becomes one, with secrets and build output ignored).
+ */
+export async function enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null; made?: string }> {
   const p = PROJECT_FOLDERS[projectId];
   if (!p) return { ok: false, reason: 'No such project.' };
   if (existsSync(join(p.folder, '.claude', 'mods.json'))) return { ok: false, reason: 'This project has a chat bridge of its own, so it is left as it is.' };
   const login = await ghLogin();
   if (!login) return { ok: false, reason: 'GitHub is not signed in here. Run gh auth login in a terminal, then try again.' };
-  const repo = await originSlug(p.folder);
-  if (!repo) return { ok: false, reason: 'The chat bridge needs the project on GitHub first.' };
+  let repo = await originSlug(p.folder);
+  const isGit = (await run('git', ['rev-parse', '--is-inside-work-tree'], p.folder, 10000)).ok;
   let files: string[];
   try { files = writeBoardFiles(p.folder, p.name, login); } catch (e) {
     return { ok: false, reason: `Could not write the board files: ${e instanceof Error ? e.message : String(e)}` };
   }
-  await run('git', ['add', '--', ...files], p.folder);
-  const c = await run('git', ['commit', '-m', 'Turn on the Elysium chat bridge', '--', ...files], p.folder);
-  if (!c.ok && !/nothing to commit/i.test(c.out + c.err)) return { ok: false, reason: `Could not commit the board files: ${c.err.trim().slice(0, 200)}` };
-  const push = await run('git', ['push'], p.folder, 120000);
-  if (!push.ok) return { ok: false, reason: `The board files are committed but did not push: ${push.err.trim().split('\n').pop()?.slice(0, 200) ?? ''}` };
+  if (!isGit) {
+    if (!existsSync(join(p.folder, '.gitignore'))) writeFileSync(join(p.folder, '.gitignore'), IGNORE);
+    const init = await run('git', ['init', '-b', 'main'], p.folder);
+    if (!init.ok) return { ok: false, reason: `Could not set up git: ${init.err.trim().slice(0, 200)}` };
+    await run('git', ['add', '-A'], p.folder);
+    const first = await run('git', ['commit', '-m', `Start ${p.name}`], p.folder);
+    if (!first.ok) return { ok: false, reason: `Could not make the first commit: ${first.err.trim().slice(0, 200)}` };
+  } else {
+    await run('git', ['add', '--', ...files], p.folder);
+    const c = await run('git', ['commit', '-m', 'Turn on the Elysium chat bridge', '--', ...files], p.folder);
+    if (!c.ok && !/nothing to commit/i.test(c.out + c.err)) return { ok: false, reason: `Could not commit the board files: ${c.err.trim().slice(0, 200)}` };
+  }
+  let made: string | undefined;
+  if (!repo) {
+    // Not on GitHub yet: a private repository named after the folder (or with a number when that is taken).
+    const base = (p.folder.split(/[\\/]/).pop() ?? p.name).replace(/[^\w.-]+/g, '-').replace(/^-|-$/g, '') || 'project';
+    for (let i = 1; i <= 5 && !repo; i += 1) {
+      const name = i === 1 ? base : `${base}-${i}`;
+      const r = await gh(['repo', 'create', name, '--private', '--source', p.folder, '--remote', 'origin', '--push'], p.folder, 600000);
+      if (r.ok) repo = await originSlug(p.folder);
+      else if (!/already exists/i.test(r.err)) return { ok: false, reason: `GitHub would not make the repository: ${r.err.trim().split('\n').pop()?.slice(0, 200) ?? ''}` };
+    }
+    if (!repo) return { ok: false, reason: 'GitHub already has repositories with that name. Rename the folder, then try again.' };
+    made = repo;
+  } else {
+    const push = await run('git', ['push', '-u', 'origin', 'HEAD'], p.folder, 120000);
+    if (!push.ok) return { ok: false, reason: `The board files are committed but did not push: ${push.err.trim().split('\n').pop()?.slice(0, 200) ?? ''}` };
+  }
   await addBoard(projectId, repo, login);
-  return { ok: true, reason: null };
+  return { ok: true, reason: null, ...(made ? { made } : {}) };
 }
 
 /** Once the repository is on GitHub: its labels, and the shared watcher starts watching it. */

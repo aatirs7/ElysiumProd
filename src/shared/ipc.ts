@@ -322,7 +322,7 @@ export interface ElysiumApi {
   onConnector(cb: (s: ConnectorState) => void): () => void;
   /** Projects with the chat bridge on. */
   boards(): Promise<BoardInfo[]>;
-  enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null }>;
+  enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null; /** The repository made on GitHub for it, if it was not there yet. */ made?: string }>;
   /** Takes a project made in the app out of the list; its folder is left alone. */
   removeProject(id: string): Promise<boolean>;
   /** Model, advisor and effort a project's Claude sessions start with. */

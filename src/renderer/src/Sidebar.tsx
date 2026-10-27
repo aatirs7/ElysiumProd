@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { MessagesSquare, AppWindow, BarChart3, BookMarked, MessageSquarePlus, Sparkles, Trash2, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
+import { EyeOff, MessagesSquare, AppWindow, BarChart3, BookMarked, MessageSquarePlus, Sparkles, Trash2, Bot, Check, ChevronDown, CircleDollarSign, FolderClosed, FolderPlus, Gauge, Leaf, Pencil, RotateCcw, Wrench, CircleHelp, FolderOpen, FoldVertical, Home, Layers, LayoutGrid, MemoryStick, Moon, MoreHorizontal, PinOff, Play, Plus, Search, Settings as SettingsIcon, Square, X } from 'lucide-react';
 import { Logo } from './Logo';
 import { ProjectLogo } from './ProjectLogo';
 import { useLive, useMachine } from './workspace/live';
@@ -33,10 +33,14 @@ interface Props {
 
 export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProject, onProject, onAddToView, onDashboard, onNote, onFocus, onRunCheck, onNewSession, onOpenInWindow }: Props) {
   const [sessionMenu, setSessionMenu] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [addTo, setAddTo] = useState(false);
+  const [removing, setRemoving] = useState<string | null>(null);
   // Which projects have the chat bridge on, read when a project's menu opens.
   const [bridged, setBridged] = useState<Set<string> | null>(null);
   const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
-  useEffect(() => { if (menu) void window.elysium.boards().then((b) => setBridged(new Set(b.map((x) => x.projectId)))); }, [menu]);
+  // A menu opened in the lower half of the window grows upward from the click, so it never runs off the bottom; a very long one scrolls.
+  const menuSpot = (y: number) => (y > window.innerHeight * 0.55 ? { bottom: Math.max(8, window.innerHeight - y + 4), maxHeight: y - 12 } : { top: y + 4, maxHeight: window.innerHeight - y - 12 });
+  useEffect(() => { setAddTo(false); setRemoving(null); if (menu) void window.elysium.boards().then((b) => setBridged(new Set(b.map((x) => x.projectId)))); }, [menu]);
   const { doc, activeView, setActiveView, renameView, addView, togglePin, patchDoc } = useWorkspace();
   const [adding, setAdding] = useState(false);
   const { projects, sessions, telemetry, templates } = useLive();
@@ -140,7 +144,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
             <button className="nav new-project" role="menuitem" onClick={() => { setAdding(false); onNewProject(); }}>
               <span className="plogo new"><Plus size={13} /></span><span className="grow">New project</span>
             </button>
-            {unpinned.length > 0 && <div className="pin-picker-label">Pin one you have</div>}
+            {unpinned.length > 0 && <div className="pin-picker-label">Hidden, and others you have</div>}
             {unpinned.map((p) => (
               <button key={p.id} className="nav" role="menuitem" onClick={() => togglePin(p.id)} title={p.folder}>
                 <ProjectLogo projectId={p.id} /><span className="grow">{p.name}</span><Plus size={14} className="muted" />
@@ -219,7 +223,7 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
           const others = doc.views.filter((v) => v.projectId !== menu.id);
           return (
             <div className="menu-backdrop" onMouseDown={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }}>
-              <div className="tab-menu over-native" style={{ left: Math.min(menu.x, window.innerWidth - 250), top: Math.min(menu.y + 4, window.innerHeight - 360) }} onMouseDown={(e) => e.stopPropagation()} role="menu" aria-label={menu.name}>
+              <div className="tab-menu over-native" style={{ left: Math.min(menu.x, window.innerWidth - 250), ...menuSpot(menu.y) }} onMouseDown={(e) => e.stopPropagation()} role="menu" aria-label={menu.name}>
                 <div className="tab-menu-label">{menu.name}</div>
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onProject(menu.id, menu.name); }}><Layers size={14} />Open</button>
                 <button className="tab-menu-item" role="menuitem" onClick={() => void act('start')}><Play size={14} />{running ? 'Start any that are off' : 'Start sessions'}</button>
@@ -237,13 +241,13 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                     setMenu(null);
                     onNote('Turning on the chat bridge…');
                     const r = await window.elysium.enableBoard(menu.id);
-                    onNote(r.ok ? `Chat bridge on for ${menu.name}. Tasks from the planning chat now reach its Prime.` : r.reason ?? 'It did not work.');
+                    onNote(r.ok ? `Chat bridge on for ${menu.name}${r.made ? `, now on GitHub as ${r.made} (private)` : ''}. Tasks from the planning chat reach its Prime.` : r.reason ?? 'It did not work.');
                   }}><MessagesSquare size={14} />Turn on the chat bridge</button>
                 )}
-                <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); doc.groups.some((g) => g.ids.includes(menu.id)) && moveTo(menu.id, null); togglePin(menu.id); }}><PinOff size={14} />Unpin from the sidebar</button>
-                {others.length > 0 && <div className="tab-menu-label">Add its sessions to</div>}
-                {others.map((v) => (
-                  <button key={v.id} className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onAddToView(menu.id, v.id); }}><Plus size={14} />{v.name}</button>
+                <button className="tab-menu-item" role="menuitem" title="Bring it back with the plus beside Projects" onClick={() => { setMenu(null); doc.groups.some((g) => g.ids.includes(menu.id)) && moveTo(menu.id, null); togglePin(menu.id); }}><EyeOff size={14} />Hide from the sidebar</button>
+                {others.length > 0 && <button className="tab-menu-item" role="menuitem" aria-expanded={addTo} onClick={() => setAddTo((a) => !a)}><Plus size={14} /><span className="grow">Add its sessions to a view</span><ChevronDown size={13} style={{ transform: addTo ? undefined : 'rotate(-90deg)', transition: 'transform .2s' }} /></button>}
+                {addTo && others.map((v) => (
+                  <button key={v.id} className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); onAddToView(menu.id, v.id); }}><span className="menu-indent" />{v.name}</button>
                 ))}
                 <div className="tab-menu-sep" />
                 <button className="tab-menu-item" role="menuitem" onClick={() => { setMenu(null); setRenaming(menu.id); }}><Pencil size={14} />Rename</button>
@@ -266,6 +270,17 @@ export function Sidebar({ page, go, onPalette, onMemory, onDeleteView, onNewProj
                   : <form className="tab-menu-item" onSubmit={(e) => { e.preventDefault(); const n = newGroup.trim(); if (!n) return; const id = `g${Date.now().toString(36)}`; const next = [...doc.groups.map((g) => ({ ...g, ids: g.ids.filter((x) => x !== menu.id) })), { id, name: n, ids: [menu.id] }]; patchDoc({ groups: next, pinned: doc.pinned.includes(menu.id) ? doc.pinned : [...doc.pinned, menu.id] }); setNewGroup(null); setMenu(null); }}>
                       <FolderPlus size={14} /><input className="rename" autoFocus placeholder="Group name" value={newGroup} onChange={(e) => setNewGroup(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNewGroup(null); }} />
                     </form>}
+                {projects.find((x) => x.id === menu.id)?.custom && <>
+                  <div className="tab-menu-sep" />
+                  <button className="tab-menu-item danger" role="menuitem" disabled={running} title={running ? 'End its sessions first' : 'Takes it out of Elysium. Its folder, git history and conversations stay where they are.'} onClick={async () => {
+                    if (removing !== menu.id) { setRemoving(menu.id); return; }
+                    setMenu(null); setRemoving(null);
+                    const v = doc.views.find((x) => x.projectId === menu.id);
+                    if (v) onDeleteView(v.id);
+                    if (doc.pinned.includes(menu.id)) togglePin(menu.id);
+                    onNote((await window.elysium.removeProject(menu.id)) ? `${menu.name} is out of Elysium. Its folder and history are untouched; add it back with New project, Existing folder.` : 'End its sessions first, then remove it.');
+                  }}><Trash2 size={14} />{removing === menu.id ? 'Click again to remove' : 'Remove from Elysium'}</button>
+                </>}
               </div>
             </div>
           );

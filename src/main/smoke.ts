@@ -360,9 +360,16 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       // Rename by double click.
       await js(`[...document.querySelectorAll('.side-project .view-item')].find((x) => x.textContent.includes('Alpha'))?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }))`);
       await sleep(300);
-      await js(`(() => { const i = document.querySelector('.side-project input.rename'); if (!i) return false; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Alpha Renamed'); i.dispatchEvent(new Event('input', { bubbles: true })); i.blur(); return true; })()`);
+      await js(`(() => { const i = document.querySelector('.side-project input.rename'); if (!i) return false; const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(i, 'Alpha Renamed'); i.dispatchEvent(new Event('input', { bubbles: true })); i.dispatchEvent(new FocusEvent('focusout', { bubbles: true })); return true; })()`);
       await sleep(400);
       r.sidebarAfterRename = await order();
+      // A project menu opened near the bottom of the window stays on screen.
+      await js(`[...document.querySelectorAll('.side-project .view-item')].find((x) => x.textContent.includes('Beta'))?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, clientX: 60, clientY: window.innerHeight - 40 }))`);
+      await sleep(400);
+      r.menuFits = await js(`(() => { const m = document.querySelector('.tab-menu'); if (!m) return null; const b = m.getBoundingClientRect(); return { top: Math.round(b.top), bottom: Math.round(b.bottom), window: window.innerHeight, items: [...m.querySelectorAll('.tab-menu-item')].map((x) => x.textContent.trim()).filter((t) => /Hide|Remove|Add its/.test(t)) }; })()`);
+      await shot('33-project-menu');
+      await js(`document.querySelector('.menu-backdrop')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`);
+      await sleep(200);
       // Folding is not checked here: it needs an open project, and opening one starts Claude.
       await shot('32-sidebar');
       for (const id of ids) { const v = await js(`window.__smoke.closeProjectView('${id}')`); void v; await js(`window.elysium.removeProject('${id}')`); }

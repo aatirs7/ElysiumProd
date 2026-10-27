@@ -46,7 +46,7 @@ import { findTemplate } from './templates';
 import { createQuickWindow, createTray, currentShortcut, disposeQuick, hideQuick, registerShortcut } from './quick';
 import { flushWebSessions } from './webviews';
 import { CARRY_ON_CHAT, resumeRunning, saveRunning } from './resume';
-import { BoardWatcher, boardList, enableBoard } from './boards';
+import { BoardWatcher, boardList, enableBoard, removeBoard } from './boards';
 import { connectorState, setupConnector } from './connector';
 import { findAgents } from './agents';
 import { Bridge } from './bridge';
@@ -396,6 +396,7 @@ function registerIpc(): void {
   ipcMain.handle(Channels.projectRemove, (_e, id: unknown) => {
     if (typeof id !== 'string' || sessions.list().some((s) => s.status === 'running' && s.templateId.startsWith(`${id}.`))) return false;
     const ok = removeProject(id);
+    if (ok) removeBoard(id);
     if (ok) send(Channels.projectsChanged);
     return ok;
   });
