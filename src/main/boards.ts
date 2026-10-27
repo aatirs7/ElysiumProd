@@ -9,7 +9,7 @@
 // against the rate limit), instead of a script per project.
 import { execFile } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import type { BoardInfo } from '@shared/ipc';
 import { dataDir } from './paths';
 import { leadTemplate, PROJECT_FOLDERS } from './templates';
@@ -146,6 +146,28 @@ export function removeBoard(projectId: string): void {
   writeFileSync(FILE(), JSON.stringify(all, null, 2));
 }
 
+const FILES_LINE = /^Files \(branch ([\w./-]+)\): (.+)$/m;
+
+/** Copies the chat's files from their side branch into the project folder, as they are. Returns the paths saved. */
+async function fetchFiles(repo: string, branch: string, list: string, folder: string, token: string): Promise<string[]> {
+  const saved: string[] = [];
+  for (const path of list.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 20)) {
+    // Only into docs/from-chat, never anywhere else in the folder.
+    if (!path.startsWith('docs/from-chat/') || path.split('/').some((x) => x === '..' || x === '')) continue;
+    const r = await fetch(`https://api.github.com/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch)}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github.raw', 'User-Agent': 'elysium' },
+    }).catch(() => null);
+    if (!r?.ok) continue;
+    try {
+      const to = join(folder, ...path.split('/'));
+      mkdirSync(dirname(to), { recursive: true });
+      writeFileSync(to, Buffer.from(await r.arrayBuffer()));
+      saved.push(path);
+    } catch { /* the message still names what could not be saved */ }
+  }
+  return saved;
+}
+
 interface Issue { number: number; title: string; body: string | null; created_at: string; user?: { login?: string }; pull_request?: unknown }
 
 /**
@@ -197,10 +219,18 @@ export class BoardWatcher {
         if (i.pull_request || (seen[id] ?? []).includes(i.number) || Date.parse(i.created_at) < Date.parse(b.since) - 120000 || i.user?.login !== b.to || !lead) continue;
         seen[id] = [...(seen[id] ?? []), i.number].slice(-200);
         changed = true;
+        // Files the chat made arrive as files in the project folder before Prime hears about them.
+        const body = (i.body ?? '').replace(/^Source:.*\n+/, '');
+        const sent = body.match(FILES_LINE);
+        const saved = sent ? await fetchFiles(b.repo, sent[1], sent[2], PROJECT_FOLDERS[id].folder, token) : [];
+        const text = body.replace(FILES_LINE, saved.length ? `Files from the chat, saved in this folder as they were written: ${saved.join(', ')}` : '').trim();
+        const filesOnly = /^Files from the planning chat/.test(i.title);
         this.deliver(id, lead.id, [
-          `A task from the planning chat, issue #${i.number}: ${i.title}`, '',
-          (i.body ?? '').replace(/^Source:.*\n+/, '').slice(0, 6000), '',
-          `When it is done, close it with a one line comment (gh issue close ${i.number} --comment "...") and update ${RELAY}.`,
+          filesOnly ? `The planning chat sent files, issue #${i.number}.` : `A task from the planning chat, issue #${i.number}: ${i.title}`, '',
+          text.slice(0, 6000), '',
+          filesOnly
+            ? `Read them, then close the issue with a one line comment (gh issue close ${i.number} --comment "...").`
+            : `When it is done, close it with a one line comment (gh issue close ${i.number} --comment "...") and update ${RELAY}.`,
         ].join('\n'), i.title);
       }
     }));
