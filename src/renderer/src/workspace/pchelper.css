@@ -1,0 +1,94 @@
+/* ---- PC Helper: vitals along the top, tools on a rail, the report in the middle ---- */
+.pch { height: 100%; display: flex; flex-direction: column; background: var(--bg); position: relative; container-type: inline-size; container-name: pch; }
+
+/* Vitals: one quiet strip of live numbers, divided by hairlines. */
+.pch-vitals { flex: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr)); border-bottom: 1px solid var(--line); background: var(--surface); }
+.pch-vital { position: relative; display: flex; flex-direction: column; gap: .1rem; padding: .7rem 1rem .85rem; min-width: 0; border-right: 1px solid var(--line); }
+.pch-vital:last-child { border-right: 0; }
+.pch-vital-label { display: flex; align-items: center; gap: .35rem; font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.pch-vital-value { font: 600 1.2rem var(--font-display); letter-spacing: -.01em; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pch-vital-sub { font-size: .74rem; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pch-vital-meter { position: absolute; left: 1rem; right: 1rem; bottom: .45rem; height: 2px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.pch-vital-meter i { display: block; height: 100%; border-radius: 2px; background: var(--text-3); transition: width .6s var(--ease); }
+.pch-vital.warn .pch-vital-meter i { background: var(--warn); }
+.pch-vital.bad .pch-vital-meter i { background: var(--bad); }
+.pch-vital.warn .pch-vital-value { color: var(--warn); }
+.pch-vital.bad .pch-vital-value { color: var(--bad); }
+
+/* Body: the rail and the report. */
+.pch-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 15.5rem 1fr; }
+.pch-rail { min-height: 0; overflow: auto; padding: .8rem .55rem 1rem; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 1px; }
+.pch-rail-label { padding: .55rem .6rem .35rem; font-size: .72rem; color: var(--text-3); text-transform: uppercase; letter-spacing: .05em; }
+.pch-rail-label:not(:first-child) { margin-top: .6rem; }
+.pch-tool { position: relative; display: flex; align-items: center; border-radius: 10px; transition: background .15s var(--ease); }
+.pch-tool:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
+.pch-tool.on { background: var(--surface-2); }
+.pch-tool-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: .65rem; padding: .5rem .55rem; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; cursor: pointer; border-radius: 10px; }
+.pch-tool-icon { color: var(--text-3); flex: none; }
+.pch-tool.on .pch-tool-icon, .pch-tool.busy .pch-tool-icon { color: var(--accent); }
+.pch-tool-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pch-tool-name { font-size: .88rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pch-tool-sub { font-size: .74rem; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pch-tool.busy .pch-tool-sub { color: var(--text-2); }
+.pch-tool-state { flex: none; color: var(--text-3); }
+.pch-tool-run { position: absolute; right: .35rem; display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: 8px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); cursor: pointer; opacity: 0; transition: opacity .15s var(--ease); }
+.pch-tool:hover .pch-tool-run, .pch-tool-run:focus-visible { opacity: 1; }
+.pch-tool:hover .pch-tool-state { opacity: 0; }
+.pch-rail-reset { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: .35rem; padding: .7rem .6rem .2rem; border: 0; background: transparent; color: var(--text-3); font: inherit; font-size: .76rem; cursor: pointer; }
+.pch-rail-reset:hover { color: var(--text); }
+
+.pch-main { min-width: 0; min-height: 0; overflow: auto; padding: 1.4rem clamp(1rem, 4cqi, 2.6rem) 1.6rem; }
+.pch-error { display: flex; align-items: center; gap: .45rem; color: var(--bad); font-size: .86rem; margin-bottom: 1rem; }
+
+.pch-report { max-width: 52rem; margin: 0 auto; }
+.pch-report-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.pch-report-title { display: flex; align-items: center; gap: .6rem; min-width: 0; }
+.pch-report-title svg { color: var(--text-3); flex: none; }
+.pch-report-title h2 { margin: 0; font: 600 1.35rem var(--font-display); letter-spacing: -.015em; color: var(--text); }
+.pch-report-side { display: flex; align-items: center; gap: .7rem; flex: none; }
+.pch-report-when { display: inline-flex; align-items: center; gap: .4rem; font-size: .8rem; color: var(--text-3); white-space: nowrap; }
+.pch-history { display: flex; gap: .3rem; margin: .8rem 0 0; overflow-x: auto; scrollbar-width: none; }
+.pch-history-item { flex: none; padding: .25rem .7rem; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font: inherit; font-size: .76rem; cursor: pointer; white-space: nowrap; }
+.pch-history-item:hover { color: var(--text); border-color: var(--line-strong); }
+.pch-history-item.on { background: var(--surface-2); color: var(--text); border-color: var(--line-strong); }
+.pch-report-ask { margin: .9rem 0 0; color: var(--text-2); font-size: .9rem; }
+.pch-report-body { margin-top: 1.2rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+.pch-report-body .msg-text { font-size: .95rem; }
+.pch-report-body .vz-stat { background: var(--surface); }
+.pch-working { display: flex; align-items: center; gap: .5rem; color: var(--text-2); font-size: .86rem; margin-top: .6rem; }
+.pch-working.big { justify-content: center; padding: 3rem 0; font-size: .95rem; }
+
+.pch-empty { max-width: 26rem; margin: 12vh auto 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
+.pch-empty-icon { color: var(--text-3); margin-bottom: .3rem; }
+.pch-empty h2 { margin: 0; font: 600 1.25rem var(--font-display); color: var(--text); }
+.pch-empty p { margin: 0 0 .9rem; color: var(--text-2); font-size: .9rem; line-height: 1.5; }
+
+/* The ask bar. */
+.pch-compose { flex: none; display: flex; flex-direction: column; gap: .4rem; margin: .7rem auto .85rem; width: min(46rem, calc(100% - 2rem)); padding: .45rem .45rem .45rem .9rem; border-radius: 20px; border: 1px solid var(--line-strong); background: var(--surface); box-shadow: var(--shadow); }
+.pch-compose:focus-within { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent), var(--shadow); }
+.pch-compose-row { display: flex; align-items: flex-end; gap: .3rem; }
+.pch-compose textarea { flex: 1; resize: none; border: 0; background: transparent; color: var(--text); font: inherit; font-size: .93rem; line-height: 1.5; padding: .4rem 0; max-height: 160px; outline: none; }
+.pch-note { position: absolute; left: 50%; bottom: 4.8rem; transform: translateX(-50%); padding: .45rem .9rem; border-radius: 99px; background: var(--surface-2); border: 1px solid var(--line); color: var(--text-2); font-size: .8rem; white-space: nowrap; }
+
+/* Narrow panes: the rail becomes a row of tools above the report. */
+@container pch (max-width: 760px) {
+  .pch-vitals { grid-template-columns: repeat(3, 1fr); }
+  .pch-vital:nth-child(3n) { border-right: 0; }
+  .pch-vital:nth-child(n + 4) { border-top: 1px solid var(--line); }
+  .pch-body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+  .pch-rail { flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: .5rem .6rem; gap: .3rem; border-right: 0; border-bottom: 1px solid var(--line); scrollbar-width: none; }
+  .pch-rail-label, .pch-rail-reset, .pch-tool-run, .pch-tool-sub, .pch-tool-state { display: none; }
+  .pch-tool { flex: none; border: 1px solid var(--line); border-radius: 99px; }
+  .pch-tool.on { border-color: var(--line-strong); }
+  .pch-tool-main { padding: .3rem .75rem; gap: .4rem; border-radius: 99px; }
+  .pch-tool-name { font-size: .82rem; }
+  .pch-tool.busy .pch-tool-name::after { content: ''; display: inline-block; width: .45rem; height: .45rem; margin-left: .4rem; border-radius: 50%; background: var(--accent); vertical-align: middle; }
+  .pch-report-head { flex-direction: column; gap: .5rem; }
+}
+
+/* Follow up actions an answer offers, drawn from an ```actions block. */
+.vz-actions { display: flex; flex-wrap: wrap; gap: .45rem; margin: .4rem 0 .2rem; }
+.vz-action { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .85rem; border-radius: 99px; border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); font: inherit; font-size: .84rem; cursor: pointer; transition: border-color .15s var(--ease), background .15s var(--ease); }
+.vz-action:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 8%, var(--bg)); }
+.vz-action:first-child { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.vz-action:first-child:hover { background: color-mix(in srgb, var(--accent) 88%, var(--text)); }

@@ -1,29 +1,84 @@
-// Workspace state: appearance settings, named views with their Dockview layouts,
-// and widget data such as notes. Saved to %APPDATA%\elysiumprod\workspace.json
-// through the main process on every change (main debounces the disk write).
+// Workspace state: appearance, accounts and which project uses which, named views
+// with their Dockview layouts, presets, watchers, notes, and onboarding.
+// Saved to %APPDATA%\elysiumprod\workspace.json through the main process on every
+// change (main debounces the disk write).
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DockviewApi, SerializedDockview } from 'dockview-react';
+import type { WatcherConfig } from '@shared/ipc';
 
-export type ThemeChoice = 'system' | 'dark' | 'light';
+/** Projects added after the first run that should show up pinned once. */
+const LATER_PINS = ['laptop'];
+
+export type ThemeId = 'system' | 'claude-dark' | 'claude-light' | 'midnight' | 'graphite' | 'paper' | 'forest' | 'ocean' | 'ember' | 'nord' | 'rose' | 'sand' | 'mint' | 'aurora' | 'dusk' | 'custom';
 export type Density = 'comfortable' | 'compact';
 
+export const THEMES: { id: ThemeId; name: string; blurb: string; swatch: [string, string, string] }[] = [
+  { id: 'system', name: 'System', blurb: 'Follows Windows light or dark', swatch: ['#262624', '#FAF9F5', '#D97757'] },
+  { id: 'claude-dark', name: 'Warm dark', blurb: 'Soft charcoal, like Claude', swatch: ['#262624', '#30302E', '#D97757'] },
+  { id: 'claude-light', name: 'Warm light', blurb: 'Ivory paper, like Claude', swatch: ['#FAF9F5', '#EFEDE6', '#C96442'] },
+  { id: 'midnight', name: 'Midnight', blurb: 'Deep blue black, cool', swatch: ['#0F1420', '#182033', '#6E9BFF'] },
+  { id: 'graphite', name: 'Graphite', blurb: 'Neutral grey, like ChatGPT', swatch: ['#212121', '#2F2F2F', '#ECECEC'] },
+  { id: 'paper', name: 'Paper', blurb: 'Bright and crisp', swatch: ['#F7F8FA', '#FFFFFE', '#2F6FDB'] },
+  { id: 'forest', name: 'Forest', blurb: 'Muted green dark', swatch: ['#16201B', '#1F2B25', '#6CC59A'] },
+  { id: 'ocean', name: 'Ocean', blurb: 'Deep teal, calm', swatch: ['#0E1A1F', '#15252C', '#3CC6C0'] },
+  { id: 'ember', name: 'Ember', blurb: 'Near black with a warm glow', swatch: ['#16120F', '#211A15', '#FF8A3D'] },
+  { id: 'nord', name: 'Nord', blurb: 'Cool slate, arctic blue', swatch: ['#242933', '#2E3440', '#88C0D0'] },
+  { id: 'rose', name: 'Rose', blurb: 'Dark plum with rose', swatch: ['#1C1519', '#271D23', '#F07AA6'] },
+  { id: 'aurora', name: 'Aurora', blurb: 'Ink blue with northern greens', swatch: ['#0D1117', '#151B24', '#7EE0B5'] },
+  { id: 'dusk', name: 'Dusk', blurb: 'Violet night with amber light', swatch: ['#1B1923', '#24212E', '#F2A65A'] },
+  { id: 'sand', name: 'Sand', blurb: 'Warm beige, soft light', swatch: ['#F4EFE6', '#FBF8F2', '#B4652F'] },
+  { id: 'mint', name: 'Mint', blurb: 'Fresh light green', swatch: ['#F2F7F4', '#FBFDFC', '#1F9D6B'] },
+];
+
 export interface Settings {
-  theme: ThemeChoice;
+  theme: ThemeId;
+  /** Empty means the theme's own accent. */
   accent: string;
   density: Density;
+  /** Base text size for the whole app, in px. */
+  textSize: number;
   termFontSize: number;
+  /** Terminal colours: a softer dark, a light Notion-like paper, or the app theme's own. */
+  termStyle: 'soft' | 'paper' | 'theme';
+  /** Set once the person picks a terminal style themselves; before that it follows the theme. */
+  termStyleSet?: boolean;
   gap: number;
-  showMachineLine: boolean;
   /** Opt in. Above the threshold, ElysiumProd ends only the programs listed here. */
   autoEnd: { enabled: boolean; thresholdPercent: number; programs: string[] };
+  /** Main reads this from workspace.json: past the percent, a session saves its notes and compacts. */
+  autoCompact: { enabled: boolean; percent: number };
+  /** A notice when Claude replies in a session you are not looking at. */
+  notifyReplies: boolean;
+  /** Top bar items shown on the bar itself; the rest sit in its More menu. */
+  topbarPins?: string[];
+  /** Customize Elysium opens with its Builder terminal, not only the chat. */
+  builderTerminal?: boolean;
+  /** Live flow: a short Sonnet summary per session, at most every five minutes. */
+  flowSummaries: boolean;
+  /** What the app calls you; empty means your Windows name. */
+  displayName: string;
+  /** Saver mode: fewer extra tokens (no Flow summaries or Sonnet fallback, chats on Sonnet). */
+  saver: boolean;
+  /** Your own theme, made in the theme builder. */
+  customTheme: CustomTheme | null;
+  /** Home widgets, in order. */
+  homeWidgets: string[];
+  /** Tools you connected yourself on the Connect step. */
+  customTools: { id: string; name: string; check: string; signin: string }[];
 }
+
+export interface AccountPrefs { label: string }
 
 export interface View {
   id: string;
   name: string;
   layout: SerializedDockview | null;
+  /** A project view belongs to one project; its panes default to that project and its account. */
+  projectId?: string;
   /** Bumped to rebuild the view from scratch. */
   rev?: number;
+  /** Laid out without the project's Claude sessions (opened to run another agent). */
+  bare?: boolean;
 }
 
 export interface Preset {
@@ -41,6 +96,53 @@ export interface WorkspaceDoc {
   activeViewId: string | null;
   notes: Record<string, string>;
   presets: Preset[];
+  /** Account id (config directory) to display name, for example main to "Aatir". */
+  accounts: Record<string, AccountPrefs>;
+  /** Which Claude account each project uses, for its terminals and its Claude pane. */
+  projectAccounts: Record<string, string>;
+  watchers: Record<string, WatcherConfig>;
+  onboarded: boolean;
+  onboardVersion?: number;
+  lastProjectId: string | null;
+  /** Projects shown in the sidebar and on Home; the rest stay one search away. */
+  pinned: string[];
+  /** New default pins already offered once, so unpinning them sticks. */
+  pinsOffered: string[];
+  /** Sidebar groups of the owner's making, like Clients or Personal. */
+  groups: { id: string; name: string; ids: string[]; collapsed?: boolean }[];
+  /** Projects whose sessions are folded away in the sidebar. */
+  folded?: string[];
+  /** Names the owner gave projects in the sidebar. */
+  projectNames: Record<string, string>;
+  /** A colour the owner gave each project, shown in the sidebar. */
+  projectColors: Record<string, string>;
+  /** The claude.ai chat (or Claude Project) each project's Claude pane opens to. */
+  projectChats: Record<string, { url: string; title: string }>;
+  /** Costs: a provider item linked to a project by hand (key to project id, or 'none'). */
+  costLinks: Record<string, string>;
+  /** Costs: subscriptions and other fixed monthly amounts. */
+  fixedCosts: FixedCost[];
+  /** Each project's dashboard: its links, in order. */
+  dashboards: Record<string, { links?: DashLink[]; people?: string[] }>;
+  /** What was asked for from a dashboard, newest first. */
+  featureRequests: FeatureRequest[];
+  /** A project's saved layout: its view opens this way next time (terminals start as the project opens). */
+  projectLayouts?: Record<string, SerializedDockview>;
+}
+
+export interface DashLink { id: string; label: string; url: string }
+export interface FeatureRequest { id: string; projectId: string; text: string; at: string; sent: boolean; note: string | null }
+
+/** A cost no provider reports: a subscription, a domain, a one off purchase. `monthly` is the amount per cycle. */
+export interface FixedCost { id: string; name: string; monthly: number; projectId: string | null; cycle?: 'monthly' | 'yearly' | 'once'; category?: string; date?: string }
+/** A theme of your own: a base theme with any of its colours replaced, plus texture and corners. */
+export interface CustomTheme { name: string; base: Exclude<ThemeId, 'system' | 'custom'>; vars: Partial<Record<'--bg' | '--chrome' | '--surface' | '--surface-2' | '--text' | '--text-2' | '--accent-default' | '--term', string>>; grain: number; grid: boolean; radius: number }
+export const COST_CATEGORIES = ['AI', 'Hosting', 'Software', 'Domain', 'Design', 'Hardware', 'Other'];
+/** What a cost adds to this month: monthly as is, yearly spread over twelve, a one off only in its month. */
+export function monthlyOf(f: FixedCost, now = new Date()): number {
+  if (f.cycle === 'yearly') return f.monthly / 12;
+  if (f.cycle === 'once') { const d = f.date ? new Date(f.date) : null; return d && d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() ? f.monthly : 0; }
+  return f.monthly;
 }
 
 /**
@@ -57,51 +159,93 @@ export function stripSessions(layout: SerializedDockview | null): SerializedDock
 }
 
 export const ACCENTS: { name: string; value: string }[] = [
+  { name: 'Theme default', value: '' },
   { name: 'Clay', value: '#D97757' },
   { name: 'Ocean', value: '#5B8DEF' },
   { name: 'Jade', value: '#4FA97A' },
   { name: 'Iris', value: '#9B7BE0' },
   { name: 'Rose', value: '#E06C8C' },
   { name: 'Amber', value: '#D9A043' },
-  { name: 'Graphite', value: '#A3A19A' },
 ];
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
-  accent: ACCENTS[0].value,
+  accent: '',
   density: 'comfortable',
-  termFontSize: 13.5,
+  textSize: 15,
+  termFontSize: 14,
+  termStyle: 'theme',
   gap: 8,
-  showMachineLine: true,
   autoEnd: { enabled: false, thresholdPercent: 90, programs: [] },
+  autoCompact: { enabled: true, percent: 80 },
+  notifyReplies: true,
+  flowSummaries: true,
+  displayName: '',
+  saver: false,
+  customTheme: null,
+  homeWidgets: ['live', 'week', 'recent', 'news'],
+  customTools: [],
 };
 
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 function fresh(): WorkspaceDoc {
-  const id = uid();
-  return { version: 1, settings: DEFAULT_SETTINGS, views: [{ id, name: 'Workspace', layout: null }], activeViewId: id, notes: {}, presets: [] };
+  return {
+    version: 1, settings: DEFAULT_SETTINGS, views: [], activeViewId: null, notes: {}, presets: [],
+    accounts: { main: { label: 'Main account' } }, projectAccounts: {}, watchers: {}, onboarded: false, lastProjectId: null,
+    pinned: ['elysiumprod', 'laptop'],
+    pinsOffered: [...LATER_PINS],
+    groups: [],
+    projectNames: {},
+    projectColors: {},
+    projectChats: {},
+    costLinks: {},
+    fixedCosts: [],
+    dashboards: {},
+    featureRequests: [],
+  };
 }
 
 function parse(json: string | null): WorkspaceDoc {
-  if (!json) return fresh();
+  const f = fresh();
+  if (!json) return f;
   try {
-    const d = JSON.parse(json) as Partial<WorkspaceDoc>;
-    const views = Array.isArray(d.views) && d.views.length ? d.views : fresh().views;
+    const d = JSON.parse(json) as Partial<WorkspaceDoc> & { settings?: Partial<Settings> & { theme?: string } };
+    const views = Array.isArray(d.views) ? d.views : [];
+    const theme = THEMES.some((t) => t.id === d.settings?.theme) || (d.settings?.theme === 'custom' && d.settings?.customTheme) ? (d.settings!.theme as ThemeId) : 'system';
     return {
       version: 1,
-      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) } },
+      settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), theme, termStyle: d.settings?.termStyleSet ? (d.settings.termStyle ?? 'theme') : 'theme', autoEnd: { ...DEFAULT_SETTINGS.autoEnd, ...(d.settings?.autoEnd ?? {}) }, autoCompact: { ...DEFAULT_SETTINGS.autoCompact, ...(d.settings?.autoCompact ?? {}) } },
       views,
-      activeViewId: views.some((v) => v.id === d.activeViewId) ? d.activeViewId! : views[0].id,
+      activeViewId: views.some((v) => v.id === d.activeViewId) ? d.activeViewId! : views[0]?.id ?? null,
       notes: d.notes ?? {},
       presets: Array.isArray(d.presets) ? d.presets : [],
+      accounts: { ...f.accounts, ...(d.accounts ?? {}) },
+      projectAccounts: d.projectAccounts ?? {},
+      watchers: d.watchers ?? {},
+      // The version 2 setup was shown to everyone already: the version was never saved, so it ran again on every start.
+      onboarded: Boolean(d.onboarded),
+      onboardVersion: d.onboarded ? 2 : d.onboardVersion,
+      lastProjectId: d.lastProjectId ?? null,
+      pinned: Array.isArray(d.pinned) ? [...d.pinned, ...LATER_PINS.filter((x) => !d.pinned!.includes(x) && !(d.pinsOffered ?? []).includes(x))] : f.pinned,
+      groups: Array.isArray(d.groups) ? d.groups.filter((g) => g && typeof g.id === 'string' && Array.isArray(g.ids)) : [],
+      folded: Array.isArray(d.folded) ? d.folded.filter((x) => typeof x === 'string') : [],
+      projectNames: d.projectNames && typeof d.projectNames === 'object' ? d.projectNames : {},
+      projectColors: d.projectColors && typeof d.projectColors === 'object' ? d.projectColors : {},
+      pinsOffered: [...new Set([...(Array.isArray(d.pinsOffered) ? d.pinsOffered : []), ...LATER_PINS])],
+      projectChats: d.projectChats ?? {},
+      costLinks: d.costLinks ?? {},
+      fixedCosts: Array.isArray(d.fixedCosts) ? d.fixedCosts : [],
+      dashboards: d.dashboards ?? {},
+      featureRequests: Array.isArray(d.featureRequests) ? d.featureRequests : [],
+      projectLayouts: d.projectLayouts && typeof d.projectLayouts === 'object' ? d.projectLayouts : {},
     };
   } catch {
-    return fresh();
+    return f;
   }
 }
 
-export type PanelKind = 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude';
+export type PanelKind = 'dictate' | 'files' | 'code' | 'web' | 'dashboard' | 'flow' | 'terminal' | 'machine' | 'sessions' | 'notes' | 'launcher' | 'relay' | 'tasks' | 'git' | 'document' | 'claude' | 'watcher';
 
 export interface OpenRequest {
   kind: PanelKind;
@@ -113,22 +257,39 @@ export interface OpenRequest {
   params?: Record<string, unknown>;
   /** Terminals opened from a launcher go into the terminal area, not into the launcher's group. */
   besideLauncher?: boolean;
+  /** Start a second template with this one, asked about once (Prime with Meridian). */
+  pairTemplateId?: string;
 }
 
 interface Ctx {
   doc: WorkspaceDoc;
   ready: boolean;
+  activeView: View | null;
   setSettings(p: Partial<Settings>): void;
-  addView(name?: string): string;
+  addView(name?: string, projectId?: string): string;
   renameView(id: string, name: string): void;
   deleteView(id: string): void;
   setActiveView(id: string): void;
   setLayout(id: string, layout: SerializedDockview): void;
   setNote(panelId: string, text: string): void;
   resetView(id: string): void;
+  /** Keeps the active project view's arrangement; opening the project later lays it out the same way. */
+  saveProjectLayout(projectId: string): boolean;
+  forgetProjectLayout(projectId: string): void;
   savePreset(name: string): void;
   applyPreset(id: string): void;
   deletePreset(id: string): void;
+  setAccountLabel(id: string, label: string): void;
+  setProjectAccount(projectId: string, accountId: string): void;
+  accountFor(projectId: string | null | undefined): string;
+  setWatcher(projectId: string, cfg: WatcherConfig): void;
+  togglePin(projectId: string): void;
+  patchDoc(p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'folded' | 'projectNames' | 'projectColors' | 'pinned'>>): void;
+  setProjectChat(projectId: string, chat: { url: string; title: string } | null): void;
+  finishOnboarding(): void;
+  restartOnboarding(): void;
+  /** Opens (or switches to) the project's own view. */
+  openProject(projectId: string, name: string, opts?: { bare?: boolean }): void;
   registerApi(viewId: string, api: DockviewApi | null): void;
   apiFor(viewId: string): DockviewApi | undefined;
   /** Opens a panel in the active view, creating a view if there is none. */
@@ -163,10 +324,16 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     if (ready) window.elysium.saveWorkspace(JSON.stringify(doc));
   }, [doc, ready]);
 
+  // Watchers live in the main process; tell it what the owner chose, on load and on change.
+  useEffect(() => {
+    if (!ready) return;
+    for (const [pid, cfg] of Object.entries(doc.watchers)) window.elysium.setWatcher(pid, cfg);
+  }, [doc.watchers, ready]);
+
   const setSettings = useCallback((p: Partial<Settings>) => setDoc((d) => ({ ...d, settings: { ...d.settings, ...p } })), []);
-  const addView = useCallback((name?: string) => {
+  const addView = useCallback((name?: string, projectId?: string) => {
     const id = uid();
-    setDoc((d) => ({ ...d, views: [...d.views, { id, name: name ?? `View ${d.views.length + 1}`, layout: null }], activeViewId: id }));
+    setDoc((d) => ({ ...d, views: [...d.views, { id, name: name ?? `View ${d.views.length + 1}`, layout: null, projectId }], activeViewId: id }));
     return id;
   }, []);
   const renameView = useCallback((id: string, name: string) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, name: name.trim() || v.name } : v)) })), []);
@@ -174,10 +341,27 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     const views = d.views.filter((v) => v.id !== id);
     return { ...d, views, activeViewId: d.activeViewId === id ? views[0]?.id ?? null : d.activeViewId };
   }), []);
-  const setActiveView = useCallback((id: string) => setDoc((d) => ({ ...d, activeViewId: id })), []);
+  const setActiveView = useCallback((id: string) => setDoc((d) => {
+    const v = d.views.find((x) => x.id === id);
+    return { ...d, activeViewId: id, lastProjectId: v?.projectId ?? d.lastProjectId };
+  }), []);
   const setLayout = useCallback((id: string, layout: SerializedDockview) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout } : v)) })), []);
   const setNote = useCallback((panelId: string, text: string) => setDoc((d) => ({ ...d, notes: { ...d.notes, [panelId]: text } })), []);
-  const resetView = useCallback((id: string) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout: null, rev: (v.rev ?? 0) + 1 } : v)) })), []);
+  // A project with a saved layout resets to it; without one, to the default arrangement.
+  const resetView = useCallback((id: string) => setDoc((d) => ({ ...d, views: d.views.map((v) => (v.id === id ? { ...v, layout: (v.projectId && d.projectLayouts?.[v.projectId]) || null, rev: (v.rev ?? 0) + 1 } : v)) })), []);
+  const saveProjectLayout = useCallback((projectId: string) => {
+    const v = docRef.current.views.find((x) => x.projectId === projectId);
+    const live = v ? apis.current.get(v.id)?.toJSON() ?? v.layout : null;
+    const layout = stripSessions(live);
+    if (!layout) return false;
+    setDoc((d) => ({ ...d, projectLayouts: { ...(d.projectLayouts ?? {}), [projectId]: layout } }));
+    return true;
+  }, []);
+  const forgetProjectLayout = useCallback((projectId: string) => setDoc((d) => {
+    const next = { ...(d.projectLayouts ?? {}) };
+    delete next[projectId];
+    return { ...d, projectLayouts: next };
+  }), []);
   const savePreset = useCallback((name: string) => setDoc((d) => {
     const v = d.views.find((x) => x.id === d.activeViewId);
     const layout = v ? stripSessions(apis.current.get(v.id)?.toJSON() ?? v.layout) : null;
@@ -195,6 +379,27 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     };
   }), []);
   const deletePreset = useCallback((id: string) => setDoc((d) => ({ ...d, presets: d.presets.filter((p) => p.id !== id) })), []);
+  const setAccountLabel = useCallback((id: string, label: string) => setDoc((d) => ({ ...d, accounts: { ...d.accounts, [id]: { label: label.trim() || id } } })), []);
+  const setProjectAccount = useCallback((projectId: string, accountId: string) => setDoc((d) => ({ ...d, projectAccounts: { ...d.projectAccounts, [projectId]: accountId } })), []);
+  const accountFor = useCallback((projectId: string | null | undefined) => (projectId && docRef.current.projectAccounts[projectId]) || 'main', []);
+  const setWatcher = useCallback((projectId: string, cfg: WatcherConfig) => setDoc((d) => ({ ...d, watchers: { ...d.watchers, [projectId]: cfg } })), []);
+  const togglePin = useCallback((projectId: string) => setDoc((d) => ({ ...d, pinned: d.pinned.includes(projectId) ? d.pinned.filter((x) => x !== projectId) : [...d.pinned, projectId] })), []);
+  const setProjectChat = useCallback((projectId: string, chat: { url: string; title: string } | null) => setDoc((d) => {
+    const projectChats = { ...d.projectChats };
+    if (chat) projectChats[projectId] = chat; else delete projectChats[projectId];
+    return { ...d, projectChats };
+  }), []);
+  const patchDoc = useCallback((p: Partial<Pick<WorkspaceDoc, 'costLinks' | 'fixedCosts' | 'dashboards' | 'featureRequests' | 'groups' | 'folded' | 'projectNames' | 'projectColors' | 'pinned'>>) => setDoc((d) => ({ ...d, ...p })), []);
+  const finishOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: true, onboardVersion: 2 })), []);
+  const restartOnboarding = useCallback(() => setDoc((d) => ({ ...d, onboarded: false })), []);
+  const openProject = useCallback((projectId: string, name: string, opts?: { bare?: boolean }) => {
+    const existing = docRef.current.views.find((v) => v.projectId === projectId);
+    if (existing) setDoc((d) => ({ ...d, activeViewId: existing.id, lastProjectId: projectId }));
+    else {
+      const id = uid();
+      setDoc((d) => ({ ...d, views: [...d.views, { id, name, layout: (!opts?.bare && d.projectLayouts?.[projectId]) || null, projectId, ...(opts?.bare ? { bare: true } : {}) }], activeViewId: id, lastProjectId: projectId }));
+    }
+  }, []);
   const registerApi = useCallback((viewId: string, api: DockviewApi | null) => {
     if (api) apis.current.set(viewId, api); else apis.current.delete(viewId);
   }, []);
@@ -212,7 +417,11 @@ export function WorkspaceProvider({ children, onOpen }: { children: ReactNode; o
     else queue.current.set(viewId, [...(queue.current.get(viewId) ?? []), req]);
   }, [addView]);
 
-  const value = useMemo<Ctx>(() => ({ doc, ready, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset, registerApi, apiFor, open, takeQueued }),
-    [doc, ready, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, savePreset, applyPreset, deletePreset, registerApi, apiFor, open, takeQueued]);
+  const activeView = doc.views.find((v) => v.id === doc.activeViewId) ?? null;
+  const value = useMemo<Ctx>(() => ({
+    doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, saveProjectLayout, forgetProjectLayout, savePreset, applyPreset, deletePreset,
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued,
+  }), [doc, ready, activeView, setSettings, addView, renameView, deleteView, setActiveView, setLayout, setNote, resetView, saveProjectLayout, forgetProjectLayout, savePreset, applyPreset, deletePreset,
+    setAccountLabel, setProjectAccount, accountFor, setWatcher, togglePin, patchDoc, setProjectChat, finishOnboarding, restartOnboarding, openProject, registerApi, apiFor, open, takeQueued]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;
 }

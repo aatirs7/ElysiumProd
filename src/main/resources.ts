@@ -10,7 +10,8 @@ export const FLOORS = {
   // Windows compresses memory, so 90 percent is ordinary on this machine; refuse only near the edge.
   ramRefusePercent: 97,
   diskWarnBytes: 20 * 1024 ** 3,
-  diskRefuseBytes: 8 * 1024 ** 3,
+  // Below this, writes start failing; above it a low disk is a warning, and even this can be overridden.
+  diskRefuseBytes: 2 * 1024 ** 3,
 };
 
 const GB = (b: number) => `${(b / 1024 ** 3).toFixed(1)} GB`;
@@ -62,12 +63,13 @@ export class Resources {
     const diskLevel: Level = this.disk === null ? 'ok' : this.disk < FLOORS.diskRefuseBytes ? 'refuse' : this.disk < FLOORS.diskWarnBytes ? 'warn' : 'ok';
     let refuseReason: string | null = null;
     if (ramLevel === 'refuse') refuseReason = `Memory is ${ramPct.toFixed(0)} percent used. New sessions start below ${FLOORS.ramRefusePercent} percent.`;
-    else if (diskLevel === 'refuse') refuseReason = `Only ${GB(this.disk!)} free on ${this.diskPath}. New sessions need ${GB(FLOORS.diskRefuseBytes)}.`;
+    else if (diskLevel === 'refuse') refuseReason = `The ${this.diskPath} drive is almost full: ${GB(this.disk!)} free. Sessions may fail to save below ${GB(FLOORS.diskRefuseBytes)}.`;
     this.last = {
       at: new Date().toISOString(),
       cpuPercent: total > 0 ? Math.max(0, Math.min(100, 100 - (idle / total) * 100)) : null,
       ramUsedPercent: ramPct,
       ramUsedBytes: used,
+      ramFreeBytes: tot - used,
       ramTotalBytes: tot,
       diskFreeBytes: this.disk,
       diskPath: this.diskPath,

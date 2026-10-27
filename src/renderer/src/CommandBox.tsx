@@ -1,0 +1,60 @@
+// Home's command box: one line to run every project. "Tell Elysium Intern to fix
+// the login", "start Gulf and Attestia", "wrap up SecurITPosture", "compact Prime
+// Posture". The mic listens inside the app and types what you say into the box.
+import { useRef, useState } from 'react';
+import { ArrowUp, Check, Loader2, TriangleAlert } from 'lucide-react';
+import { MicButton, withPhrase } from './Mic';
+import type { CommandResult } from '@shared/ipc';
+import { useLive } from './workspace/live';
+
+
+export function CommandBox({ onOpenProject }: { onOpenProject(id: string): void }) {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<CommandResult | null>(null);
+  const { projects } = useLive();
+  const [pick] = useState(() => Math.random());
+  const names = projects.filter((p) => !p.builtin).map((p) => p.name);
+  const a = names[0];
+  const examples = a
+    ? [`Tell ${a} to check the failing build`, `Start ${a}`, `Wrap up ${names[1] ?? a}`, 'Tell PC Helper to find what is filling my disk']
+    : ['Tell PC Helper to find what is filling my disk', 'Tell PC Helper why my Wi-Fi is slow', 'Tell Elysium to add a dark blue theme'];
+  const hint = examples[Math.floor(pick * examples.length)];
+  const input = useRef<HTMLTextAreaElement>(null);
+
+  const run = async () => {
+    const t = text.trim();
+    if (!t || busy) return;
+    setBusy(true); setResult(null);
+    const r = await window.elysium.runCommand(t);
+    setBusy(false);
+    setResult(r);
+    if (r.ok) setText('');
+    if (r.open) onOpenProject(r.open);
+  };
+
+  return (
+    <div className="cmd">
+      <div data-tour="command" className={`cmd-box ${busy ? 'busy' : ''}`}>
+        <textarea ref={input} className="cmd-input" rows={1} value={text} placeholder="Tell any project what to do"
+          onChange={(e) => { setText(e.target.value); e.target.style.height = 'auto'; e.target.style.height = `${Math.min(160, e.target.scrollHeight)}px`; }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void run(); } }} aria-label="Tell a project what to do" />
+        <MicButton className="cmd-icon" onText={(t) => { setText((x) => withPhrase(x, t)); input.current?.focus(); }} />
+        <button className="cmd-send" onClick={() => void run()} disabled={!text.trim() || busy} aria-label="Run">
+          {busy ? <Loader2 size={17} className="spin" /> : <ArrowUp size={17} />}
+        </button>
+      </div>
+      {!result && !text && <div className="cmd-hint">For example: {hint}</div>}
+      {result && (
+        <div className={`cmd-result ${result.ok ? 'ok' : 'bad'}`} role="status">
+          {result.say && <div className="cmd-say">{result.say}</div>}
+          {result.steps.map((s, i) => (
+            <div key={i} className="cmd-step">{s.ok ? <Check size={14} /> : <TriangleAlert size={14} />}<span>{s.label}{s.reason && !s.ok ? `: ${s.reason}` : ''}</span></div>
+          ))}
+          {!result.steps.length && !result.say && <div className="cmd-say">Nothing happened.</div>}
+          {result.via === 'sonnet' && <div className="cmd-via">Read by Sonnet 5.5</div>}
+        </div>
+      )}
+    </div>
+  );
+}

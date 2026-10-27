@@ -9,7 +9,7 @@ import { useId } from 'react';
  * mark follows the theme, and mask ids are unique per instance (useId) because
  * the mark renders more than once and duplicate ids collide silently.
  * The mask fills stay white and black: they are mask channels, not colours.
- * The view box is cropped to the mark's own bounds (x 174 to 338, y 165 to 273 in
+ * The view box is cropped to the mark's own bounds (x 174 to 338, y 165 to 339 in
  * the 512 canvas); the source file centres a small mark in a large square.
  */
 export function Logo({ className = 'logo' }: { className?: string }) {
@@ -35,7 +35,7 @@ export function Logo({ className = 'logo' }: { className?: string }) {
     </g>
   );
   return (
-    <svg className={className} viewBox="166 158 180 122" aria-hidden="true" focusable="false">
+    <svg className={className} viewBox="166 160 180 182" aria-hidden="true" focusable="false">
       <g transform="translate(256 256) scale(3.2) translate(-30 0)">
         {half('l', 'translate(15 0) scale(0.75)')}
         {half('r', 'translate(45 0) scale(-0.75, 0.75)')}
