@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { arch, homedir, totalmem, userInfo } from 'node:os';
 import { basename, isAbsolute, join, resolve } from 'node:path';
 import type { NewProjectRequest, NewProjectResult } from '@shared/ipc';
+import { kindFiles, kindKickoff } from './kinds';
 import { dataDir } from './paths';
 import { PROJECT_FOLDERS, PROJECTS, registerProject, unregisterProject, type ProjectDef } from './templates';
 
@@ -127,7 +128,9 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
     if (existsSync(folder) && !isEmptyDir(folder)) return { ok: false, reason: `${folder} already exists and is not empty. Choose another folder name.` };
     mkdirSync(folder, { recursive: true });
     writeFileSync(join(folder, 'README.md'), `# ${name}\n`);
-    const steps: [string, string[]][] = [['git', ['init', '-b', 'main']], ['git', ['add', 'README.md']], ['git', ['-c', `user.name=${userInfo().username}`, '-c', `user.email=${userInfo().username}@localhost`, 'commit', '-m', `Start ${name}`]]];
+    // A kind (iOS app, web app) brings its working rules for the project's Claude session.
+    for (const [file, text] of Object.entries(kindFiles(req.kind, name))) writeFileSync(join(folder, file), text);
+    const steps: [string, string[]][] = [['git', ['init', '-b', 'main']], ['git', ['add', '-A']], ['git', ['-c', `user.name=${userInfo().username}`, '-c', `user.email=${userInfo().username}@localhost`, 'commit', '-m', `Start ${name}`]]];
     // Use their own identity when git has one; the fallback only covers a fresh install.
     const who = await run('git', ['config', 'user.email'], folder, 10000);
     if (who.ok && who.out.trim()) steps[2] = ['git', ['commit', '-m', `Start ${name}`]];
@@ -147,10 +150,11 @@ export async function createProject(req: NewProjectRequest): Promise<NewProjectR
   const pair = req.sessions === 'pair'
     ? { prime: `Prime ${name}`, meridian: `Meridian ${name}`, pluginPrime: `Prime ${name}`, pluginMeridian: `Meridian ${name}`, extra: [] }
     : undefined;
-  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, source: 'custom', ...(pair ? { pair } : {}) };
+  const def: ProjectDef = { id, name, folder, repo, tier: pair ? 'main' : 'side', custom: true, source: 'custom', ...(pair ? { pair } : {}), ...(req.mode === 'new' && req.kind && req.kind !== 'blank' ? { kind: req.kind } : {}) };
   registerProject(def);
   save();
-  return { ok: true, reason: null, projectId: id };
+  const kickoff = req.mode === 'new' ? kindKickoff(req.kind, name) : null;
+  return { ok: true, reason: null, projectId: id, ...(kickoff ? { kickoff } : {}) };
 }
 
 /**

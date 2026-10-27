@@ -15,7 +15,7 @@ import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
 import { Workspace, addPanel, builderTerminal, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
-import { NewProject } from './NewProject';
+import { NewProject, type Pick as NewStart } from './NewProject';
 import { Tour } from './Tour';
 import { ThemeBuilder } from './ThemeBuilder';
 import { Playbook } from './Playbook';
@@ -80,7 +80,9 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   const [name, setName] = useState('');
   const [page, setPage] = useState<Page>('home');
   const [palette, setPalette] = useState(false);
-  const [newProject, setNewProject] = useState(false);
+  /** The New project dialog, open on what to start with. */
+  const [newProject, setNewProjectOn] = useState<NewStart | null>(null);
+  const setNewProject = (on: boolean | NewStart) => setNewProjectOn(on === true ? 'ios' : on || null);
   const [memory, setMemory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [tour, setTour] = useState(false);
@@ -97,7 +99,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   useEffect(() => { void window.elysium.info().then((i) => setName(i.userName)); }, []);
 
   // Native web views draw above everything, so they hide while an overlay or another page shows.
-  const overlayUp = palette || memory || newProject || Boolean(confirm) || page !== 'workspace' || !doc.onboarded;
+  const overlayUp = palette || memory || Boolean(newProject) || Boolean(confirm) || page !== 'workspace' || !doc.onboarded;
   useEffect(() => { if (!overlayUp) return; overlayOpened(); return () => overlayClosed(); }, [overlayUp]);
 
   const go = useCallback((p: Page) => setPage(p), []);
@@ -144,7 +146,7 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
   }, [goProject, apiFor]);
 
   // New project: once main has added it, open it as soon as its sessions are listed here.
-  const [toOpen, setToOpen] = useState<{ id: string; name: string; window?: boolean } | null>(null);
+  const [toOpen, setToOpen] = useState<{ id: string; name: string; window?: boolean; kickoff?: string } | null>(null);
   // Opens a project's view, then moves its terminal into a window of its own.
   const openInWindow = useCallback((id: string, projectName: string) => {
     goProject(id, projectName);
@@ -162,6 +164,9 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     if (!toOpen || !templates.some((t) => t.project === toOpen.id)) return;
     setToOpen(null);
     if (toOpen.window) openInWindow(toOpen.id, toOpen.name); else goProject(toOpen.id, toOpen.name);
+    // A new iOS or web app: once its terminal has started the session, Claude gets the first message.
+    const { id, kickoff } = toOpen;
+    if (kickoff) setTimeout(() => void window.elysium.quickRun(id, kickoff).then((r) => { if (!r.ok) setToast(r.reason ?? 'Could not hand Claude its first message.'); }), 2500);
   }, [toOpen, templates, goProject, openInWindow]);
   // A Claude session tied to no project: made, kept under Sessions in the sidebar, and opened.
   const newFreeSession = useCallback(async (inWindow = false) => {
@@ -500,8 +505,8 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
         {ready && <Workspace visible={page === 'workspace'} />}
       </div>
 
-      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={() => setNewProject(true)} onNewSession={() => void newFreeSession()} />}
-      {newProject && <NewProject onClose={() => setNewProject(false)} onCreated={(id, n) => { setNewProject(false); setToOpen({ id, name: n }); }} />}
+      {palette && <Palette onClose={() => setPalette(false)} go={go} onProject={goProject} onRestart={() => restart()} onRestartResume={() => restart(true)} onNewProject={(start) => setNewProject(start ?? true)} onNewSession={() => void newFreeSession()} />}
+      {newProject && <NewProject start={newProject} onClose={() => setNewProject(false)} onCreated={(id, n, kickoff) => { setNewProject(false); setToOpen({ id, name: n, kickoff }); }} />}
       {toast && <div className="toast over-native" role="status">{toast}</div>}
       <NoticeStack notices={notices} onOpen={openNotice} onDismiss={dismiss} />
 

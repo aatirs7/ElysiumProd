@@ -781,6 +781,10 @@ html.quick, html.quick body, html.quick #root { background: transparent; }
 .np-sub { text-align: center; color: var(--text-3); margin: 0 0 1.2rem; }
 .np-close { position: absolute; top: .8rem; right: .8rem; }
 .np-modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: .6rem; margin-bottom: 1.3rem; }
+.np-start-label { font-size: .74rem; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); margin: 0 0 .45rem .1rem; }
+.np-start .np-modes { margin-bottom: 1rem; }
+.np-start:last-of-type .np-modes { margin-bottom: 1.3rem; }
+.np-modes.n2 { grid-template-columns: repeat(2, 1fr); }
 .np-mode { display: flex; flex-direction: column; align-items: center; gap: .3rem; padding: .9rem .6rem; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text-2); cursor: pointer; text-align: center; transition: border-color .15s var(--ease), background-color .15s var(--ease), color .15s var(--ease); }
 .np-mode:hover { border-color: var(--line-strong); color: var(--text); }
 .np-mode.on { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); background: color-mix(in srgb, var(--accent) 10%, var(--surface-2)); color: var(--text); }

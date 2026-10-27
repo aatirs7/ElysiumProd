@@ -185,7 +185,11 @@ export interface RepoCandidate { folder: string; name: string; touchedAt: string
 export interface ProjectExtras { links?: { id: string; label: string; url: string }[]; people?: string[]; open?: string; checkWhat?: string }
 export interface ProjectInfo { id: string; name: string; folder: string; repo: string | null; tier: 'main' | 'side'; hasRelay: boolean; waitingHeading: string; exists: boolean; custom: boolean; /** A Claude session tied to no project. */ free: boolean; extras: ProjectExtras | null; builtin: boolean }
 
+/** What a new project is: its kind writes working rules into the folder and gives Claude a first message. */
+export type ProjectKind = 'ios' | 'web' | 'blank';
+
 export interface NewProjectRequest {
+  kind?: ProjectKind;
   mode: 'clone' | 'new' | 'existing';
   name: string;
   /** clone: a repository address or owner/repo. */
@@ -199,7 +203,7 @@ export interface NewProjectRequest {
   /** new: also make a repository on GitHub. */
   github?: 'none' | 'private' | 'public';
 }
-export interface NewProjectResult { ok: boolean; reason: string | null; projectId?: string }
+export interface NewProjectResult { ok: boolean; reason: string | null; projectId?: string; /** The first message for its Claude session, sent once the project is open. */ kickoff?: string }
 export interface RelayInfo { ok: boolean; error: string | null; text: string; updatedAt: string | null; source: string; waitingHeading: string }
 export interface TaskInfo { number: number; title: string; labels: string[]; updatedAt: string; url: string; comments: number; needsOwner: boolean }
 export interface GitInfo { ok: boolean; error: string | null; branch: string | null; ahead: number; behind: number; dirty: number; commits: { hash: string; when: string; subject: string }[] }

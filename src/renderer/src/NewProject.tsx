@@ -1,19 +1,28 @@
-// New project: clone a repository, start one from scratch, or add a folder that
-// is already on disk. Picks one Claude session or a Prime and Meridian pair, and
+// New project: start an iOS app, a web app or an empty project, clone a
+// repository, or add a folder that is already on disk. An iOS or web app gets its
+// working rules and a first message for Claude, which sets it up with you. Picks one Claude session or a Prime and Meridian pair, and
 // the Claude account. Once made, the project is pinned and opened.
 import { useEffect, useState } from 'react';
-import { FolderOpen, FolderPlus, GitBranch, Loader2, X } from 'lucide-react';
-import type { NewProjectRequest } from '@shared/ipc';
+import { FolderOpen, FolderPlus, GitBranch, Globe, Loader2, Smartphone, X } from 'lucide-react';
+import type { NewProjectRequest, ProjectKind } from '@shared/ipc';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 
 type Mode = NewProjectRequest['mode'];
+/** What you pick first: a kind of new app, or a project you already have. */
+export type Pick = 'ios' | 'web' | 'new' | 'clone' | 'existing';
 
-const MODES: { id: Mode; label: string; icon: typeof GitBranch; blurb: string }[] = [
+const STARTS: { id: Pick; label: string; icon: typeof GitBranch; blurb: string }[] = [
+  { id: 'ios', label: 'iOS app', icon: Smartphone, blurb: 'Expo and EAS, ready to build' },
+  { id: 'web', label: 'Web app', icon: Globe, blurb: 'Next.js on Vercel' },
+  { id: 'new', label: 'Empty', icon: FolderPlus, blurb: 'A folder with git set up' },
+];
+const BRING: { id: Pick; label: string; icon: typeof GitBranch; blurb: string }[] = [
   { id: 'clone', label: 'Clone', icon: GitBranch, blurb: 'From GitHub or any git address' },
-  { id: 'new', label: 'From scratch', icon: FolderPlus, blurb: 'A new folder with git set up' },
   { id: 'existing', label: 'Existing folder', icon: FolderOpen, blurb: 'Something already on this PC' },
 ];
+const modeOf = (p: Pick): Mode => (p === 'clone' || p === 'existing' ? p : 'new');
+const kindOf = (p: Pick): ProjectKind => (p === 'ios' || p === 'web' ? p : 'blank');
 
 
 /** The repository's own name from an address or owner/repo, made readable. */
@@ -22,10 +31,11 @@ function nameFromUrl(url: string): string {
   return last.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
 
-export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(projectId: string, name: string): void }) {
+export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): void; onCreated(projectId: string, name: string, kickoff?: string): void; start?: Pick }) {
   const { accounts } = useLive();
   const { doc, togglePin, setProjectAccount } = useWorkspace();
-  const [mode, setMode] = useState<Mode>('clone');
+  const [what, setWhat] = useState<Pick>(start);
+  const mode = modeOf(what);
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [nameTouched, setNameTouched] = useState(false);
@@ -50,12 +60,12 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
   const submit = async () => {
     if (!ready || busy) return;
     setBusy(true); setError(null);
-    const r = await window.elysium.createProject({ mode, name: name.trim(), url, parent, folder, sessions, github: mode === 'new' ? github : 'none' });
+    const r = await window.elysium.createProject({ mode, kind: kindOf(what), name: name.trim(), url, parent, folder, sessions, github: mode === 'new' ? github : 'none' });
     setBusy(false);
     if (!r.ok || !r.projectId) { setError(r.reason ?? 'Something went wrong.'); return; }
     if (account !== 'main') setProjectAccount(r.projectId, account);
     if (!doc.pinned.includes(r.projectId)) togglePin(r.projectId);
-    onCreated(r.projectId, name.trim());
+    onCreated(r.projectId, name.trim(), r.kickoff);
   };
 
   const where = mode === 'existing' ? folder : `${parent}\\${(mode === 'clone' ? (url.trim().replace(/\.git$/, '').split(/[/:]/).pop() ?? '') : name.trim().replace(/[^\w.-]+/g, '-')) || '…'}`;
@@ -64,18 +74,23 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
     <div className="backdrop" role="dialog" aria-modal="true" aria-labelledby="np-title" onClick={() => { if (!busy) onClose(); }}>
       <div className="dialog np" onClick={(e) => e.stopPropagation()}>
         <button className="ghost-icon np-close" onClick={onClose} disabled={busy} aria-label="Close"><X size={16} /></button>
-        <h3 id="np-title">New project</h3>
-        <p className="np-sub">It joins your sidebar and opens with its Claude sessions ready.</p>
+        <h3 id="np-title">What are you making?</h3>
+        <p className="np-sub">{what === 'ios' || what === 'web' ? 'It opens with its terminal and Claude side by side, and Claude starts by asking what the app is.' : 'It joins your sidebar and opens with its Claude sessions ready.'}</p>
 
-        <div className="np-modes">
-          {MODES.map((m) => (
-            <button key={m.id} className={`np-mode ${mode === m.id ? 'on' : ''}`} onClick={() => { setMode(m.id); setError(null); }} disabled={busy}>
-              <m.icon size={18} />
-              <span className="np-mode-label">{m.label}</span>
-              <span className="np-mode-blurb">{m.blurb}</span>
-            </button>
-          ))}
-        </div>
+        {[{ label: 'Start something new', items: STARTS }, { label: 'Bring in one you have', items: BRING }].map((row) => (
+          <div key={row.label} className="np-start">
+            <div className="np-start-label">{row.label}</div>
+            <div className={`np-modes n${row.items.length}`}>
+              {row.items.map((m) => (
+                <button key={m.id} className={`np-mode ${what === m.id ? 'on' : ''}`} onClick={() => { setWhat(m.id); setError(null); }} disabled={busy}>
+                  <m.icon size={18} />
+                  <span className="np-mode-label">{m.label}</span>
+                  <span className="np-mode-blurb">{m.blurb}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
 
         <div className="np-fields">
           {mode === 'clone' && (
@@ -131,7 +146,7 @@ export function NewProject({ onClose, onCreated }: { onClose(): void; onCreated(
         <div className="dialog-row">
           <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
           <button className="btn primary" onClick={() => void submit()} disabled={!ready || busy}>
-            {busy ? <><Loader2 size={15} className="spin" />{mode === 'clone' ? 'Cloning' : 'Setting up'}</> : mode === 'clone' ? 'Clone and open' : mode === 'new' ? 'Create and open' : 'Add and open'}
+            {busy ? <><Loader2 size={15} className="spin" />{mode === 'clone' ? 'Cloning' : 'Setting up'}</> : mode === 'clone' ? 'Clone and open' : what === 'ios' ? 'Create the iOS app' : what === 'web' ? 'Create the web app' : mode === 'new' ? 'Create and open' : 'Add and open'}
           </button>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BarChart3, RotateCw, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal, Bot } from 'lucide-react';
+import type { Pick as NewStart } from './NewProject';
+import { Globe, Smartphone, BarChart3, RotateCw, Rows2, Bookmark, BookmarkPlus, CircleHelp, CornerDownLeft, FileText, Home, Layers, Plus, Search, Settings as SettingsIcon, Sparkles, SquareTerminal, Bot } from 'lucide-react';
 import { useLive } from './workspace/live';
 import { useWorkspace } from './workspace/store';
 import { WIDGETS, stackTerminals } from './workspace/Workspace';
@@ -8,7 +9,7 @@ import type { Page } from './Sidebar';
 
 interface Action { id: string; label: string; hint: string; icon: React.ReactNode; run(): void }
 
-export function Palette({ onClose, go, onProject, onRestart, onRestartResume, onNewProject, onNewSession }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onRestartResume(): void; onNewProject(): void; onNewSession(): void }) {
+export function Palette({ onClose, go, onProject, onRestart, onRestartResume, onNewProject, onNewSession }: { onClose(): void; go(view: Page): void; onProject(id: string, name: string): void; onRestart(): void; onRestartResume(): void; onNewProject(start?: NewStart): void; onNewSession(): void }) {
   const { templates, projects } = useLive();
   const { doc, open, setActiveView, addView, applyPreset, savePreset, apiFor } = useWorkspace();
   const [q, setQ] = useState('');
@@ -19,7 +20,9 @@ export function Palette({ onClose, go, onProject, onRestart, onRestartResume, on
   const actions = useMemo<Action[]>(() => {
     const toWs = (f: () => void) => () => { go('workspace'); f(); };
     return [
-      { id: 'newproject', label: 'New project', hint: 'Clone a repository or start one', icon: <Plus size={15} />, run: onNewProject },
+      { id: 'newproject', label: 'New project', hint: 'An app, a clone or a folder you have', icon: <Plus size={15} />, run: () => onNewProject() },
+      { id: 'newios', label: 'New iOS app', hint: 'Expo and EAS, with Claude ready to set it up', icon: <Smartphone size={15} />, run: () => onNewProject('ios') },
+      { id: 'newweb', label: 'New web app', hint: 'Next.js on Vercel, with Claude ready to set it up', icon: <Globe size={15} />, run: () => onNewProject('web') },
       { id: 'newsession', label: 'New Claude session', hint: 'Tied to no project, kept under Sessions', icon: <Sparkles size={15} />, run: onNewSession },
       ...projects.map((p) => ({ id: `p-open-${p.id}`, label: `Open ${p.name}`, hint: p.tier === 'main' ? 'Project' : 'Side project', icon: <ProjectLogo projectId={p.id} />, run: () => onProject(p.id, p.name) })),
       ...templates.map((t) => ({ id: `t-${t.id}`, label: t.kind === 'agent' ? `Start ${t.title} in ${t.projectName}` : `Start ${t.title}`, hint: t.kind === 'shell' ? 'Shell' : 'Session', icon: t.kind === 'claude' ? <Sparkles size={15} /> : t.kind === 'agent' ? <Bot size={15} /> : <SquareTerminal size={15} />, run: toWs(() => open({ kind: 'terminal', templateId: t.id, title: t.title })) })),

@@ -36,6 +36,8 @@ export interface ProjectDef {
   tier: 'main' | 'side';
   /** Added in the app (projects.json), not part of the built-in table. */
   custom?: boolean;
+  /** What it was made as (an iOS app, a web app). */
+  kind?: 'ios' | 'web' | 'blank';
   /** A Claude session of its own, tied to no project: it works in its own folder under Elysium Sessions. */
   free?: boolean;
   /** Side projects: a named session of their own instead of the folder's latest conversation. */

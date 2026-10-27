@@ -317,6 +317,27 @@ export async function runSmoke(ctx: { win: BrowserWindow; sessions: SessionManag
       await shot('30-free-session');
       if (made.projectId) { await js(`window.elysium.removeProject('${made.projectId}')`); try { rmdirSync(saved.find((x) => x.id === made.projectId)?.folder ?? ''); } catch { /* only an empty folder is removed */ } }
     }
+    // New iOS app: the dialog, then one made in a temp folder (not opened, so no Claude starts).
+    {
+      await js(`document.querySelector('.side-label[data-tour="projects"] button')?.click()`); await sleep(400);
+      await js(`document.querySelector('.pin-picker .new-project')?.click()`); await sleep(700);
+      await shot('31-new-project');
+      r.newProjectStarts = await js(`[...document.querySelectorAll('.dialog.np .np-mode-label')].map((x) => x.textContent)`);
+      await js(`document.querySelector('.dialog.np .np-close')?.click()`); await sleep(300);
+      const parent = join(out, 'np');
+      mkdirSync(parent, { recursive: true });
+      const made = await js(`window.elysium.createProject({ mode: 'new', kind: 'ios', name: 'Smoke iOS', parent: ${JSON.stringify(parent)}, sessions: 'solo', github: 'none' })`) as { ok: boolean; projectId?: string; kickoff?: string; reason: string | null };
+      const folder = join(parent, 'Smoke-iOS');
+      let saved: { id: string; kind?: string }[] = [];
+      try { saved = JSON.parse(readFileSync(join(dataDir(), 'projects.json'), 'utf8')); } catch { /* checked below */ }
+      const agents = existsSync(join(folder, 'AGENTS.md')) ? readFileSync(join(folder, 'AGENTS.md'), 'utf8') : '';
+      r.iosApp = {
+        ok: made.ok, reason: made.reason, kind: saved.find((x) => x.id === made.projectId)?.kind ?? null,
+        files: ['AGENTS.md', 'CLAUDE.md', 'README.md', '.git'].filter((f) => existsSync(join(folder, f))),
+        mentionsEas: agents.includes('EAS'), emDash: /\u2014/.test(agents + (made.kickoff ?? '')), kickoff: (made.kickoff ?? '').slice(0, 80),
+      };
+      if (made.projectId) await js(`window.elysium.removeProject('${made.projectId}')`);
+    }
     await js(`document.querySelector('.usage-strip')?.click()`);
     await sleep(600); await shot('16-usage');
     await js(`[...document.querySelectorAll('.nav')].find((x) => x.textContent.trim() === 'Home')?.click()`);
