@@ -30,6 +30,20 @@ const allowed = (u: string) => {
 };
 
 /**
+ * A connector's sign in: claude.ai's own start page for it, or the connector's
+ * authorize page, which always names a claude.ai address to come back to.
+ */
+const signInPopup = (u: string) => {
+  try {
+    const x = new URL(u);
+    if (x.protocol !== 'https:') return false;
+    if (allowed(u)) return /mcp|oauth|connect|auth/i.test(x.pathname);
+    const back = x.searchParams.get('redirect_uri');
+    return Boolean(back && allowed(back));
+  } catch { return false; }
+};
+
+/**
  * claude.ai and Google sign-in refuse or stall on browsers that announce
  * themselves as Electron, so the pane presents the plain Chrome identity
  * Electron is built on, without the Electron and app tokens.
@@ -106,11 +120,15 @@ export function attachWeb(win: BrowserWindow, id: string, accountId: string, emi
   wc.setUserAgent(chromeUserAgent());
   const state = (loading: boolean, error: string | null = null) => emit({ id, url: wc.getURL(), title: wc.getTitle(), loading, error, accountId });
   wc.setWindowOpenHandler(({ url }) => {
+    // Connecting a connector opens a sign in window that must share this pane's claude.ai session,
+    // or claude.ai cannot confirm it: it opens here, in a small window of its own, not in the browser.
+    if (!site && signInPopup(url)) return { action: 'allow', overrideBrowserWindowOptions: { width: 520, height: 720, autoHideMenuBar: true, title: 'Connect', backgroundColor: '#262624' } };
     if (ok(url)) void wc.loadURL(url); else if (/^https:\/\//.test(url)) void shell.openExternal(url);
     return { action: 'deny' };
   });
   const guard = (e: Electron.Event, url: string) => {
-    if (ok(url)) return;
+    // A connector sign in may also take the pane itself to the connector's page and back.
+    if (ok(url) || (!site && signInPopup(url))) return;
     e.preventDefault();
     log(`blocked navigation to ${new URL(url).hostname}`);
     if (/^https:\/\//.test(url)) void shell.openExternal(url);
