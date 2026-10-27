@@ -15,7 +15,7 @@ import { useAppearance } from './theme';
 import { LiveProvider, useLive, useMachine } from './workspace/live';
 import { WorkspaceProvider, useWorkspace, type OpenRequest } from './workspace/store';
 import { Workspace, addPanel, builderTerminal, ensureProjectSessions, openChat, shortModel } from './workspace/Workspace';
-import { NewProject, type Pick as NewStart } from './NewProject';
+import { NewProject, type Start as NewStart } from './NewProject';
 import { Tour } from './Tour';
 import { ThemeBuilder } from './ThemeBuilder';
 import { Playbook } from './Playbook';
@@ -164,10 +164,21 @@ function Shell({ confirm, setConfirm }: { confirm: Confirm | null; setConfirm(c:
     if (!toOpen || !templates.some((t) => t.project === toOpen.id)) return;
     setToOpen(null);
     if (toOpen.window) openInWindow(toOpen.id, toOpen.name); else goProject(toOpen.id, toOpen.name);
-    // A new iOS or web app: once its terminal has started the session, Claude gets the first message.
-    const { id, kickoff } = toOpen;
-    if (kickoff) setTimeout(() => void window.elysium.quickRun(id, kickoff).then((r) => { if (!r.ok) setToast(r.reason ?? 'Could not hand Claude its first message.'); }), 2500);
+    if (toOpen.kickoff) setKickoff({ id: toOpen.id, text: toOpen.kickoff, at: Date.now() });
   }, [toOpen, templates, goProject, openInWindow]);
+  // A new iOS or web app: its first message waits until the pane has Claude running (a second start
+  // would be refused while the first is still starting), then goes in once Claude is ready.
+  const [kickoff, setKickoff] = useState<{ id: string; text: string; at: number } | null>(null);
+  useEffect(() => {
+    if (!kickoff) return;
+    const lead = templates.find((t) => t.project === kickoff.id && (t.role === 'prime' || t.role === 'solo'));
+    const up = lead && sessions.some((x) => x.templateId === lead.id && x.status === 'running');
+    const send = () => { setKickoff(null); void window.elysium.quickRun(kickoff.id, kickoff.text).then((r) => { if (!r.ok) setToast(r.reason ?? 'Could not hand Claude its first message.'); }); };
+    if (up) { send(); return; }
+    // The pane did not start it (say memory was low): the task path starts it instead.
+    const t = setTimeout(send, Math.max(0, 30000 - (Date.now() - kickoff.at)));
+    return () => clearTimeout(t);
+  }, [kickoff, templates, sessions]);
   // A Claude session tied to no project: made, kept under Sessions in the sidebar, and opened.
   const newFreeSession = useCallback(async (inWindow = false) => {
     const r = await window.elysium.createFreeSession();

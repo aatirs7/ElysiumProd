@@ -10,19 +10,19 @@ import { useWorkspace } from './workspace/store';
 
 type Mode = NewProjectRequest['mode'];
 /** What you pick first: a kind of new app, or a project you already have. */
-export type Pick = 'ios' | 'web' | 'new' | 'clone' | 'existing';
+export type Start = 'ios' | 'web' | 'new' | 'clone' | 'existing';
 
-const STARTS: { id: Pick; label: string; icon: typeof GitBranch; blurb: string }[] = [
+const STARTS: { id: Start; label: string; icon: typeof GitBranch; blurb: string }[] = [
   { id: 'ios', label: 'iOS app', icon: Smartphone, blurb: 'Expo and EAS, ready to build' },
   { id: 'web', label: 'Web app', icon: Globe, blurb: 'Next.js on Vercel' },
   { id: 'new', label: 'Empty', icon: FolderPlus, blurb: 'A folder with git set up' },
 ];
-const BRING: { id: Pick; label: string; icon: typeof GitBranch; blurb: string }[] = [
+const BRING: { id: Start; label: string; icon: typeof GitBranch; blurb: string }[] = [
   { id: 'clone', label: 'Clone', icon: GitBranch, blurb: 'From GitHub or any git address' },
   { id: 'existing', label: 'Existing folder', icon: FolderOpen, blurb: 'Something already on this PC' },
 ];
-const modeOf = (p: Pick): Mode => (p === 'clone' || p === 'existing' ? p : 'new');
-const kindOf = (p: Pick): ProjectKind => (p === 'ios' || p === 'web' ? p : 'blank');
+const modeOf = (p: Start): Mode => (p === 'clone' || p === 'existing' ? p : 'new');
+const kindOf = (p: Start): ProjectKind => (p === 'ios' || p === 'web' ? p : 'blank');
 
 
 /** The repository's own name from an address or owner/repo, made readable. */
@@ -31,10 +31,10 @@ function nameFromUrl(url: string): string {
   return last.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()).trim();
 }
 
-export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): void; onCreated(projectId: string, name: string, kickoff?: string): void; start?: Pick }) {
+export function NewProject({ onClose, onCreated, start = 'ios' }: { onClose(): void; onCreated(projectId: string, name: string, kickoff?: string): void; start?: Start }) {
   const { accounts } = useLive();
   const { doc, togglePin, setProjectAccount } = useWorkspace();
-  const [what, setWhat] = useState<Pick>(start);
+  const [what, setWhat] = useState<Start>(start);
   const mode = modeOf(what);
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
