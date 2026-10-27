@@ -194,7 +194,7 @@ export interface ProjectInfo { id: string; name: string; folder: string; repo: s
 export type ProjectKind = 'ios' | 'web' | 'blank';
 
 export interface ConnectorState { url: string | null; deployedAt: string | null; passphrase: string | null; /** The step running now, or null. */ step: string | null; error: string | null }
-export interface BoardInfo { projectId: string; repo: string }
+export interface BoardInfo { projectId: string; repo: string; /** Has a chat bridge of its own, which is left alone. */ own?: boolean }
 
 export interface NewProjectRequest {
   kind?: ProjectKind;

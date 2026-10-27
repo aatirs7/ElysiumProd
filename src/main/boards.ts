@@ -32,8 +32,11 @@ function read<T>(file: string, empty: T): T {
 }
 const boards = () => read<Record<string, Board>>(FILE(), {});
 
+/** Projects with the bridge on, and those with a bridge of their own (.claude/mods.json), which are left alone. */
 export function boardList(): BoardInfo[] {
-  return Object.entries(boards()).map(([projectId, b]) => ({ projectId, repo: b.repo }));
+  const on = boards();
+  const own = Object.entries(PROJECT_FOLDERS).filter(([id, p]) => !on[id] && existsSync(join(p.folder, '.claude', 'mods.json'))).map(([projectId]) => ({ projectId, repo: '', own: true }));
+  return [...Object.entries(on).map(([projectId, b]) => ({ projectId, repo: b.repo })), ...own];
 }
 
 /** "owner/repo" from a folder's origin on GitHub, or null. */
@@ -72,17 +75,18 @@ export function writeBoardFiles(folder: string, name: string, login: string): st
   mkdirSync(join(folder, 'docs', 'relay'), { recursive: true });
   if (!existsSync(join(folder, RELAY))) writeFileSync(join(folder, RELAY), RELAY_TEMPLATE(name));
   mkdirSync(join(folder, '.claude', 'rules'), { recursive: true });
-  writeFileSync(join(folder, '.claude', 'rules', 'relay.md'), RULE);
+  if (!existsSync(join(folder, '.claude', 'rules', 'elysium-bridge.md'))) writeFileSync(join(folder, '.claude', 'rules', 'elysium-bridge.md'), RULE);
   const md = join(folder, 'CLAUDE.md');
   const had = existsSync(md) ? readFileSync(md, 'utf8') : '';
-  if (!had.includes('@.claude/rules/relay.md')) writeFileSync(md, `${had}${had && !had.endsWith('\n') ? '\n' : ''}@.claude/rules/relay.md\n`);
-  return ['.elysium/board.json', RELAY, '.claude/rules/relay.md', 'CLAUDE.md'];
+  if (!had.includes('@.claude/rules/elysium-bridge.md')) writeFileSync(md, `${had}${had && !had.endsWith('\n') ? '\n' : ''}@.claude/rules/elysium-bridge.md\n`);
+  return ['.elysium/board.json', RELAY, '.claude/rules/elysium-bridge.md', 'CLAUDE.md'];
 }
 
 /** Turns the chat bridge on for a project that is already on GitHub: its own commit, pushed. */
 export async function enableBoard(projectId: string): Promise<{ ok: boolean; reason: string | null }> {
   const p = PROJECT_FOLDERS[projectId];
   if (!p) return { ok: false, reason: 'No such project.' };
+  if (existsSync(join(p.folder, '.claude', 'mods.json'))) return { ok: false, reason: 'This project has a chat bridge of its own, so it is left as it is.' };
   const login = await ghLogin();
   if (!login) return { ok: false, reason: 'GitHub is not signed in here. Run gh auth login in a terminal, then try again.' };
   const repo = await originSlug(p.folder);
